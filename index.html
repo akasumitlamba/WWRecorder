@@ -1,90 +1,1070 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WWRecorder — Professional Screen Recording</title>
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WWRecorder - World Wide Recorder</title>
+  <meta name="description"
+    content="High-performance, crash-resilient screen recorder for Windows by Sumit Kumar Lamba. Optimised for low-end hardware." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
 </head>
+
 <body>
-    <nav>
-        <div class="container nav-content">
-            <div class="logo"><i class="fas fa-record-vinyl"></i> WWRecorder</div>
-            <div class="nav-links">
-                <a href="#features">Features</a>
-                <a href="legal.html">Legal</a>
-                <a href="https://github.com/akasumitlamba" target="_blank" class="github-link"><i class="fab fa-github"></i></a>
-            </div>
-        </div>
-    </nav>
+  <!-- Custom cursor -->
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
 
-    <header class="hero">
-        <div class="container">
-            <div class="badge">Version 1.0.0 for Windows</div>
-            <h1>Capture your world, <br><span class="gradient-text">without the lag.</span></h1>
-            <p>High-performance screen recording optimized for Intel i3 and integrated graphics. Lightweight, crash-resilient, and completely free.</p>
-            <div class="cta-group">
-                <a href="https://github.com/akasumitlamba/wwrecorder/releases/latest/download/WWRecorder_Setup_1.0.0.exe" class="btn btn-primary">
-                    <i class="fab fa-windows"></i> Download for Windows
-                </a>
-                <a href="#requirements" class="btn btn-secondary">Requirements</a>
-            </div>
-        </div>
-    </header>
+  <!-- Download animation overlay -->
+  <div id="dl-overlay" class="dl-overlay" aria-hidden="true">
+    <div class="dl-card">
+      <!-- Icon ring -->
+      <div class="dl-icon-wrap">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <svg class="dl-ring" viewBox="0 0 44 44">
+          <circle class="dl-ring-track" cx="22" cy="22" r="19" />
+          <circle class="dl-ring-fill" cx="22" cy="22" r="19" />
+        </svg>
+      </div>
 
-    <section id="features" class="container">
-        <div class="section-title">
-            <h2>Why WWRecorder?</h2>
-            <p>Built with efficiency at its core using FFmpeg and Python.</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card">
-                <i class="fas fa-bolt"></i>
-                <h3>Low CPU Usage</h3>
-                <p>Optimized for older hardware using the x264 ultrafast preset and CRF encoding.</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-shield-alt"></i>
-                <h3>Crash Resilient</h3>
-                <p>Recorded in .mkv format. If your PC loses power, your video is still saved.</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-eye-slash"></i>
-                <h3>Invisible UI</h3>
-                <p>The control pill uses Windows Affinity API to hide itself from your recordings.</p>
-            </div>
-            <div class="feature-card">
-                <i class="fas fa-microphone"></i>
-                <h3>Dual Audio</h3>
-                <p>Capture system loopback and microphone simultaneously with zero latency.</p>
-            </div>
-        </div>
-    </section>
+      <!-- Status text -->
+      <p class="dl-status" id="dl-status">Redirecting to download…</p>
 
-    <section id="requirements" class="requirements-section">
-        <div class="container">
-            <h3>Technical Requirements</h3>
-            <div class="req-box">
-                <ul>
-                    <li><strong>OS:</strong> Windows 10 (2004+) or Windows 11</li>
-                    <li><strong>Processor:</strong> Intel Core i3 (2nd Gen+) or equivalent</li>
-                    <li><strong>Graphics:</strong> Any integrated or dedicated GPU</li>
-                    <li><strong>Dependencies:</strong> FFmpeg (bundled)</li>
-                </ul>
-            </div>
-        </div>
-    </section>
+      <!-- Progress bar -->
+      <div class="dl-bar-wrap">
+        <div class="dl-bar" id="dl-bar"></div>
+      </div>
 
-    <footer>
-        <div class="container">
-            <p>&copy; 2026 WWRecorder Project. Developed by <a href="https://github.com/akasumitlamba">akasumitlamba</a>.</p>
-            <div class="footer-links">
-                <a href="legal.html#privacy">Privacy</a>
-                <a href="legal.html#license">License</a>
-            </div>
+      <!-- Percent -->
+      <p class="dl-pct" id="dl-pct">0%</p>
+
+      <!-- Thank-you message -->
+      <div class="dl-thanks" id="dl-thanks">
+        <p class="dl-thanks-title">Thanks! 🎉</p>
+        <p class="dl-thanks-sub">Your download is starting. If it doesn't, <a
+            href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
+            target="_blank">click here</a>.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <nav>
+    <div class="nav-logo">
+      <div class="nav-dot"></div>
+      WWRecorder
+    </div>
+    <ul class="nav-links" id="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#install">Install</a></li>
+      <li><a href="#use">How to Use</a></li>
+      <li><a href="#configure">Configure</a></li>
+      <li><a href="#specs">Specs</a></li>
+      <li>
+        <a class="nav-cta"
+          href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
+          target="_blank">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download
+        </a>
+      </li>
+    </ul>
+    <div class="hamburger" id="hamburger" onclick="toggleMenu()">
+      <span></span><span></span><span></span>
+    </div>
+  </nav>
+
+  <section class="hero" id="home">
+    <div class="hero-grid"></div>
+    <div class="hero-glow"></div>
+
+    <div class="hero-badge">
+      <div class="hero-badge-dot"></div>
+      Windows 10+ · Free · Open Source
+    </div>
+
+    <h1 class="hero-title">WW<span>R</span>ECORDER</h1>
+    <p class="hero-sub">World Wide Recorder</p>
+    <p class="hero-desc">
+      High-performance, crash-resilient screen recorder built for real
+      hardware. Stable 30 FPS · Invisible Pill UI · Zero-latency audio toggle.
+    </p>
+
+    <div class="hero-author">
+      <span class="author-label">Crafted by</span>
+      <a href="https://github.com/akasumitlamba" target="_blank" rel="noopener" class="author-link">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path
+            d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+        </svg>
+        Sumit Kumar Lamba
+      </a>
+    </div>
+
+    <div class="hero-actions">
+      <a class="btn-primary"
+        href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
+        target="_blank">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        Download for Windows
+      </a>
+      <a class="btn-secondary" href="https://github.com/akasumitlamba/WWRecorder" target="_blank">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path
+            d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+        </svg>
+        View on GitHub
+      </a>
+    </div>
+
+    <div class="pill-showcase">
+      <div class="pill-label-row">
+        <span class="pill-tag">// Invisible to your recording</span>
+        <span class="pill-tag-live"><span class="rec-dot-sm"></span> LIVE PREVIEW</span>
+      </div>
+
+      <div class="pill-widget pill-idle" id="pill-idle">
+        <button class="pill-btn-start" id="pill-start-btn" onclick="pillStartRecording()">
+          Start
+        </button>
+        <div class="pill-sep"></div>
+        <button class="pill-icon-btn pill-pause-btn disabled" title="Pause">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-stop-btn disabled" title="Stop">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+        </button>
+        <div class="pill-sep"></div>
+        <button class="pill-icon-btn pill-audio-btn active" id="idle-audio" title="Toggle System Audio"
+          onclick="togglePillAudio(this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-mic-btn active" id="idle-mic" title="Toggle Mic"
+          onclick="togglePillMic(this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-gear-btn" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="pill-widget pill-recording hidden" id="pill-recording">
+        <span class="pill-timer" id="pill-timer-display">00:00:00</span>
+        <div class="pill-sep"></div>
+        <button class="pill-icon-btn pill-pause-btn" id="pill-pause-btn" title="Pause" onclick="togglePillPause()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" rx="1" />
+            <rect x="14" y="4" width="4" height="16" rx="1" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-stop-btn recording-active" title="Stop" onclick="pillStopRecording()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+          </svg>
+        </button>
+        <div class="pill-sep"></div>
+        <button class="pill-icon-btn pill-audio-btn active" id="rec-audio" title="Toggle System Audio"
+          onclick="togglePillAudio(this)">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-mic-btn" id="rec-mic" title="Toggle Mic" onclick="togglePillMic(this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+            <line x1="12" y1="19" x2="12" y2="23" />
+            <line x1="8" y1="23" x2="16" y2="23" />
+          </svg>
+        </button>
+        <button class="pill-icon-btn pill-gear-btn" title="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
+        </button>
+      </div>
+
+      <p class="pill-hint" id="pill-hint">
+        Click <strong>Start</strong> to try the interactive demo ↑
+      </p>
+    </div>
+
+    <div class="hero-scroll">
+      <span>Scroll</span>
+      <div class="scroll-line"></div>
+    </div>
+  </section>
+
+  <div class="stats-bar">
+    <div class="stats-inner">
+      <div class="stat-item reveal-flip">
+        <div class="stat-value">30<em>FPS</em></div>
+        <div class="stat-label">Stable Frame Rate</div>
+      </div>
+      <div class="stat-item reveal-flip reveal-delay-1">
+        <div class="stat-value">CRF<em>28</em></div>
+        <div class="stat-label">H.264 Quality</div>
+      </div>
+      <div class="stat-item reveal-flip reveal-delay-2">
+        <div class="stat-value"><em>.</em>MKV</div>
+        <div class="stat-label">Crash-Resilient</div>
+      </div>
+      <div class="stat-item reveal-flip reveal-delay-3">
+        <div class="stat-value">48<em>kHz</em></div>
+        <div class="stat-label">Audio Sample Rate</div>
+      </div>
+      <div class="stat-item reveal-flip reveal-delay-4">
+        <div class="stat-value">0<em>UAC</em></div>
+        <div class="stat-label">No Admin Rights</div>
+      </div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">Capabilities</div>
+      <h2 class="section-title">Built for the real world.</h2>
+      <p class="section-desc">
+        Every feature engineered for reliability on hardware that can't afford
+        to choke.
+      </p>
+    </div>
+
+    <div class="features-grid">
+      <div class="feature-card reveal-left">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
         </div>
-    </footer>
+        <h3 class="feature-title">Stable 30 FPS on Low-End CPUs</h3>
+        <p class="feature-desc">
+          H.264 with the <em>superfast</em> preset keeps encoding off the
+          critical path. Intel i3 with integrated graphics delivers smooth,
+          tear-free recordings without dropped frames.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">libx264</span>
+          <span class="feature-tag">superfast</span>
+          <span class="feature-tag">crf 28</span>
+          <span class="feature-tag">yuv420p</span>
+        </div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-1">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
+        </div>
+        <h3 class="feature-title">Crash-Resilient .MKV</h3>
+        <p class="feature-desc">
+          MKV's self-healing index means your recording survives unexpected
+          shutdowns, BSOD, or power loss. No more corrupted files from
+          incomplete writes.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">.mkv</span>
+          <span class="feature-tag">recoverable</span>
+        </div>
+      </div>
+
+      <div class="feature-card reveal-right reveal-delay-2">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <line x1="8" y1="21" x2="16" y2="21" />
+            <line x1="12" y1="17" x2="12" y2="21" />
+          </svg>
+        </div>
+        <h3 class="feature-title">Invisible Pill UI</h3>
+        <p class="feature-desc">
+          Uses <code>WDA_EXCLUDEFROMCAPTURE</code> - it vanishes from your
+          recording. Control bar is always-on-top, borderless.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">Win 10 2004+</span>
+          <span class="feature-tag">WDA_EXCLUDE</span>
+        </div>
+      </div>
+
+      <div class="feature-card reveal-left reveal-delay-1">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+          </svg>
+        </div>
+        <h3 class="feature-title">Zero-Latency Audio Toggle</h3>
+        <p class="feature-desc">
+          Mute system audio or mic mid-recording. No restart needed. Silence
+          is written as zero frames - timeline never breaks.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">WASAPI</span>
+          <span class="feature-tag">mic boost ×2.5</span>
+        </div>
+      </div>
+
+      <div class="feature-card reveal reveal-delay-2">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+          </svg>
+        </div>
+        <h3 class="feature-title">Global Hotkey &amp; Frozen Pause</h3>
+        <p class="feature-desc">
+          <kbd>Shift+Backspace</kbd> works when minimised. Pause re-sends the
+          last frame so A/V sync is always perfect.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">pynput</span>
+          <span class="feature-tag">configurable</span>
+        </div>
+      </div>
+
+      <div class="feature-card reveal-right reveal-delay-3">
+        <div class="feature-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+        </div>
+        <h3 class="feature-title">No UAC - Per-User Installer</h3>
+        <p class="feature-desc">
+          Inno Setup 6 installs to <code>%LocalAppData%</code>. Auto-start via
+          Registry. Single named mutex prevents duplicate instances.
+        </p>
+        <div class="feature-chips">
+          <span class="feature-tag">Inno Setup 6</span>
+          <span class="feature-tag">per-user</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="install">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">Installation</div>
+      <h2 class="section-title">Up in 60 seconds.</h2>
+      <p class="section-desc">
+        No admin rights. No background services. No telemetry. Just a clean
+        per-user install.
+      </p>
+    </div>
+
+    <div class="install-steps">
+      <div class="step-card reveal-scale">
+        <div class="step-number">01</div>
+        <div class="step-badge">1</div>
+        <h3 class="step-title">Download the Installer</h3>
+        <p class="step-desc">
+          Grab the latest <code>.exe</code> from the GitHub Releases page. A
+          single self-contained installer compiled with Inno Setup 6.
+        </p>
+        <div class="step-code">WWRecorder_Setup_1.0.0.exe</div>
+      </div>
+
+      <div class="step-card reveal-scale reveal-delay-1">
+        <div class="step-number">02</div>
+        <div class="step-badge">2</div>
+        <h3 class="step-title">Run Setup - Run Anyway</h3>
+        <p class="step-desc">
+          Double-click the installer. If Windows SmartScreen blocks it, click
+          <strong>More info</strong> and then <strong>Run anyway</strong>.
+          Installs straight to your user folder without a UAC prompt.
+        </p>
+        <div class="step-code">%LocalAppData%\WWRecorder</div>
+      </div>
+
+      <div class="step-card reveal-scale reveal-delay-2">
+        <div class="step-number">03</div>
+        <div class="step-badge">3</div>
+        <h3 class="step-title">Launch &amp; Record</h3>
+        <p class="step-desc">
+          WWRecorder appears in your system tray. Double-click to pick a
+          region, or press <kbd>Shift+Backspace</kbd> from anywhere.
+        </p>
+        <div class="step-code">Shift + Backspace</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="use">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">How To Use</div>
+      <h2 class="section-title">Simple by design.</h2>
+      <p class="section-desc">
+        The Pill lives at the edge of your screen. Everything else stays out
+        of your way.
+      </p>
+    </div>
+
+    <div class="use-grid">
+      <div class="use-visual reveal-left">
+        <div class="tray-mockup">
+          <div class="tray-titlebar">
+            <div class="tray-dot r"></div>
+            <div class="tray-dot y"></div>
+            <div class="tray-dot g"></div>
+          </div>
+          <div class="tray-body">
+            <div class="pill-state-block">
+              <span class="pill-state-label">Idle state</span>
+              <div class="pill-widget-static">
+                <button class="pill-btn-start static">Start</button>
+                <div class="pill-sep"></div>
+                <button class="pill-icon-btn disabled">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn disabled">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                  </svg>
+                </button>
+                <div class="pill-sep"></div>
+                <button class="pill-icon-btn pill-audio-btn active">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn pill-mic-btn active">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn pill-gear-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="pill-state-block">
+              <span class="pill-state-label">Recording state</span>
+              <div class="pill-widget-static recording-mode">
+                <span class="static-timer">00:00:07</span>
+                <div class="pill-sep"></div>
+                <button class="pill-icon-btn pill-pause-blue">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="6" y="4" width="4" height="16" rx="1" />
+                    <rect x="14" y="4" width="4" height="16" rx="1" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn pill-stop-red">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                  </svg>
+                </button>
+                <div class="pill-sep"></div>
+                <button class="pill-icon-btn pill-audio-btn active">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                    <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn pill-mic-btn active">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  </svg>
+                </button>
+                <button class="pill-icon-btn pill-gear-btn">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="3" />
+                    <path
+                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hotkey-demo">
+          <span class="key">Shift</span>
+          <span class="key-plus">+</span>
+          <span class="key accent">Backspace</span>
+          <span style="
+                font-size: 13px;
+                color: var(--text-3);
+                margin-left: 8px;
+                font-family: var(--mono);
+                font-size: 11px;
+              ">
+            → Toggle recording from anywhere
+          </span>
+        </div>
+      </div>
+
+      <div class="use-steps reveal-right reveal-delay-1">
+        <div class="use-step">
+          <div class="use-step-num">01</div>
+          <div class="use-step-content">
+            <h4>Select a Region</h4>
+            <p>
+              Launch from the system tray or press
+              <code>Shift+Backspace</code>. A dark overlay appears - drag to
+              select the area you want to capture.
+            </p>
+          </div>
+        </div>
+        <div class="use-step">
+          <div class="use-step-num">02</div>
+          <div class="use-step-content">
+            <h4>The Pill Appears</h4>
+            <p>
+              A minimal borderless Pill control bar anchors to your screen.
+              It's always-on-top and invisible to your recording.
+            </p>
+          </div>
+        </div>
+        <div class="use-step">
+          <div class="use-step-num">03</div>
+          <div class="use-step-content">
+            <h4>Toggle Audio On-the-Fly</h4>
+            <p>
+              Hit the speaker or mic icon to mute/unmute instantly. No
+              restart. Silence is written as zero frames - the timeline never
+              breaks.
+            </p>
+          </div>
+        </div>
+        <div class="use-step">
+          <div class="use-step-num">04</div>
+          <div class="use-step-content">
+            <h4>Pause &amp; Resume</h4>
+            <p>
+              Pause re-sends the last frame at 30 FPS to keep FFmpeg's clock
+              alive. A/V stays perfectly synced across the single continuous
+              <code>.mkv</code>.
+            </p>
+          </div>
+        </div>
+        <div class="use-step">
+          <div class="use-step-num">05</div>
+          <div class="use-step-content">
+            <h4>Stop &amp; Save</h4>
+            <p>
+              Click the red stop button. Video + audio mux in ~1–3 seconds.
+              File lands in <code>Videos\WWRecorder</code> - or wherever you
+              configured.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════════════ CONFIGURE ══ -->
+  <section id="configure">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">Configuration</div>
+      <h2 class="section-title">Works your way.</h2>
+      <p class="section-desc">
+        Every option lives in one clean settings panel. No INI files, no command-line flags.
+      </p>
+    </div>
+
+    <div class="cfg-grid">
+
+      <!-- LEFT: Settings UI mockup -->
+      <div class="cfg-mockup reveal-left">
+        <div class="cfg-win">
+          <div class="cfg-win-bar">
+            <div class="tray-dot r"></div>
+            <div class="tray-dot y"></div>
+            <div class="tray-dot g"></div>
+            <span class="cfg-win-title">WWRecorder Settings</span>
+          </div>
+          <div class="cfg-win-body">
+
+            <!-- Output -->
+            <div class="cfg-group" id="cfg-output">
+              <span class="cfg-label">Recording Output</span>
+              <div class="cfg-row">
+                <div class="cfg-path">C:\Users\Username\Videos\WWRecorder</div>
+                <button class="cfg-btn">Browse</button>
+              </div>
+            </div>
+
+            <!-- Hotkey + Share -->
+            <div class="cfg-two-col">
+              <div class="cfg-group" id="cfg-hotkey">
+                <span class="cfg-label">Hotkey Settings</span>
+                <div class="cfg-subrow">
+                  <span class="cfg-sub-label">Shortcut Key:</span>
+                  <code class="cfg-key-badge">Shift + Backspace</code>
+                </div>
+              </div>
+              <div class="cfg-group" id="cfg-share">
+                <span class="cfg-label">Share App</span>
+                <div class="cfg-subrow">
+                  <span class="cfg-sub-label">Invite friends:</span>
+                  <button class="cfg-btn">Copy App Link</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Default Behavior -->
+            <div class="cfg-group" id="cfg-defaults">
+              <span class="cfg-label">Default Behavior</span>
+              <div class="cfg-toggle-row">
+                <div class="cfg-toggle on"></div>
+                <span>Record system audio by default</span>
+              </div>
+              <div class="cfg-toggle-row">
+                <div class="cfg-toggle"></div>
+                <span>Record microphone by default</span>
+              </div>
+              <div class="cfg-toggle-row">
+                <div class="cfg-toggle on"></div>
+                <span>Start WWRecorder with Windows</span>
+              </div>
+            </div>
+
+            <!-- Save bar -->
+            <div class="cfg-save-bar">
+              <button class="cfg-btn-cancel">Cancel</button>
+              <button class="cfg-btn-save">Save Settings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: Annotated highlights -->
+      <div class="cfg-notes reveal-right reveal-delay-1">
+
+        <div class="cfg-note" data-target="cfg-output">
+          <div class="cfg-note-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="cfg-note-title">Custom Output Folder</h4>
+            <p class="cfg-note-desc">Choose exactly where your recordings land. Defaults to
+              <code>Videos\WWRecorder</code>. Click Browse to pick any drive or folder.
+            </p>
+          </div>
+        </div>
+
+        <div class="cfg-note" data-target="cfg-hotkey">
+          <div class="cfg-note-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="cfg-note-title">Configurable Hotkey</h4>
+            <p class="cfg-note-desc">Default is <code>Shift+Backspace</code> - works even when the app is minimised.
+              Change it to any key combo that fits your workflow.</p>
+          </div>
+        </div>
+
+        <div class="cfg-note" data-target="cfg-defaults">
+          <div class="cfg-note-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="cfg-note-title">Smart Defaults</h4>
+            <p class="cfg-note-desc">Pre-enable system audio, mic, or auto-start with Windows. Each session starts
+              exactly how you left it - no re-toggling every time.</p>
+          </div>
+        </div>
+
+        <div class="cfg-note" data-target="cfg-share">
+          <div class="cfg-note-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+          </div>
+          <div>
+            <h4 class="cfg-note-title">One-Click Share</h4>
+            <p class="cfg-note-desc">Copy the app link directly from Settings and share it with friends or colleagues
+              who need a lean, no-bloat screen recorder.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section id="specs">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">Technical Specs</div>
+      <h2 class="section-title">Under the hood.</h2>
+    </div>
+
+    <div class="reveal-scale">
+      <table class="spec-table">
+        <thead>
+          <tr>
+            <th style="width: 200px">Parameter</th>
+            <th>Value</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="spec-label">Video Codec</td>
+            <td><span class="spec-mono">libx264</span></td>
+            <td>H.264, yuv420p pixel format</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Preset</td>
+            <td><span class="spec-mono">superfast</span></td>
+            <td>Lower CPU than ultrafast, much better compression</td>
+          </tr>
+          <tr>
+            <td class="spec-label">CRF Quality</td>
+            <td><span class="spec-mono">28</span></td>
+            <td>Higher = smaller file. 28 is excellent for screencasts.</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Frame Rate</td>
+            <td><span class="spec-mono">30 FPS</span></td>
+            <td>Hard-coded for stability on older CPUs</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Container</td>
+            <td><span class="spec-mono">.mkv</span></td>
+            <td>Recoverable if app/system crashes mid-recording</td>
+          </tr>
+          <tr>
+            <td class="spec-label">System Audio</td>
+            <td><span class="spec-mono">WASAPI loopback</span></td>
+            <td>via soundcard 0.4+, 48 kHz stereo</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Microphone</td>
+            <td><span class="spec-mono">Default mic</span></td>
+            <td>Boosted ×2.5, clipped to [−1, 1]</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Audio Output</td>
+            <td><span class="spec-mono">AAC 192k</span></td>
+            <td>amix for dual streams, direct copy for single</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Screen Capture</td>
+            <td><span class="spec-mono">mss</span></td>
+            <td>BGRA → BGR24; hardware cursor composited via pywin32</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Config</td>
+            <td><span class="spec-mono">%APPDATA%\WWRecorder</span></td>
+            <td>config.json - hotkey, output folder, defaults</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Pill Visibility</td>
+            <td><span class="spec-mono">WDA_EXCLUDEFROMCAPTURE</span></td>
+            <td>Windows 10 build 19041+. Silently ignored older.</td>
+          </tr>
+          <tr>
+            <td class="spec-label">Hotkey</td>
+            <td><span class="spec-mono">Shift+Backspace</span></td>
+            <td>Configurable. Works when minimised.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="cta-section">
+    <div class="cta-bg"></div>
+    <div class="cta-inner reveal">
+      <h2 class="cta-title">Start recording<br />without the overhead.</h2>
+      <p class="cta-desc">
+        Free, open-source, and built to run lean on the hardware you already
+        own.
+      </p>
+      <div class="cta-actions">
+        <a class="btn-primary"
+          href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
+          target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download v1.0.0
+        </a>
+        <a class="btn-secondary" href="https://github.com/akasumitlamba/WWRecorder" target="_blank">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path
+              d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22" />
+          </svg>
+          Source on GitHub
+        </a>
+      </div>
+      <p class="requirements-note">
+        Requires Windows 10 2004+ · FFmpeg bundled in installer · No admin
+        rights needed
+      </p>
+    </div>
+  </div>
+
+  <footer>
+    <div class="footer-top">
+      <div>
+        <div class="footer-brand">
+          <div class="nav-dot" style="animation: pulse-dot 2s ease-in-out infinite"></div>
+          WWRecorder
+        </div>
+        <p class="footer-tagline">
+          High-performance screen recorder for Windows. Free &amp;
+          open-source.
+        </p>
+        <p class="footer-author">
+          Made by
+          <a href="https://github.com/akasumitlamba" target="_blank" rel="noopener">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+            </svg>
+            Sumit Kumar Lamba
+          </a>
+        </p>
+      </div>
+
+      <div class="footer-links-group">
+        <h5>Project</h5>
+        <ul>
+          <li>
+            <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank">GitHub Repository</a>
+          </li>
+          <li>
+            <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank">Releases</a>
+          </li>
+          <li>
+            <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank">Report a Bug</a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="footer-links-group">
+        <h5>Legal</h5>
+        <ul>
+          <li>
+            <a href="#" onclick="
+                  openModal('modal-privacy');
+                  return false;
+                ">Privacy Policy</a>
+          </li>
+          <li>
+            <a href="#" onclick="
+                  openModal('modal-license');
+                  return false;
+                ">CC BY-NC 4.0</a>
+          </li>
+        </ul>
+      </div>
+
+      <div class="footer-links-group">
+        <h5>Stack</h5>
+        <ul>
+          <li><a href="https://ffmpeg.org" target="_blank">FFmpeg</a></li>
+          <li>
+            <a href="https://pypi.org/project/mss/" target="_blank">mss</a>
+          </li>
+          <li>
+            <a href="https://pypi.org/project/soundcard/" target="_blank">soundcard</a>
+          </li>
+          <li>
+            <a href="https://www.riverbankcomputing.com/software/pyqt/" target="_blank">PyQt6</a>
+          </li>
+          <li>
+            <a href="https://pypi.org/project/pywin32/" target="_blank">pywin32</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copy">© 2026 Sumit Kumar Lamba · CC BY-NC 4.0</p>
+      <div class="footer-badge">
+        <span class="dot">●</span>
+        Built for Intel i3 and beyond
+      </div>
+    </div>
+  </footer>
+
+  <div class="modal-overlay" id="modal-privacy" onclick="closeModalOutside(event, 'modal-privacy')">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">PRIVACY POLICY</span>
+        <button class="modal-close" onclick="closeModal('modal-privacy')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <h3>No Data Collection</h3>
+        <p>
+          WWRecorder does not collect, transmit, store, or share any personal
+          data, usage analytics, crash reports, or telemetry of any kind. The
+          application runs entirely on your local machine.
+        </p>
+        <h3>Local Storage Only</h3>
+        <p>
+          All configuration is stored locally in
+          <code>%APPDATA%\WWRecorder\config.json</code>. Recordings are saved
+          to the output folder you configure. No files are uploaded anywhere.
+        </p>
+        <h3>Registry</h3>
+        <p>
+          If you enable auto-start, a single entry is written to
+          <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code>.
+          This is a standard Windows mechanism and can be removed via
+          Settings.
+        </p>
+        <h3>No Network Access</h3>
+        <p>
+          WWRecorder makes no network requests at any time. There are no
+          update checks, licence servers, or remote APIs involved in its
+          operation.
+        </p>
+        <h3>Third-Party Libraries</h3>
+        <p>
+          WWRecorder bundles FFmpeg (LGPL/GPL depending on build), mss,
+          soundcard, PyQt6, pynput, numpy, and pywin32. These operate entirely
+          locally. No third-party service receives data.
+        </p>
+        <h3>Contact</h3>
+        <p>
+          Questions? Open an issue on
+          <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank">GitHub</a>.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-license" onclick="closeModalOutside(event, 'modal-license')">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">CC BY-NC 4.0 LICENSE</span>
+        <button class="modal-close" onclick="closeModal('modal-license')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p style="
+              font-family: var(--mono);
+              font-size: 12px;
+              color: var(--text-3);
+              margin-bottom: 16px;
+            ">
+          Creative Commons Attribution-NonCommercial 4.0 International
+        </p>
+
+        <p>This project is licensed under the <strong>CC BY-NC 4.0</strong> license. You are free to share and adapt
+          the material under the following terms:</p>
+
+        <h3>You are free to:</h3>
+        <ul style="padding-left: 20px; line-height: 2;">
+          <li><strong>Share</strong> - copy and redistribute the material in any medium or format</li>
+          <li><strong>Adapt</strong> - remix, transform, and build upon the material</li>
+        </ul>
+
+        <h3>Under the following terms:</h3>
+        <ul style="padding-left: 20px; line-height: 2;">
+          <li><strong>Attribution</strong> - You must give appropriate credit, provide a link to the license, and
+            indicate if changes were made.</li>
+          <li><strong>NonCommercial</strong> - You may not use the material for commercial purposes, make money from
+            it, or monetize it.</li>
+        </ul>
+
+        <p>No additional restrictions - You may not apply legal terms or technological measures that legally restrict
+          others from doing anything the license permits.</p>
+
+        <h3>Full Legal Text</h3>
+        <p>For the full legal text of this license, please visit:
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/legalcode" target="_blank"
+            rel="noopener">creativecommons.org/licenses/by-nc/4.0/legalcode</a>
+        </p>
+
+        <br />
+        <h3>Third-Party Notices</h3>
+        <p>
+          This application bundles or uses FFmpeg, which may be subject to
+          LGPL/GPL terms depending on the build. See
+          <a href="https://ffmpeg.org/legal.html" target="_blank">ffmpeg.org/legal.html</a>
+          for details.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
 </body>
+
 </html>
