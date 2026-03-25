@@ -1,4 +1,4 @@
-# WWRecorder - World Wide Recorder
+# WWRecorder — World Wide Recorder
 
 High-performance, lightweight screen recorder for Windows optimised for
 low-end hardware (Intel i3, integrated graphics). Produces compact, crash-
@@ -44,18 +44,18 @@ WWRecorder/
 
 ## Quick Start (Development)
 
-### 1 - Install dependencies
+### 1 — Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 2 - Obtain FFmpeg
+### 2 — Obtain FFmpeg
 
 Download a static Windows build from https://ffmpeg.org/download.html  
 and place `ffmpeg.exe` in the project root **or** on your system PATH.
 
-### 3 - Run
+### 3 — Run
 
 ```powershell
 python main.py
@@ -68,7 +68,7 @@ Double-click the tray icon **or** press `Shift+Backspace` to start.
 
 ## Building a Distributable
 
-### Step 1 - PyInstaller
+### Step 1 — PyInstaller
 
 ```powershell
 # Ensure ffmpeg.exe is in the project root
@@ -77,7 +77,7 @@ pyinstaller wwrecorder.spec
 
 Output: `dist\WWRecorder\WWRecorder.exe` + all runtime files.
 
-### Step 2 - Inno Setup
+### Step 2 — Inno Setup
 
 1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php)
 2. Compile:
@@ -184,4 +184,4 @@ Hotkey syntax follows [pynput key names](https://pynput.readthedocs.io/en/latest
 
 ## License
 
-MIT — see LICENSE file.
+Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) — see LICENSE file.
