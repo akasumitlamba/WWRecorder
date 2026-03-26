@@ -22,45 +22,7 @@
   <div id="cursor-dot"></div>
   <div id="cursor-ring"></div>
 
-  <!-- Download animation overlay -->
-  <div id="dl-overlay" class="dl-overlay" aria-hidden="true">
-    <div class="dl-card">
-      <!-- Icon ring -->
-      <div class="dl-icon-wrap">
-        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        <svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        <svg class="dl-ring" viewBox="0 0 44 44">
-          <circle class="dl-ring-track" cx="22" cy="22" r="19" />
-          <circle class="dl-ring-fill" cx="22" cy="22" r="19" />
-        </svg>
-      </div>
-
-      <!-- Status text -->
-      <p class="dl-status" id="dl-status">Redirecting to download…</p>
-
-      <!-- Progress bar -->
-      <div class="dl-bar-wrap">
-        <div class="dl-bar" id="dl-bar"></div>
-      </div>
-
-      <!-- Percent -->
-      <p class="dl-pct" id="dl-pct">0%</p>
-
-      <!-- Thank-you message -->
-      <div class="dl-thanks" id="dl-thanks">
-        <p class="dl-thanks-title">Thanks! 🎉</p>
-        <p class="dl-thanks-sub">Your download is starting. If it doesn't, <a
-            href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
-            target="_blank">click here</a>.</p>
-      </div>
-    </div>
-  </div>
+  <!-- Download overlay moved to separate page (download.html) -->
 
 
   <nav>
@@ -74,6 +36,7 @@
       <li><a href="#use">How to Use</a></li>
       <li><a href="#configure">Configure</a></li>
       <li><a href="#specs">Specs</a></li>
+      <li><a href="#more-projects">More</a></li>
       <li>
         <a class="nav-cta"
           href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
@@ -487,8 +450,7 @@
                 <button class="pill-icon-btn pill-gear-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3" />
-                    <path
-                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
                 </button>
               </div>
@@ -526,8 +488,7 @@
                 <button class="pill-icon-btn pill-gear-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3" />
-                    <path
-                      d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
                 </button>
               </div>
@@ -771,66 +732,146 @@
         <tbody>
           <tr>
             <td class="spec-label">Video Codec</td>
-            <td><span class="spec-mono">libx264</span></td>
-            <td>H.264, yuv420p pixel format</td>
+            <td data-label="Value"><span class="spec-mono">libx264</span></td>
+            <td data-label="Notes">H.264, yuv420p pixel format</td>
           </tr>
           <tr>
             <td class="spec-label">Preset</td>
-            <td><span class="spec-mono">superfast</span></td>
-            <td>Lower CPU than ultrafast, much better compression</td>
+            <td data-label="Value"><span class="spec-mono">superfast</span></td>
+            <td data-label="Notes">Lower CPU than ultrafast, much better compression</td>
           </tr>
           <tr>
             <td class="spec-label">CRF Quality</td>
-            <td><span class="spec-mono">28</span></td>
-            <td>Higher = smaller file. 28 is excellent for screencasts.</td>
+            <td data-label="Value"><span class="spec-mono">28</span></td>
+            <td data-label="Notes">Higher = smaller file. 28 is excellent for screencasts.</td>
           </tr>
           <tr>
             <td class="spec-label">Frame Rate</td>
-            <td><span class="spec-mono">30 FPS</span></td>
-            <td>Hard-coded for stability on older CPUs</td>
+            <td data-label="Value"><span class="spec-mono">30 FPS</span></td>
+            <td data-label="Notes">Hard-coded for stability on older CPUs</td>
           </tr>
           <tr>
             <td class="spec-label">Container</td>
-            <td><span class="spec-mono">.mkv</span></td>
-            <td>Recoverable if app/system crashes mid-recording</td>
+            <td data-label="Value"><span class="spec-mono">.mkv</span></td>
+            <td data-label="Notes">Recoverable if app/system crashes mid-recording</td>
           </tr>
           <tr>
             <td class="spec-label">System Audio</td>
-            <td><span class="spec-mono">WASAPI loopback</span></td>
-            <td>via soundcard 0.4+, 48 kHz stereo</td>
+            <td data-label="Value"><span class="spec-mono">WASAPI loopback</span></td>
+            <td data-label="Notes">via soundcard 0.4+, 48 kHz stereo</td>
           </tr>
           <tr>
             <td class="spec-label">Microphone</td>
-            <td><span class="spec-mono">Default mic</span></td>
-            <td>Boosted ×2.5, clipped to [−1, 1]</td>
+            <td data-label="Value"><span class="spec-mono">Default mic</span></td>
+            <td data-label="Notes">Boosted ×2.5, clipped to [−1, 1]</td>
           </tr>
           <tr>
             <td class="spec-label">Audio Output</td>
-            <td><span class="spec-mono">AAC 192k</span></td>
-            <td>amix for dual streams, direct copy for single</td>
+            <td data-label="Value"><span class="spec-mono">AAC 192k</span></td>
+            <td data-label="Notes">amix for dual streams, direct copy for single</td>
           </tr>
           <tr>
             <td class="spec-label">Screen Capture</td>
-            <td><span class="spec-mono">mss</span></td>
-            <td>BGRA → BGR24; hardware cursor composited via pywin32</td>
+            <td data-label="Value"><span class="spec-mono">mss</span></td>
+            <td data-label="Notes">BGRA → BGR24; hardware cursor composited via pywin32</td>
           </tr>
           <tr>
             <td class="spec-label">Config</td>
-            <td><span class="spec-mono">%APPDATA%\WWRecorder</span></td>
-            <td>config.json - hotkey, output folder, defaults</td>
+            <td data-label="Value"><span class="spec-mono">%APPDATA%\WWRecorder</span></td>
+            <td data-label="Notes">config.json - hotkey, output folder, defaults</td>
           </tr>
           <tr>
             <td class="spec-label">Pill Visibility</td>
-            <td><span class="spec-mono">WDA_EXCLUDEFROMCAPTURE</span></td>
-            <td>Windows 10 build 19041+. Silently ignored older.</td>
+            <td data-label="Value"><span class="spec-mono">WDA_EXCLUDEFROMCAPTURE</span></td>
+            <td data-label="Notes">Windows 10 build 19041+. Silently ignored older.</td>
           </tr>
           <tr>
             <td class="spec-label">Hotkey</td>
-            <td><span class="spec-mono">Shift+Backspace</span></td>
-            <td>Configurable. Works when minimised.</td>
+            <td data-label="Value"><span class="spec-mono">Shift+Backspace</span></td>
+            <td data-label="Notes">Configurable. Works when minimised.</td>
           </tr>
         </tbody>
       </table>
+    </div>
+  </section>
+
+  <section id="more-projects">
+    <div class="section-header reveal">
+      <div class="section-eyebrow">More by Sumit</div>
+      <h2 class="section-title">Other Projects.</h2>
+      <p class="section-desc">
+        Explore more tools and extensions built to make your digital life easier.
+      </p>
+    </div>
+
+    <div class="projects-grid">
+      <div class="project-card reveal-left">
+        <img src="icons/QuickClip.png" alt="QuickClip Icon" class="project-icon" />
+        <div class="project-content">
+          <h3 class="project-title">QuickClip</h3>
+          <p class="project-desc">A basic browser extension to manage text and links easily within the reach of user and to save time.</p>
+          <a class="btn-chrome project-btn" href="https://chromewebstore.google.com/detail/mjdfflpebcmmpipdeeianpjfolmhkmna" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" />
+              <line x1="21.17" x2="12" y1="8" y2="8" />
+              <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+              <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+            </svg>
+            Chrome Web Store
+          </a>
+        </div>
+      </div>
+
+      <div class="project-card reveal reveal-delay-1">
+        <img src="icons/quickclippro.png" alt="QuickClip Pro Icon" class="project-icon" />
+        <div class="project-content">
+          <h3 class="project-title">QuickClip Pro</h3>
+          <p class="project-desc">Extended free version of QuickClip with support for images, links, tags and timestamps.</p>
+          <a class="btn-chrome project-btn" href="https://chromewebstore.google.com/detail/mjdfflpebcmmpipdeeianpjfolmhkmna" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" />
+              <line x1="21.17" x2="12" y1="8" y2="8" />
+              <line x1="3.95" x2="8.54" y1="6.06" y2="14" />
+              <line x1="10.88" x2="15.46" y1="21.94" y2="14" />
+            </svg>
+            Chrome Web Store
+          </a>
+        </div>
+      </div>
+
+      <div class="project-card reveal reveal-delay-2">
+        <img src="icons/stype.png" alt="Stype Icon" class="project-icon" />
+        <div class="project-content">
+          <h3 class="project-title">Stype</h3>
+          <p class="project-desc">Converts speech to text using AI with correct punctuation and capitalization.</p>
+          <a class="btn-primary project-btn" href="https://github.com/akasumitlamba/Stype/releases/download/v1.0.0/Stype_Setup_v1.0.0.exe" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Now
+          </a>
+        </div>
+      </div>
+
+      <div class="project-card reveal-right reveal-delay-3">
+        <img src="icons/KeyCast.png" alt="KeyCast Icon" class="project-icon" />
+        <div class="project-content">
+          <h3 class="project-title">KeyCast</h3>
+          <p class="project-desc">Show your keyboard and mouse inputs on screen for screen recording and screen sharing.</p>
+          <a class="btn-primary project-btn" href="https://github.com/akasumitlamba/KeyCast/releases/download/v2.0/KeyCast_Setup.exe" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download Now
+          </a>
+        </div>
+      </div>
     </div>
   </section>
 
