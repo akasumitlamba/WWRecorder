@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Downloading... - WWRecorder</title>
+  <meta name="description" content="Downloading your file..." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Specific styles for download page to avoid mixing with global fixed overlay */
+    body {
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    
+    .dl-page-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 120px 20px 60px;
+      position: relative;
+    }
+
+    .dl-grid-bg {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 45, 45, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 45, 45, 0.03) 1px, transparent 1px);
+      background-size: 48px 48px;
+      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+      z-index: -1;
+    }
+
+    /* Override the overlay-specific transforms so it renders nicely inline */
+    .dl-card-static {
+      background: var(--bg-2);
+      border: 1px solid var(--border-2);
+      border-radius: 24px;
+      padding: 48px 56px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      min-width: 380px;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,45,45,0.08);
+      opacity: 1; 
+      transform: none;
+      margin-bottom: 60px;
+      position: relative;
+    }
+
+    .guide-container {
+      max-width: 800px;
+      width: 100%;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      margin-top: 40px;
+    }
+
+    .guide-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      color: var(--pill-gold);
+    }
+    
+    .guide-header svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .guide-header h2 {
+      font-family: var(--display);
+      font-size: 32px;
+      letter-spacing: 0.04em;
+    }
+
+    .guide-text {
+      font-size: 15px;
+      color: var(--text-2);
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    .guide-step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .guide-step-num {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--red-dim);
+      color: var(--red);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--display);
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .guide-step-content h4 {
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    
+    .guide-step-content p {
+      font-size: 14px;
+      color: var(--text-2);
+      line-height: 1.6;
+    }
+
+    .highlight-word {
+      color: #fff;
+      font-weight: 700;
+      background: rgba(255,255,255,0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+  </style>
+</head>
+
+<body>
+  <div id="cursor-dot"></div>
+  <div id="cursor-ring"></div>
+
+  <nav style="justify-content: center;">
+    <div class="nav-logo">
+      <div class="nav-dot"></div>
+      <a href="index.html">WWRecorder</a>
+    </div>
+  </nav>
+
+  <section class="dl-page-hero">
+    <div class="dl-grid-bg"></div>
+
+    <!-- Download animation card -->
+    <div class="dl-card-static" id="dl-card">
+      <div class="dl-icon-wrap" id="dl-icon-wrap">
+        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line x1="12" y1="15" x2="12" y2="3" />
+        </svg>
+        <svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity: 0; transform: scale(0.5); position: absolute; color: var(--pill-green);">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <svg class="dl-ring" viewBox="0 0 44 44" style="transform: rotate(-90deg); position: absolute; inset: 0;">
+          <circle cx="22" cy="22" r="19" fill="none" stroke="var(--border)" stroke-width="3" />
+          <circle id="dl-ring-fill" cx="22" cy="22" r="19" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" style="transition: stroke-dashoffset 0.05s linear, stroke 0.4s ease; filter: drop-shadow(0 0 4px var(--red-glow));" />
+        </svg>
+      </div>
+
+      <p class="dl-status" id="dl-status" style="font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);">Starting your download…</p>
+
+      <div style="width: 100%; height: 3px; background: var(--surface-2); border-radius: 99px; overflow: hidden;">
+        <div id="dl-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--red), #ff7070); border-radius: 99px; box-shadow: 0 0 8px var(--red-glow); transition: width 0.05s linear, background 0.4s ease;"></div>
+      </div>
+
+      <p id="dl-pct" style="font-family: var(--display); font-size: 36px; color: var(--text); letter-spacing: 0.04em; line-height: 1; margin-top: 8px;">0%</p>
+      
+      <div id="dl-thanks" style="display: none; align-items: center; flex-direction: column; gap: 8px; text-align: center; margin-top: -20px;">
+         <p style="font-family: var(--display); font-size: 32px; color: var(--pill-green); letter-spacing: 0.04em;">Thanks! 🎉</p>
+         <p style="font-size: 13px; color: var(--text-2); line-height: 1.6;">If the download didn't start automatically, <br><a id="manual-link" href="#" style="color: var(--red); text-decoration: underline; text-underline-offset: 3px;">click here to restart it</a>.</p>
+      </div>
+    </div>
+
+    <!-- Troubleshooting Guide -->
+    <div class="guide-container reveal">
+      <div class="guide-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <h2>Blocked by Windows / Browser?</h2>
+      </div>
+      
+      <p class="guide-text">
+        Because this application is new and self-published, <strong>Microsoft Edge</strong> and <strong>Windows Defender SmartScreen</strong> might temporarily flag it as "isn't commonly downloaded." This is a standard automatic check for new indie software. (I've already submitted a request to Microsoft to whitelist it, but until it's processed, you can safely bypass it). 
+        <br><br>Here is how you can easily keep the file:
+      </p>
+
+      <div class="guide-step reveal-left">
+        <div class="guide-step-num">1</div>
+        <div class="guide-step-content">
+          <h4>Edge Browser "Commonly Downloaded" Warning</h4>
+          <p>If Edge blocks the download in the top-right downloads flyout, hover over the blocked file, click the <strong>three dots <span class="highlight-word">...</span></strong>, and select <span class="highlight-word">Keep</span> from the menu.</p>
+        </div>
+      </div>
+
+      <div class="guide-step reveal-right reveal-delay-1">
+        <div class="guide-step-num">2</div>
+        <div class="guide-step-content">
+          <h4>Confirm Trust</h4>
+          <p>A secondary warning popup will appear saying "Make sure you trust the file". Click on the <strong>Show more  <span class="highlight-word">⌄</span></strong> or <strong>More Info</strong> button, then select <span class="highlight-word">Keep anyway</span>.</p>
+        </div>
+      </div>
+      
+      <div class="guide-step reveal-left reveal-delay-2">
+        <div class="guide-step-num">3</div>
+        <div class="guide-step-content">
+          <h4>Windows Protected Your PC (SmartScreen)</h4>
+          <p>When you run the <code>.exe</code> installer for the first time, Windows might show a blue SmartScreen warning. Simply click <strong>More info</strong> on the left, and then click the new <span class="highlight-word">Run anyway</span> button that appears at the bottom.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <script src="script.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      // Get URL from query parameters
+      const params = new URLSearchParams(window.location.search);
+      let downloadUrl = params.get('url');
+      
+      // Default fallback if no URL provided is WWRecorder
+      if (!downloadUrl) {
+         downloadUrl = 'https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe';
+      }
+
+      document.getElementById('manual-link').href = downloadUrl;
+
+      // Animate fake progress bar
+      const bar = document.getElementById('dl-bar');
+      const pct = document.getElementById('dl-pct');
+      const ringFill = document.getElementById('dl-ring-fill');
+      const checkIcon = document.querySelector('.dl-check');
+      const dlIcon = document.querySelector('.dl-icon');
+      const statusEl = document.getElementById('dl-status');
+      const thanksEl = document.getElementById('dl-thanks');
+      
+      const CIRC = 119.4;
+      const DURATION = 2200; // ms
+      const start = performance.now();
+
+      function tick(now) {
+        const elapsed = now - start;
+        const rawProg = Math.min(elapsed / DURATION, 1);
+        const prog = 1 - Math.pow(1 - rawProg, 3);
+        const p = Math.round(prog * 100);
+
+        bar.style.width = p + '%';
+        pct.textContent = p + '%';
+        ringFill.style.strokeDashoffset = CIRC * (1 - prog);
+
+        if (rawProg < 1) {
+          requestAnimationFrame(tick);
+          return;
+        }
+
+        // Animation done
+        ringFill.style.stroke = 'var(--pill-green)';
+        ringFill.style.filter = 'drop-shadow(0 0 6px rgba(34,197,94,0.5))';
+        bar.style.background = 'linear-gradient(90deg, var(--pill-green), #4ade80)';
+        bar.style.boxShadow = '0 0 8px rgba(34,197,94,0.4)';
+        
+        dlIcon.style.opacity = '0';
+        dlIcon.style.transform = 'scale(0.5)';
+        checkIcon.style.opacity = '1';
+        checkIcon.style.transform = 'scale(1)';
+
+        statusEl.textContent = 'Opening download\u2026';
+        pct.style.display = 'none';
+        thanksEl.style.display = 'flex';
+
+        // Trigger real download
+        setTimeout(() => {
+          window.location.href = downloadUrl;
+        }, 500);
+      }
+
+      // Start tick slightly later to render first
+      setTimeout(() => requestAnimationFrame(tick), 200);
+    });
+  </script>
+</body>
+</html>
