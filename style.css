@@ -904,6 +904,7 @@ nav {
 ══════════════════════════════════════════ */
 .pill-showcase {
   margin-top: 64px;
+  margin-bottom: 48px;
   display: flex;
   flex-direction: column;
   align-items: center;
