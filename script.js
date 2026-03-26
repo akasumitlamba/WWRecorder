@@ -1,11 +1,11 @@
 /* ── Custom Cursor ────────────────────────── */
 (function () {
-  const dot  = document.getElementById('cursor-dot');
+  const dot = document.getElementById('cursor-dot');
   const ring = document.getElementById('cursor-ring');
   if (!dot || !ring) return;
 
   let mouseX = -100, mouseY = -100;
-  let ringX  = -100, ringY  = -100;
+  let ringX = -100, ringY = -100;
   let rafId;
 
   /* Move dot instantly */
@@ -13,7 +13,7 @@
     mouseX = e.clientX;
     mouseY = e.clientY;
     dot.style.left = mouseX + 'px';
-    dot.style.top  = mouseY + 'px';
+    dot.style.top = mouseY + 'px';
   });
 
   /* Lazy-follow ring via RAF for smooth trailing */
@@ -21,7 +21,7 @@
     ringX += (mouseX - ringX) * 0.12;
     ringY += (mouseY - ringY) * 0.12;
     ring.style.left = ringX + 'px';
-    ring.style.top  = ringY + 'px';
+    ring.style.top = ringY + 'px';
     rafId = requestAnimationFrame(animateRing);
   }
   animateRing();
@@ -41,22 +41,22 @@
 
   /* Click burst */
   document.addEventListener('mousedown', () => document.body.classList.add('cursor-click'));
-  document.addEventListener('mouseup',   () => document.body.classList.remove('cursor-click'));
+  document.addEventListener('mouseup', () => document.body.classList.remove('cursor-click'));
 
   /* Hide when leaving window */
   document.addEventListener('mouseleave', () => {
-    dot.style.opacity  = '0';
+    dot.style.opacity = '0';
     ring.style.opacity = '0';
   });
   document.addEventListener('mouseenter', () => {
-    dot.style.opacity  = '';
+    dot.style.opacity = '';
     ring.style.opacity = '';
   });
 })();
 
 /* ── Reveal on scroll (bidirectional) ────── */
 const revealClasses = ['.reveal', '.reveal-left', '.reveal-right', '.reveal-scale', '.reveal-flip', '.section-eyebrow', '.stat-item'];
-const allRevealEls  = document.querySelectorAll(revealClasses.join(','));
+const allRevealEls = document.querySelectorAll(revealClasses.join(','));
 
 const revealObserver = new IntersectionObserver(
   (entries) => {
@@ -73,100 +73,14 @@ const revealObserver = new IntersectionObserver(
 );
 allRevealEls.forEach((el) => revealObserver.observe(el));
 
-/* ── Download animation ───────────────────── */
+/* ── Download redirection ───────────────────── */
 (function () {
-  const overlay   = document.getElementById('dl-overlay');
-  const bar       = document.getElementById('dl-bar');
-  const pct       = document.getElementById('dl-pct');
-  const statusEl  = document.getElementById('dl-status');
-  const ringFill  = overlay ? overlay.querySelector('.dl-ring-fill') : null;
-  if (!overlay || !bar || !ringFill) return;
-
-  /* Circumference of the ring (r=19) */
-  const CIRC = 119.4;
-
-  let animFrame, closeTimer;
-
-  function resetOverlay() {
-    overlay.classList.remove('active', 'done');
-    bar.style.width = '0%';
-    pct.textContent = '0%';
-    pct.style.opacity = '1';
-    ringFill.style.strokeDashoffset = CIRC;
-    if (statusEl) statusEl.textContent = 'Redirecting to download\u2026';
-  }
-
-  function runDownloadAnim(href) {
-    cancelAnimationFrame(animFrame);
-    clearTimeout(closeTimer);
-    resetOverlay();
-
-    /* Show overlay */
-    overlay.classList.add('active');
-    document.body.style.overflow = 'hidden';
-
-    const DURATION = 2200; /* ms for 0→100% progress */
-    const start = performance.now();
-
-    function tick(now) {
-      const elapsed = now - start;
-      const rawProg = Math.min(elapsed / DURATION, 1);
-      /* Ease-out so it feels like real download completing */
-      const prog = 1 - Math.pow(1 - rawProg, 3);
-      const p = Math.round(prog * 100);
-
-      bar.style.width = p + '%';
-      pct.textContent = p + '%';
-      ringFill.style.strokeDashoffset = CIRC * (1 - prog);
-
-      if (rawProg < 1) {
-        animFrame = requestAnimationFrame(tick);
-        return;
-      }
-
-      /* Done — switch to thank-you */
-      overlay.classList.add('done');
-      if (statusEl) statusEl.textContent = 'Opening download\u2026';
-
-      /* Actually navigate after a short delay */
-      setTimeout(() => {
-        window.open(href, '_blank', 'noopener');
-      }, 400);
-
-      /* Auto-close after 3s */
-      closeTimer = setTimeout(() => {
-        overlay.classList.remove('active');
-        setTimeout(() => {
-          overlay.classList.remove('done');
-          document.body.style.overflow = '';
-          resetOverlay();
-        }, 500);
-      }, 3000);
-    }
-
-    animFrame = requestAnimationFrame(tick);
-  }
-
-  /* Close on backdrop click */
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      cancelAnimationFrame(animFrame);
-      clearTimeout(closeTimer);
-      overlay.classList.remove('active');
-      setTimeout(() => {
-        overlay.classList.remove('done');
-        document.body.style.overflow = '';
-        resetOverlay();
-      }, 500);
-    }
-  });
-
-  /* Intercept all download links (.btn-primary and .nav-cta pointing to releases) */
+  /* Intercept all download links (.btn-primary and .nav-cta pointing to .exe releases) */
   document.querySelectorAll('.btn-primary, .nav-cta').forEach((el) => {
-    if (el.href && el.href.includes('WWRecorder_Setup')) {
+    if (el.href && el.href.endsWith('.exe')) {
       el.addEventListener('click', (e) => {
         e.preventDefault();
-        runDownloadAnim(el.href);
+        window.location.href = 'download.html?url=' + encodeURIComponent(el.href);
       });
     }
   });
@@ -267,19 +181,19 @@ document.addEventListener('keydown', (e) => {
 
 /* ── Pill UI Interactive Logic ────────────── */
 let pillRunning = false;
-let pillPaused  = false;
+let pillPaused = false;
 let pillSeconds = 0;
 let pillInterval = null;
 
-const pillIdle     = document.getElementById('pill-idle');
-const pillRec      = document.getElementById('pill-recording');
-const pillTimerEl  = document.getElementById('pill-timer-display');
+const pillIdle = document.getElementById('pill-idle');
+const pillRec = document.getElementById('pill-recording');
+const pillTimerEl = document.getElementById('pill-timer-display');
 const pillPauseBtn = document.getElementById('pill-pause-btn');
-const pillHint     = document.getElementById('pill-hint');
+const pillHint = document.getElementById('pill-hint');
 
 function formatTime(s) {
-  const h   = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m   = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const h = String(Math.floor(s / 3600)).padStart(2, '0');
+  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
   const sec = String(s % 60).padStart(2, '0');
   return `${h}:${m}:${sec}`;
 }
@@ -287,20 +201,20 @@ function formatTime(s) {
 window.pillStartRecording = function () {
   if (pillRunning) return;
   pillRunning = true;
-  pillPaused  = false;
+  pillPaused = false;
   pillSeconds = 0;
 
-  pillIdle.style.opacity   = '0';
+  pillIdle.style.opacity = '0';
   pillIdle.style.transform = 'scale(0.92)';
   setTimeout(() => {
     pillIdle.classList.add('hidden');
     pillRec.classList.remove('hidden');
-    pillRec.style.opacity   = '0';
+    pillRec.style.opacity = '0';
     pillRec.style.transform = 'scale(0.92)';
     requestAnimationFrame(() => {
       pillRec.style.transition = 'opacity 0.35s, transform 0.35s';
-      pillRec.style.opacity    = '1';
-      pillRec.style.transform  = 'scale(1)';
+      pillRec.style.opacity = '1';
+      pillRec.style.transform = 'scale(1)';
     });
   }, 250);
 
@@ -318,24 +232,24 @@ window.pillStopRecording = function () {
   if (!pillRunning) return;
   clearInterval(pillInterval);
   pillRunning = false;
-  pillPaused  = false;
+  pillPaused = false;
   pillSeconds = 0;
 
   pillRec.style.transition = 'opacity 0.3s, transform 0.3s';
-  pillRec.style.opacity    = '0';
-  pillRec.style.transform  = 'scale(0.92)';
+  pillRec.style.opacity = '0';
+  pillRec.style.transform = 'scale(0.92)';
 
   setTimeout(() => {
     pillRec.classList.add('hidden');
-    pillRec.style.opacity   = '';
+    pillRec.style.opacity = '';
     pillRec.style.transform = '';
 
     pillIdle.classList.remove('hidden');
-    pillIdle.style.opacity    = '0';
-    pillIdle.style.transform  = 'scale(0.92)';
+    pillIdle.style.opacity = '0';
+    pillIdle.style.transform = 'scale(0.92)';
     pillIdle.style.transition = 'opacity 0.35s, transform 0.35s';
     requestAnimationFrame(() => {
-      pillIdle.style.opacity   = '1';
+      pillIdle.style.opacity = '1';
       pillIdle.style.transform = 'scale(1)';
     });
   }, 300);
