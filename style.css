@@ -1435,11 +1435,22 @@ section {
   align-items: center;
 }
 
+/* use-visual must not overflow its grid cell */
+.use-visual {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
 .tray-mockup {
   background: var(--bg-3);
   border: 1px solid var(--border-2);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tray-titlebar {
@@ -1474,6 +1485,8 @@ section {
   display: flex;
   flex-direction: column;
   gap: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .pill-state-block {
@@ -1944,6 +1957,34 @@ footer {
   .footer-top {
     flex-direction: column;
   }
+
+  /* Spec table: wrap in scroll container on tablet */
+  .spec-table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+
+  .spec-table thead,
+  .spec-table tbody,
+  .spec-table tr {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+  }
+
+  .tray-mockup {
+    transform: none;
+  }
+
+  .tray-body {
+    padding: 20px 16px;
+  }
+
+  .use-steps {
+    min-width: 0;
+  }
 }
 
 @media (max-width: 700px) {
@@ -1980,7 +2021,177 @@ footer {
   .install-steps {
     grid-template-columns: 1fr;
   }
+
+  /* Hero actions: stack vertically */
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 0 16px;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    justify-content: center;
+    width: 100%;
+  }
+
+  /* Pill showcase: prevent overflow */
+  .pill-showcase {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+
+  .pill-widget {
+    min-width: max-content;
+  }
+
+  /* Hotkey demo: wrap and center */
+  .hotkey-demo {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  /* Stats: ensure values don't clip */
+  .stat-value {
+    font-size: clamp(28px, 8vw, 44px);
+  }
+
+  /* Spec table on mobile: stacked card layout */
+  .spec-table,
+  .spec-table thead,
+  .spec-table tbody,
+  .spec-table th,
+  .spec-table td,
+  .spec-table tr {
+    display: block;
+    white-space: normal;
+  }
+
+  .spec-table thead tr {
+    display: none;
+  }
+
+  .spec-table tr {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    padding: 4px 0;
+    background: var(--bg);
+  }
+
+  .spec-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .spec-table td:last-child {
+    border-bottom: none;
+  }
+
+  .spec-table td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: var(--text);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-family: var(--mono);
+    flex-shrink: 0;
+  }
+
+  .spec-label {
+    display: none;
+  }
+
+  /* Configure section already 1-col at 860px; fix internal overflows */
+  .cfg-path {
+    font-size: 10px;
+    min-width: 0;
+  }
+
+  .cfg-win-body {
+    padding: 14px;
+  }
+
+  /* Use section steps: tighten */
+  .use-step-num {
+    font-size: clamp(28px, 8vw, 48px);
+  }
+
+  /* CTA section text */
+  .requirements-note {
+    font-size: 10px;
+    word-break: break-word;
+  }
+
+  .tray-mockup {
+    transform: none;
+    overflow: hidden;
+  }
+
+  .tray-body {
+    padding: 14px 12px;
+    gap: 16px;
+  }
+
+  .pill-widget-static {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .hotkey-demo {
+    margin-top: 12px;
+  }
+
+  .key {
+    padding: 6px 10px;
+    font-size: 11px;
+  }
 }
+
+/* Extra small: phones under 420px */
+@media (max-width: 420px) {
+  .hero-actions {
+    padding: 0 8px;
+  }
+
+  .cfg-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  .cfg-save-bar {
+    flex-direction: column;
+  }
+
+  .cfg-btn-save,
+  .cfg-btn-cancel {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .stat-value {
+    font-size: 28px;
+  }
+
+  .dl-card {
+    padding: 32px 24px;
+    min-width: unset;
+    width: calc(100vw - 48px);
+  }
+}
+
 
 /* ══════════════════════════════════════════
     CONFIGURE SECTION
@@ -2258,12 +2469,252 @@ footer {
   line-height: 1.65;
 }
 
-/* Responsive */
+/* Responsive — Configure section */
+
+/* Ensure the mockup never overflows its container on any size */
+.cfg-mockup,
+.cfg-win,
+.cfg-win-body,
+.cfg-group,
+.cfg-notes,
+.cfg-note {
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* cfg-path must be able to shrink (flex child) */
+.cfg-path {
+  min-width: 0;
+}
+
 @media (max-width: 860px) {
   .cfg-grid {
     grid-template-columns: 1fr;
   }
+
   .cfg-two-col {
+    grid-template-columns: 1fr;
+  }
+
+  /* Full-width window */
+  .cfg-win {
+    width: 100%;
+  }
+
+  /* Wrap the path + browse row so it doesn't overflow */
+  .cfg-row {
+    flex-wrap: wrap;
+  }
+
+  .cfg-path {
+    width: 100%;
+    flex: 1 1 120px;
+    font-size: 10.5px;
+  }
+
+  /* Shrink key badge */
+  .cfg-key-badge {
+    font-size: 10px;
+    word-break: break-all;
+  }
+
+  /* Notes stack full width */
+  .cfg-notes {
+    width: 100%;
+  }
+
+  .cfg-note {
+    width: 100%;
+    transform: none !important; /* disable slide-in hover offset on mobile */
+  }
+}
+
+@media (max-width: 480px) {
+  .cfg-win-bar {
+    padding: 10px 14px;
+  }
+
+  .cfg-win-body {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .cfg-win-title {
+    font-size: 11px;
+  }
+
+  .cfg-group {
+    padding: 10px 12px;
+  }
+
+  .cfg-save-bar {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .cfg-btn-save,
+  .cfg-btn-cancel {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .cfg-toggle-row {
+    font-size: 12px;
+  }
+
+  .cfg-note {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .cfg-note-icon {
+    width: 30px;
+    height: 30px;
+  }
+
+  .cfg-note-title {
+    font-size: 13px;
+  }
+
+  .cfg-note-desc {
+    font-size: 12px;
+  }
+}
+
+/* ══════════════════════════════════════════
+    MORE PROJECTS (Custom Grid)
+══════════════════════════════════════════ */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 clamp(24px, 5vw, 80px);
+}
+
+.project-card {
+  position: relative;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+              border-color 0.4s, background 0.4s, box-shadow 0.4s;
+  overflow: hidden;
+}
+
+.project-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 30%,
+    rgba(255, 45, 45, 0.04) 50%,
+    transparent 70%
+  );
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 1;
+}
+
+.project-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(255, 45, 45, 0.3);
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 45, 45, 0.08);
+}
+
+.project-card:hover::after {
+  transform: translateX(100%);
+}
+
+.project-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  object-fit: contain;
+  margin-bottom: 8px;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  position: relative;
+  z-index: 2;
+}
+
+.project-card:hover .project-icon {
+  transform: scale(1.08) rotate(-4deg);
+}
+
+.project-content {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+  position: relative;
+  z-index: 2;
+}
+
+.project-title {
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.project-desc {
+  font-size: 14px;
+  color: var(--text-2);
+  line-height: 1.6;
+  margin-bottom: 24px;
+  flex-grow: 1;
+}
+
+.project-btn {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: all 0.25s;
+  position: relative;
+  z-index: 3;
+  white-space: nowrap;
+}
+
+.btn-chrome {
+  background: var(--pill-blue);
+  color: #fff !important;
+  border: 1px solid rgba(91, 141, 255, 0.4);
+  box-shadow: 0 4px 16px rgba(91, 141, 255, 0.2);
+}
+
+.btn-chrome:hover {
+  background: #6ba0ff;
+  border-color: rgba(91, 141, 255, 0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(91, 141, 255, 0.4);
+}
+
+@media (max-width: 1100px) {
+  .projects-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .projects-grid {
     grid-template-columns: 1fr;
   }
 }
