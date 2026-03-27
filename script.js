@@ -179,6 +179,41 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+/* ── Fetch Download Count ─────────────────── */
+(async function() {
+  const dlText = document.getElementById('dl-count-text');
+  const dlContainer = document.getElementById('wwr-downloads');
+  if (!dlText || !dlContainer) return;
+  
+  try {
+    const res = await fetch('https://api.github.com/repos/akasumitlamba/WWRecorder/releases');
+    if (!res.ok) throw new Error('API Error');
+    const releases = await res.json();
+    let totalDownloads = 0;
+    
+    releases.forEach(release => {
+      if (release.assets) {
+        release.assets.forEach(asset => {
+          if (asset.name.endsWith('.exe')) {
+            totalDownloads += asset.download_count;
+          }
+        });
+      }
+    });
+
+    if (totalDownloads > 0) {
+      dlText.textContent = totalDownloads.toLocaleString() + ' Downloads on GitHub';
+      dlContainer.style.color = 'var(--pill-green)';
+      setTimeout(() => dlContainer.style.color = 'var(--text-2)', 1500);
+    } else {
+      dlContainer.style.display = 'none';
+    }
+  } catch (err) {
+    console.error('Failed to fetch downloads:', err);
+    dlContainer.style.display = 'none';
+  }
+})();
+
 /* ── Pill UI Interactive Logic ────────────── */
 let pillRunning = false;
 let pillPaused = false;
