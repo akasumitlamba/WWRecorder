@@ -664,7 +664,7 @@ nav {
   align-items: center;
   justify-content: center;
   text-align: center;
-  padding: 120px clamp(24px, 6vw, 80px) 80px;
+  padding: clamp(80px, 12vh, 120px) clamp(24px, 6vw, 80px) clamp(40px, 8vh, 80px);
   overflow: hidden;
 }
 
@@ -903,7 +903,7 @@ nav {
     PILL INTERACTIVE
 ══════════════════════════════════════════ */
 .pill-showcase {
-  margin-top: 64px;
+  margin-top: 24px;
   margin-bottom: 48px;
   display: flex;
   flex-direction: column;
