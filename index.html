@@ -67,12 +67,12 @@
     <h1 class="hero-title">WW<span>R</span>ECORDER</h1>
     <p class="hero-sub">World Wide Recorder</p>
     <p class="hero-desc">
-      High-performance, low file size, crash-resilient screen recorder built for native
+      High-performance, crash-resilient screen recorder built for real
       hardware. Stable 30 FPS · Invisible Pill UI · Zero-latency audio toggle.
     </p>
 
     <div class="hero-author">
-      <span class="author-label">Build by</span>
+      <span class="author-label">Built by</span>
       <a href="https://github.com/akasumitlamba" target="_blank" rel="noopener" class="author-link">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
           <path
@@ -100,6 +100,16 @@
         </svg>
         View on GitHub
       </a>
+    </div>
+
+    <div id="wwr-downloads" class="download-stats"
+      style="margin-top: 16px; margin-bottom: 0px; font-size: 12.5px; font-weight: 600; font-family: var(--sans); color: var(--text-3); display: flex; align-items: center; justify-content: center; gap: 6px; opacity: 0; animation: fade-up 0.9s 0.45s cubic-bezier(0.22, 1, 0.36, 1) both; transition: color 0.5s;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+      <span id="dl-count-text">Loading downloads...</span>
     </div>
 
     <div class="pill-showcase">
@@ -450,7 +460,8 @@
                 <button class="pill-icon-btn pill-gear-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    <path
+                      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
                 </button>
               </div>
@@ -488,7 +499,8 @@
                 <button class="pill-icon-btn pill-gear-btn">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    <path
+                      d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
                   </svg>
                 </button>
               </div>
@@ -809,9 +821,12 @@
         <img src="icons/QuickClip.png" alt="QuickClip Icon" class="project-icon" />
         <div class="project-content">
           <h3 class="project-title">QuickClip</h3>
-          <p class="project-desc">A basic browser extension to manage text and links easily within the reach of user and to save time.</p>
-          <a class="btn-chrome project-btn" href="https://chromewebstore.google.com/detail/mjdfflpebcmmpipdeeianpjfolmhkmna" target="_blank">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <p class="project-desc">A basic browser extension to manage text and links easily within the reach of user and
+            to save time.</p>
+          <a class="btn-chrome project-btn"
+            href="https://chromewebstore.google.com/detail/mjdfflpebcmmpipdeeianpjfolmhkmna" target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10" />
               <circle cx="12" cy="12" r="4" />
               <line x1="21.17" x2="12" y1="8" y2="8" />
@@ -827,9 +842,13 @@
         <img src="icons/quickclippro.png" alt="QuickClip Pro Icon" class="project-icon" />
         <div class="project-content">
           <h3 class="project-title">QuickClip Pro</h3>
-          <p class="project-desc">Extended free version of QuickClip with support for images, links, tags and timestamps.</p>
-          <a class="btn-chrome project-btn" href="https://chromewebstore.google.com/detail/ndibnfgbmcfgoeapohknfeeiilgfhdjg?utm_source=item-share-cb" target="_blank">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <p class="project-desc">Extended free version of QuickClip with support for images, links, tags and
+            timestamps.</p>
+          <a class="btn-chrome project-btn"
+            href="https://chromewebstore.google.com/detail/ndibnfgbmcfgoeapohknfeeiilgfhdjg?utm_source=item-share-cb"
+            target="_blank">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10" />
               <circle cx="12" cy="12" r="4" />
               <line x1="21.17" x2="12" y1="8" y2="8" />
@@ -846,7 +865,9 @@
         <div class="project-content">
           <h3 class="project-title">Stype</h3>
           <p class="project-desc">Converts speech to text using AI with correct punctuation and capitalization.</p>
-          <a class="btn-primary project-btn" href="https://github.com/akasumitlamba/Stype/releases/download/v1.0.0/Stype_Setup_v1.0.0.exe" target="_blank">
+          <a class="btn-primary project-btn"
+            href="https://github.com/akasumitlamba/Stype/releases/download/v1.0.0/Stype_Setup_v1.0.0.exe"
+            target="_blank">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
@@ -861,8 +882,10 @@
         <img src="icons/KeyCast.png" alt="KeyCast Icon" class="project-icon" />
         <div class="project-content">
           <h3 class="project-title">KeyCast</h3>
-          <p class="project-desc">Show your keyboard and mouse inputs on screen for screen recording and screen sharing.</p>
-          <a class="btn-primary project-btn" href="https://github.com/akasumitlamba/KeyCast/releases/download/v2.0/KeyCast_Setup.exe" target="_blank">
+          <p class="project-desc">Show your keyboard and mouse inputs on screen for screen recording and screen sharing.
+          </p>
+          <a class="btn-primary project-btn"
+            href="https://github.com/akasumitlamba/KeyCast/releases/download/v2.0/KeyCast_Setup.exe" target="_blank">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
