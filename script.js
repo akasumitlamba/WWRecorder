@@ -27,7 +27,7 @@
   animateRing();
 
   /* Hover state on interactive elements */
-  const hoverTargets = 'a, button, [role="button"], .feature-card, .step-card, .nav-cta, .btn-primary, .btn-secondary, .pill-icon-btn, .pill-btn-start, label, input, select, textarea';
+  const hoverTargets = 'a, button, [role="button"], .feature-card, .step-card, .nav-cta, .nav-logo, .btn-primary, .btn-secondary, .pill-icon-btn, .pill-btn-start, label, input, select, textarea';
   document.addEventListener('mouseover', (e) => {
     if (e.target.closest(hoverTargets)) {
       document.body.classList.add('cursor-hover');
@@ -69,7 +69,7 @@ const revealObserver = new IntersectionObserver(
       }
     });
   },
-  { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+  { threshold: 0.05, rootMargin: '0px 0px -20px 0px' },
 );
 allRevealEls.forEach((el) => revealObserver.observe(el));
 
@@ -180,17 +180,17 @@ document.addEventListener('keydown', (e) => {
 });
 
 /* ── Fetch Download Count ─────────────────── */
-(async function() {
+(async function () {
   const dlText = document.getElementById('dl-count-text');
   const dlContainer = document.getElementById('wwr-downloads');
   if (!dlText || !dlContainer) return;
-  
+
   try {
     const res = await fetch('https://api.github.com/repos/akasumitlamba/WWRecorder/releases');
     if (!res.ok) throw new Error('API Error');
     const releases = await res.json();
     let totalDownloads = 0;
-    
+
     releases.forEach(release => {
       if (release.assets) {
         release.assets.forEach(asset => {
@@ -333,3 +333,214 @@ window.togglePillMic = function (btn) {
   btn.style.transform = 'scale(0.85)';
   setTimeout(() => { btn.style.transform = ''; }, 150);
 };
+
+/* ══════════════════════════════════════════
+    AUTO-CYCLING SHOWCASE (How to Use)
+══════════════════════════════════════════ */
+(function () {
+  const useSlides = ['dock', 'screenshot', 'recording', 'files', 'settings'];
+  let useIdx = 0;
+  let useTimer = null;
+  let useHovered = false;
+
+  window.switchShowcase = function (tabName) {
+    // Update slides
+    document.querySelectorAll('.showcase-slide').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('slide-' + tabName);
+    if (target) {
+      target.style.animation = 'none';
+      target.offsetHeight;
+      target.style.animation = '';
+      target.classList.add('active');
+    }
+    // Update step highlights
+    document.querySelectorAll('.use-step').forEach(step => {
+      step.classList.toggle('step-active', step.dataset.highlight === tabName);
+    });
+    // Sync index
+    const idx = useSlides.indexOf(tabName);
+    if (idx !== -1) useIdx = idx;
+  };
+
+  function useNext() {
+    useIdx = (useIdx + 1) % useSlides.length;
+    window.switchShowcase(useSlides[useIdx]);
+  }
+
+  function startUseTimer() {
+    if (useTimer) return;
+    useTimer = setInterval(() => {
+      if (!useHovered) useNext();
+    }, 3000);
+  }
+
+  function stopUseTimer() {
+    if (useTimer) { clearInterval(useTimer); useTimer = null; }
+  }
+
+  // Step hover pauses auto-cycle, shows that step
+  document.querySelectorAll('.use-step[data-highlight]').forEach(step => {
+    step.addEventListener('mouseenter', () => {
+      useHovered = true;
+      window.switchShowcase(step.dataset.highlight);
+    });
+    step.addEventListener('mouseleave', () => {
+      useHovered = false;
+    });
+    step.addEventListener('click', () => {
+      window.switchShowcase(step.dataset.highlight);
+    });
+  });
+
+  // Also pause auto-cycle when hovering over the visual area so the user can interact with the pill
+  const useVisual = document.querySelector('.use-visual');
+  if (useVisual) {
+    useVisual.addEventListener('mouseenter', () => useHovered = true);
+    useVisual.addEventListener('mouseleave', () => useHovered = false);
+  }
+
+  // Start/stop when section is visible
+  const useSection = document.getElementById('use');
+  if (useSection) {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) startUseTimer();
+        else stopUseTimer();
+      });
+    }, { threshold: 0.15 });
+    obs.observe(useSection);
+  }
+})();
+
+/* ══════════════════════════════════════════
+    AUTO-CYCLING CONFIG (Works your way)
+══════════════════════════════════════════ */
+(function () {
+  const cfgSlides = ['output', 'hotkeys', 'defaults', 'save'];
+  let cfgIdx = 0;
+  let cfgTimer = null;
+  let cfgHovered = false;
+
+  window.switchCfgSlide = function (name) {
+    // Update slides
+    document.querySelectorAll('.cfg-slide').forEach(s => s.classList.remove('active'));
+    const target = document.getElementById('cfgslide-' + name);
+    if (target) {
+      target.style.animation = 'none';
+      target.offsetHeight;
+      target.style.animation = '';
+      target.classList.add('active');
+    }
+    // Update step highlights
+    document.querySelectorAll('.cfg-step').forEach(step => {
+      step.classList.toggle('step-active', step.dataset.cfghighlight === name);
+    });
+    // Sync index
+    const idx = cfgSlides.indexOf(name);
+    if (idx !== -1) cfgIdx = idx;
+  };
+
+  function cfgNext() {
+    cfgIdx = (cfgIdx + 1) % cfgSlides.length;
+    window.switchCfgSlide(cfgSlides[cfgIdx]);
+  }
+
+  function startCfgTimer() {
+    if (cfgTimer) return;
+    cfgTimer = setInterval(() => {
+      if (!cfgHovered) cfgNext();
+    }, 3000);
+  }
+
+  function stopCfgTimer() {
+    if (cfgTimer) { clearInterval(cfgTimer); cfgTimer = null; }
+  }
+
+  // Step hover pauses auto-cycle, shows that step
+  document.querySelectorAll('.cfg-step[data-cfghighlight]').forEach(step => {
+    step.addEventListener('mouseenter', () => {
+      cfgHovered = true;
+      window.switchCfgSlide(step.dataset.cfghighlight);
+    });
+    step.addEventListener('mouseleave', () => {
+      cfgHovered = false;
+    });
+    step.addEventListener('click', () => {
+      window.switchCfgSlide(step.dataset.cfghighlight);
+    });
+  });
+
+  // Start/stop when section is visible
+  const cfgSection = document.getElementById('configure');
+  if (cfgSection) {
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) startCfgTimer();
+        else stopCfgTimer();
+      });
+    }, { threshold: 0.15 });
+    obs.observe(cfgSection);
+  }
+})();
+
+/* ══════════════════════════════════════════
+    DOWNLOAD DROPDOWN
+══════════════════════════════════════════ */
+window.toggleDownloadDropdown = function (e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const dropdown = document.getElementById('download-dropdown');
+  const toggle = document.getElementById('download-toggle');
+  const isOpen = dropdown.classList.contains('open');
+
+  if (isOpen) {
+    dropdown.classList.remove('open');
+    toggle.classList.remove('open');
+  } else {
+    dropdown.classList.add('open');
+    toggle.classList.add('open');
+  }
+};
+
+// Close dropdown on click outside
+document.addEventListener('click', function (e) {
+  const wrapper = document.getElementById('download-wrapper');
+  const dropdown = document.getElementById('download-dropdown');
+  const toggle = document.getElementById('download-toggle');
+  if (!wrapper || !dropdown) return;
+
+  if (!wrapper.contains(e.target)) {
+    dropdown.classList.remove('open');
+    if (toggle) toggle.classList.remove('open');
+  }
+});
+
+// Close dropdown on Escape
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') {
+    const dropdown = document.getElementById('download-dropdown');
+    const toggle = document.getElementById('download-toggle');
+    if (dropdown) dropdown.classList.remove('open');
+    if (toggle) toggle.classList.remove('open');
+  }
+});
+
+/* ══════════════════════════════════════════
+    R FLICKER ANIMATION (tubelight on the R)
+══════════════════════════════════════════ */
+(function () {
+  const r = document.getElementById('flicker-r');
+  if (!r) return;
+
+  // Wait for the hero fade-up animation to finish, then start the R flicker
+  setTimeout(() => {
+    r.classList.add('flickering');
+
+    // After the flicker animation (1.4s) completes, set final lit state
+    setTimeout(() => {
+      r.classList.remove('flickering');
+      r.classList.add('lit');
+    }, 1500);
+  }, 1000);
+})();
+
