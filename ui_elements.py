@@ -49,7 +49,7 @@ def _exclude_from_capture(hwnd: int) -> None:
 class SelectionOverlay(QWidget):
     selectionChanged = pyqtSignal(dict)
     
-    def __init__(self):
+    def __init__(self, mode="record"):
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -62,8 +62,16 @@ class SelectionOverlay(QWidget):
         self._origin = None
         self._current = None
         self.rect_obj = QRect()
+        self.mode = mode
         
-        self.handle_size = 10
+        if self.mode == "screenshot":
+            self.hint_text = "  ⊞  Click and drag to select screenshot area  -  Esc to cancel  "
+            self.selection_color = QColor(255, 59, 48)  # Red
+        else:
+            self.hint_text = "  ⊞  Click and drag to select recording area  -  Esc to cancel  "
+            self.selection_color = QColor(10, 132, 255)  # Blue
+        
+        self.handle_size = 5
         self.hovered_handle = None
         
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -78,7 +86,7 @@ class SelectionOverlay(QWidget):
         self.setGeometry(bounds)
 
         self._hint = QLabel(
-            "  ⊞  Click and drag to select recording area  -  Esc to cancel  ",
+            self.hint_text,
             self,
         )
         self._hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -225,13 +233,14 @@ class SelectionOverlay(QWidget):
             p.fillRect(sel, QColor(0, 0, 0, 0))
             p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
-            pen = QPen(QColor(10, 132, 255), 2, Qt.PenStyle.SolidLine)
+            pen = QPen(self.selection_color, 1.5, Qt.PenStyle.DashLine)
+            pen.setDashPattern([8, 4])
             p.setPen(pen)
             p.drawRect(sel)
 
             handles = self.get_handles()
             for hr in handles.values():
-                p.fillRect(hr, QColor(10, 132, 255))
+                p.fillRect(hr, self.selection_color)
 
             dim = f"{sel.width()} × {sel.height()}"
             p.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
@@ -242,7 +251,9 @@ class SelectionOverlay(QWidget):
             ly = sel.top() - lh - 4 if sel.top() > lh + 8 else sel.top() + lh + 4
 
             bg_rect = QRect(lx - 2, ly - lh + 2, lw, lh)
-            p.fillRect(bg_rect, QColor(10, 132, 255, 200))
+            bg_color = QColor(self.selection_color)
+            bg_color.setAlpha(200)
+            p.fillRect(bg_rect, bg_color)
             p.setPen(QColor(255, 255, 255))
             p.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, dim)
         p.end()
@@ -289,18 +300,11 @@ class CaptureBorderWidget(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw a clear red border to indicate recording area
-        # Outer glow/border
-        pen_outer = QPen(QColor(255, 59, 48, 150), 4, Qt.PenStyle.SolidLine)
-        p.setPen(pen_outer)
-        rect_outer = self.rect().adjusted(2, 2, -2, -2)
-        p.drawRect(rect_outer)
-
-        # Inner solid line
-        pen_inner = QPen(QColor(255, 59, 48, 255), 2, Qt.PenStyle.SolidLine)
-        p.setPen(pen_inner)
-        rect_inner = self.rect().adjusted(1, 1, -1, -1)
-        p.drawRect(rect_inner)
+        # Draw a thin solid red border to indicate recording area
+        pen = QPen(QColor(255, 59, 48, 220), 1.5, Qt.PenStyle.SolidLine)
+        p.setPen(pen)
+        rect_border = self.rect().adjusted(1, 1, -1, -1)
+        p.drawRect(rect_border)
         
         p.end()
 
@@ -401,7 +405,21 @@ class PillWidget(QWidget):
         self._setup_timers()
         self._position_on_screen()
 
+        self._topmost_timer = QTimer(self)
+        self._topmost_timer.timeout.connect(self._enforce_topmost)
+        self._topmost_timer.start(2000)
+
         QTimer.singleShot(150, self._apply_exclusion)
+
+    def _enforce_topmost(self):
+        if self.isVisible():
+            if _user32:
+                HWND_TOPMOST = -1
+                SWP_NOSIZE = 0x0001
+                SWP_NOMOVE = 0x0002
+                SWP_NOACTIVATE = 0x0010
+                _user32.SetWindowPos(int(self.winId()), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+            self.raise_()
 
     def _apply_exclusion(self):
         _exclude_from_capture(int(self.winId()))
@@ -474,14 +492,14 @@ class PillWidget(QWidget):
         row.addWidget(self._btn_stop)
 
         self._btn_sys = _PillToolButton("desktop_audio.png", "Desktop Audio\nON", checkable=True)
-        sys_state = self._config.get("default_system_audio", True)
+        sys_state = self._engine.get_system_audio()
         self._btn_sys.setChecked(sys_state)
         self._btn_sys.update_text("Desktop Audio\nON" if sys_state else "Desktop Audio\nOFF")
         self._btn_sys.toggled.connect(self._on_sys_toggled)
         row.addWidget(self._btn_sys)
 
         self._btn_mic = _PillToolButton("mic.png", "Microphone\nON", checkable=True)
-        mic_state = self._config.get("default_mic", False)
+        mic_state = self._engine.get_mic()
         self._btn_mic.setChecked(mic_state)
         self._btn_mic.update_text("Microphone\nON" if mic_state else "Microphone\nOFF")
         self._btn_mic.toggled.connect(self._on_mic_toggled)
