@@ -60,8 +60,37 @@ class RecordingEngine:
     def set_system_audio(self, enabled: bool):
         self._sys_audio_enabled = enabled
 
+    def get_system_audio(self) -> bool:
+        return self._sys_audio_enabled
+
     def set_mic(self, enabled: bool):
         self._mic_audio_enabled = enabled
+
+    def get_mic(self) -> bool:
+        return self._mic_audio_enabled
+
+    @staticmethod
+    def take_screenshot(region: dict, output_folder: str) -> str:
+        """Capture a region of the screen and save as PNG. Returns the file path."""
+        from PIL import Image
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        Path(output_folder).mkdir(parents=True, exist_ok=True)
+        out_path = os.path.join(output_folder, f"Screenshot_{timestamp}.png")
+
+        monitor = {
+            "top": region["top"],
+            "left": region["left"],
+            "width": region["width"],
+            "height": region["height"],
+        }
+
+        with mss.mss() as sct:
+            img = sct.grab(monitor)
+            # Convert BGRA to RGB PIL Image and save
+            pil_img = Image.frombytes("RGB", img.size, img.rgb)
+            pil_img.save(out_path, "PNG")
+
+        return out_path
 
     def start(self, region, output_folder, audio_config=None):
         if self._running:
