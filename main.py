@@ -17,14 +17,17 @@ import winreg
 import subprocess
 from pathlib import Path   
 
-from PyQt6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-from PyQt6.QtGui import QIcon, QPixmap, QColor, QPainter, QAction
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QPoint
+from PyQt6.QtWidgets import (
+    QApplication, QMenu, QSystemTrayIcon, QWidget, QFileDialog
+)
+from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QImage
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QRect, QUrl, QMimeData
 
 from pynput import keyboard as pynput_keyboard
 
 from recorder import RecordingEngine
 from ui_elements import SelectionOverlay, PillWidget, SettingsWindow, CaptureBorderWidget
+from dock_widget import DockWidget, SettingsSidebar, RecentFilesSidebar
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -43,9 +46,12 @@ _REG_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 DEFAULT_CONFIG: dict = {
     "output_folder":        str(Path.home() / "Videos" / APP_NAME),
     "hotkey":               "<shift>+<backspace>",
+    "hotkey_screenshot":    "<shift>+<home>",
     "default_system_audio": True,
     "default_mic":          False,
     "start_on_boot":        True,
+    "copy_to_clipboard":    True,
+    "sidebar_width":        380,
 }
 
 
@@ -55,29 +61,37 @@ DEFAULT_CONFIG: dict = {
 
 class HotkeyListener(QThread):
     """
-    Listens for the global hotkey in a background thread.
-    Emits `triggered` on the Qt side (thread-safe via signal).
+    Listens for the global hotkeys in a background thread.
+    Emits `record_triggered` and `screenshot_triggered` on the Qt side.
     """
+    record_triggered = pyqtSignal()
+    screenshot_triggered = pyqtSignal()
 
-    triggered = pyqtSignal()
-
-    def __init__(self, hotkey_str: str, parent=None):
-        super().__init__(parent)
-        self._hotkey_str  = hotkey_str
-        self._ghk: pynput_keyboard.GlobalHotKeys | None = None
+    def __init__(self, record_hk: str, screenshot_hk: str):
+        super().__init__()
+        self._record_hk = record_hk
+        self._screenshot_hk = screenshot_hk
+        self._ghk = None
 
     def run(self):
-        def _on_activate():
-            self.triggered.emit()
+        def _on_rec():
+            self.record_triggered.emit()
+            
+        def _on_ss():
+            self.screenshot_triggered.emit()
+
+        mapping = {}
+        if self._record_hk:
+            mapping[self._record_hk] = _on_rec
+        if self._screenshot_hk:
+            mapping[self._screenshot_hk] = _on_ss
 
         try:
-            with pynput_keyboard.GlobalHotKeys(
-                {self._hotkey_str: _on_activate}
-            ) as ghk:
+            with pynput_keyboard.GlobalHotKeys(mapping) as ghk:
                 self._ghk = ghk
                 ghk.join()
         except Exception as exc:
-            print(f"[HotkeyListener] Error: {exc}")
+            print(f"[HotkeyListener] Error binding: {exc}")
 
     def stop(self):
         if self._ghk:
@@ -130,10 +144,14 @@ class WWRecorderApp:
         self.engine: RecordingEngine = RecordingEngine()
         self.pill:   PillWidget | None = None
         self.border_widget: CaptureBorderWidget | None = None
+        self._recent_panel: RecentFilesSidebar | None = None
+        self._settings_sidebar: SettingsSidebar | None = None
+        self._screenshot_mode = False  # True when selecting area for screenshot
 
         self._hotkey_listener: HotkeyListener | None = None
 
         self._setup_tray()
+        self._setup_dock()
         self._start_hotkey_listener()
 
         # Apply registry setting on startup
@@ -194,13 +212,19 @@ class WWRecorderApp:
 
         menu = QMenu()
 
-        self._act_record = QAction(f"Start Recording  (Ctrl+Shift+R)", menu)
+        hk_ss = self.config.get("hotkey_screenshot", DEFAULT_CONFIG["hotkey_screenshot"]).replace("<", "").replace(">", "").title()
+        self._act_ss = QAction(f"Take Screenshot  ({hk_ss})", menu)
+        self._act_ss.triggered.connect(self._on_screenshot_requested)
+        menu.addAction(self._act_ss)
+
+        hk_rec = self.config.get("hotkey", DEFAULT_CONFIG["hotkey"]).replace("<", "").replace(">", "").title()
+        self._act_record = QAction(f"Start Recording  ({hk_rec})", menu)
         self._act_record.triggered.connect(self._on_start_recording)
         menu.addAction(self._act_record)
 
         menu.addSeparator()
 
-        act_settings = QAction("Settings…", menu)
+        act_settings = QAction("Settings", menu)
         act_settings.triggered.connect(self._open_settings)
         menu.addAction(act_settings)
 
@@ -221,9 +245,114 @@ class WWRecorderApp:
                 # Opens folder and selects the file
                 subprocess.run(f'explorer /select,"{os.path.normpath(self._last_saved_filepath)}"')
 
+    # ── Dock ──────────────────────────────────────────────────────────────────
+
+    def _setup_dock(self) -> None:
+        self.dock = DockWidget(self.engine, self.config)
+        self.dock.screenshot_requested.connect(self._on_screenshot_requested)
+        self.dock.record_requested.connect(self._on_dock_record)
+        self.dock.files_requested.connect(self._on_files_requested)
+        self.dock.settings_requested.connect(self._open_settings)
+        self.dock.show()
+
+    def _on_screenshot_requested(self) -> None:
+        """Open the selection overlay in screenshot mode."""
+        if self.engine.is_recording():
+            return
+        if hasattr(self, '_overlay') and self._overlay and self._overlay.isVisible():
+            return
+
+        self._screenshot_mode = True
+        self._overlay = SelectionOverlay(mode="screenshot")
+        self._overlay.selectionChanged.connect(self._on_screenshot_selection)
+        self._overlay.show()
+        self._overlay.raise_()
+        self._overlay.activateWindow()
+
+    def _on_screenshot_selection(self, region: dict) -> None:
+        """Handle area selected for screenshot."""
+        if hasattr(self, '_overlay') and self._overlay:
+            self._overlay.close()
+            self._overlay = None
+
+        self._screenshot_mode = False
+
+        if not region:
+            return  # Cancelled
+
+        # Convert logical coordinates to physical coordinates for mss (DPI scaling)
+        r = QRect(int(region["left"]), int(region["top"]), int(region["width"]), int(region["height"]))
+        if r.width() > 0 and r.height() > 0:
+            screen = QApplication.screenAt(QPoint(r.left(), r.top()))
+            ratio = screen.devicePixelRatio() if screen else 1.0
+            phys_region = {
+                "left": int(r.left() * ratio),
+                "top": int(r.top() * ratio),
+                "width": int(r.width() * ratio),
+                "height": int(r.height() * ratio),
+            }
+            out_dir = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
+            saved_path = self.engine.take_screenshot(phys_region, out_dir)
+            self._last_saved_filepath = saved_path
+            
+            # Copy to clipboard
+            if self.config.get("copy_to_clipboard", True):
+                if saved_path and os.path.exists(saved_path):
+                    mime = QMimeData()
+                    mime.setUrls([QUrl.fromLocalFile(saved_path)])
+                    img = QImage(saved_path)
+                    if not img.isNull():
+                        mime.setImageData(img)
+                    QApplication.clipboard().setMimeData(mime)
+                
+            self.tray.showMessage(
+                "Screenshot Saved",
+                f"{Path(saved_path).name}\nClick to view.",
+                QSystemTrayIcon.MessageIcon.Information,
+                4000,
+            )
+            # Refresh recent files if open
+            if self._recent_panel and self._recent_panel.isVisible():
+                self._recent_panel.refresh()
+
+    def _on_dock_record(self) -> None:
+        """Toggle recording from the dock button."""
+        if self.engine.is_recording():
+            # Stop recording
+            if self.pill:
+                self.pill._initiate_stop()
+        else:
+            self._on_start_recording()
+
+    def _on_files_requested(self) -> None:
+        """Toggle the recent files sidebar."""
+        if self._recent_panel and self._recent_panel.isVisible():
+            self._recent_panel.close_panel()
+            return
+
+        # Close settings panel if open
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
+            self._settings_sidebar.close_panel()
+
+        output_folder = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
+        self._recent_panel = RecentFilesSidebar(
+            output_folder,
+            font_size_mode=self.config.get("font_size", "Default"),
+            edge=self.config.get("dock_edge", "right"),
+        )
+        self._recent_panel.settings_requested.connect(self._open_settings)
+        self._recent_panel.closed.connect(lambda: setattr(self, '_recent_panel', None))
+        self._recent_panel.width_changed.connect(self._on_sidebar_resized)
+        
+        w = self.config.get("sidebar_width", 380)
+        self._recent_panel.resize(w, 10) # height gets overridden
+        self._recent_panel.open_panel()
+
     def _on_tray_activated(self, reason: QSystemTrayIcon.ActivationReason) -> None:
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:
             self._on_start_recording()
+        elif reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._on_files_requested()
 
     # ── Hotkey ────────────────────────────────────────────────────────────────
 
@@ -231,9 +360,11 @@ class WWRecorderApp:
         if self._hotkey_listener and self._hotkey_listener.isRunning():
             self._hotkey_listener.stop()
 
-        hk = self.config.get("hotkey", DEFAULT_CONFIG["hotkey"])
-        self._hotkey_listener = HotkeyListener(hk)
-        self._hotkey_listener.triggered.connect(self._on_hotkey_triggered)
+        hk_rec = self.config.get("hotkey", DEFAULT_CONFIG["hotkey"])
+        hk_ss = self.config.get("hotkey_screenshot", DEFAULT_CONFIG["hotkey_screenshot"])
+        self._hotkey_listener = HotkeyListener(hk_rec, hk_ss)
+        self._hotkey_listener.record_triggered.connect(self._on_hotkey_triggered)
+        self._hotkey_listener.screenshot_triggered.connect(self._on_screenshot_requested)
         self._hotkey_listener.start()
 
     def _on_hotkey_triggered(self) -> None:
@@ -250,7 +381,7 @@ class WWRecorderApp:
     # ── Recording lifecycle ───────────────────────────────────────────────────
 
     def _on_start_recording(self) -> None:
-        if getattr(self, '_is_settings_open', False):
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
             return
 
         if self.engine.is_recording():
@@ -276,6 +407,11 @@ class WWRecorderApp:
             return
 
         self._current_region = region
+        
+        # Initialize engine audio config from defaults before showing pre-record pill
+        self.engine.set_system_audio(self.config.get("default_system_audio", True))
+        self.engine.set_mic(self.config.get("default_mic", False))
+        
         if not getattr(self, 'pill', None) or not self.pill.isVisible():
             self.pill = PillWidget(self.engine, self.config, pre_record=True)
             self.pill.settings_requested.connect(self._open_settings)
@@ -295,10 +431,6 @@ class WWRecorderApp:
 
     def _start_recording(self, region: dict) -> None:
         output_folder = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
-        audio_cfg = {
-            "system_audio": self.config.get("default_system_audio", True),
-            "mic":          self.config.get("default_mic",          False),
-        }
 
         # Calculate physical region to solve dpi scaling offset for FFmpeg/MSS
         screen = QApplication.screenAt(QPoint(int(region["left"]), int(region["top"])))
@@ -311,8 +443,8 @@ class WWRecorderApp:
             "height": int(region["height"] * ratio),
         }
 
-        # Engine handles physical coordinates
-        ok = self.engine.start(physical_region, output_folder, audio_cfg)
+        # Engine handles physical coordinates (audio state is already configured in engine)
+        ok = self.engine.start(physical_region, output_folder)
         if not ok:
             self.tray.showMessage(
                 APP_NAME, "Failed to start recording - is FFmpeg installed?",
@@ -325,6 +457,10 @@ class WWRecorderApp:
 
         self.pill = PillWidget(self.engine, self.config)
         self.pill.stopped.connect(self._on_recording_stopped)
+
+        # Update dock recording state
+        if hasattr(self, 'dock'):
+            self.dock.set_recording_state(True)
         self.pill.settings_requested.connect(self._open_settings)
         self.pill.show()
 
@@ -341,9 +477,24 @@ class WWRecorderApp:
         self.tray.setToolTip(f"{APP_NAME} - Ready")
         self._act_record.setEnabled(True)
 
+        # Update dock recording state
+        if hasattr(self, 'dock'):
+            self.dock.set_recording_state(False)
+
+        # Refresh recent files if open
+        if self._recent_panel and self._recent_panel.isVisible():
+            self._recent_panel.refresh()
+
         if filepath and os.path.isfile(filepath):
             self._last_saved_filepath = filepath
             size_mb = os.path.getsize(filepath) / (1024 * 1024)
+            
+            # Copy to clipboard
+            if self.config.get("copy_to_clipboard", True):
+                mime = QMimeData()
+                mime.setUrls([QUrl.fromLocalFile(filepath)])
+                QApplication.clipboard().setMimeData(mime)
+
             self.tray.showMessage(
                 "Recording saved",
                 f"{os.path.basename(filepath)}  ({size_mb:.1f} MB)\nClick to view.",
@@ -368,29 +519,56 @@ class WWRecorderApp:
             self.pill = None
 
     def _open_settings(self) -> None:
-        if getattr(self, '_is_settings_open', False):
+        """Open the settings sidebar (replaces legacy SettingsWindow)."""
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
+            self._settings_sidebar.close_panel()
             return
-            
+
+        # Close recent panel if open
+        if self._recent_panel and self._recent_panel.isVisible():
+            self._recent_panel.close_panel()
+
         self._cancel_pre_record()
+
+        self._settings_sidebar = SettingsSidebar(
+            self.config,
+            default_config=DEFAULT_CONFIG,
+            edge=self.config.get("dock_edge", "right"),
+        )
+        self._settings_sidebar.settings_saved.connect(self._on_settings_saved)
+        self._settings_sidebar.files_requested.connect(self._on_files_requested)
+        self._settings_sidebar.quit_requested.connect(self._quit)
+        self._settings_sidebar.closed.connect(lambda: setattr(self, '_settings_sidebar', None))
+        self._settings_sidebar.width_changed.connect(self._on_sidebar_resized)
         
-        self._is_settings_open = True
-        try:
-            dlg = SettingsWindow(self.config)
-            if dlg.exec() == SettingsWindow.DialogCode.Accepted:
-                self.config = dlg.get_config()
-                self._save_config()
-                self._sync_registry()
-                self._start_hotkey_listener()   # Re-register new hotkey
-    
-                # Update hotkey label in tray menu
-                hk = self.config.get("hotkey", "")
-                self._act_record.setText(f"Start Recording  ({hk})")
-    
-                # Ensure output folder exists
-                from pathlib import Path
-                Path(self.config["output_folder"]).mkdir(parents=True, exist_ok=True)
-        finally:
-            self._is_settings_open = False
+        w = self.config.get("sidebar_width", 380)
+        self._settings_sidebar.resize(w, 10)
+        self._settings_sidebar.open_panel()
+
+    def _on_sidebar_resized(self, width: int) -> None:
+        self.config["sidebar_width"] = width
+        self._save_config()
+
+    def _on_settings_saved(self, new_config: dict) -> None:
+        """Handle settings saved from the sidebar."""
+        self.config = new_config
+        self._save_config()
+        self._sync_registry()
+        self._start_hotkey_listener()
+        
+        # Update tray labels
+        hk_ss = self.config.get("hotkey_screenshot", DEFAULT_CONFIG["hotkey_screenshot"]).replace("<", "").replace(">", "").title()
+        hk_rec = self.config.get("hotkey", DEFAULT_CONFIG["hotkey"]).replace("<", "").replace(">", "").title()
+        if hasattr(self, '_act_ss'):
+            self._act_ss.setText(f"Take Screenshot  ({hk_ss})")
+        if hasattr(self, '_act_record'):
+            self._act_record.setText(f"Start Recording  ({hk_rec})")
+
+        # Update dock
+        if hasattr(self, 'dock') and self.dock:
+            self.dock.update_config(self.config)
+
+        Path(self.config["output_folder"]).mkdir(parents=True, exist_ok=True)
 
     # ── Quit ──────────────────────────────────────────────────────────────────
 
@@ -399,6 +577,18 @@ class WWRecorderApp:
             self.engine.stop()
         if self._hotkey_listener:
             self._hotkey_listener.stop()
+
+        # Save dock position before quitting
+        if hasattr(self, 'dock'):
+            self.dock._save_dock_position()
+            self._save_config()
+            self.dock.close()
+
+        if self._recent_panel:
+            self._recent_panel.close()
+        if self._settings_sidebar:
+            self._settings_sidebar.close()
+
         self.tray.hide()
         self.app.quit()
 
