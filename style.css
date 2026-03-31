@@ -904,7 +904,7 @@ nav {
 }
 
 .hero-scroll {
-  position: absolute;
+  position: relative;
   bottom: clamp(24px, 4vh, 40px);
   left: 50%;
   transform: translateX(-50%);
