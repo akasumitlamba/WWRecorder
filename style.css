@@ -557,16 +557,7 @@ button,
   animation: pill-breathe 3.5s ease-in-out infinite;
 }
 
-/* Scroll-line hero — more prominent */
-@keyframes scroll-fall {
-  0%   { transform: scaleY(0); transform-origin: top; opacity: 0; }
-  40%  { transform: scaleY(1); transform-origin: top; opacity: 1; }
-  60%  { transform: scaleY(1); transform-origin: bottom; opacity: 1; }
-  100% { transform: scaleY(0); transform-origin: bottom; opacity: 0; }
-}
-.scroll-line {
-  background: linear-gradient(to bottom, var(--red), rgba(255,45,45,0.2));
-}
+
 
 
 /* ══════════════════════════════════════════
@@ -903,41 +894,7 @@ nav {
   }
 }
 
-.hero-scroll {
-  position: relative;
-  bottom: clamp(24px, 4vh, 40px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--text-3);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  animation: fade-up 1s 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
 
-.scroll-line {
-  width: 1px;
-  height: 40px;
-  background: linear-gradient(to bottom, var(--red), transparent);
-  animation: scroll-blink 2s ease-in-out infinite;
-}
-
-@keyframes scroll-blink {
-
-  0%,
-  100% {
-    opacity: 0.3;
-  }
-
-  50% {
-    opacity: 1;
-  }
-}
 
 /* ══════════════════════════════════════════
     PILL INTERACTIVE
