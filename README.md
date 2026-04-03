@@ -6,6 +6,10 @@ resilient `.mkv` files via FFmpeg.
 
 ---
 
+BUG Fixes in progress-update releases soon
+
+---
+
 ## Features
 
 | Feature         | Detail                                                                            |
