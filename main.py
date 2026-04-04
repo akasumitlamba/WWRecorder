@@ -15,19 +15,21 @@ import sys
 import json 
 import winreg
 import subprocess
+from datetime import datetime
 from pathlib import Path   
 
 from PyQt6.QtWidgets import (
     QApplication, QMenu, QSystemTrayIcon, QWidget, QFileDialog
 )
 from PyQt6.QtGui import QIcon, QAction, QPixmap, QPainter, QColor, QImage
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QRect, QUrl, QMimeData
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QRect, QUrl, QMimeData, QTimer
 
 from pynput import keyboard as pynput_keyboard
 
 from recorder import RecordingEngine
 from ui_elements import SelectionOverlay, PillWidget, SettingsWindow, CaptureBorderWidget
 from dock_widget import DockWidget, SettingsSidebar, RecentFilesSidebar
+from updater import UpdateChecker
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -35,7 +37,7 @@ from dock_widget import DockWidget, SettingsSidebar, RecentFilesSidebar
 # ─────────────────────────────────────────────────────────────────────────────
 
 APP_NAME    = "WWRecorder"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.2.0"
 
 CONFIG_DIR  = Path(os.environ.get("APPDATA", ".")) / APP_NAME
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -47,11 +49,12 @@ DEFAULT_CONFIG: dict = {
     "output_folder":        str(Path.home() / "Videos" / APP_NAME),
     "hotkey":               "<shift>+<backspace>",
     "hotkey_screenshot":    "<shift>+<home>",
-    "default_system_audio": True,
+    "default_system_audio": False,
     "default_mic":          False,
     "start_on_boot":        True,
     "copy_to_clipboard":    True,
     "sidebar_width":        380,
+    "close_on_focus_loss":  True,
 }
 
 
@@ -74,22 +77,37 @@ class HotkeyListener(QThread):
         self._ghk = None
 
     def run(self):
-        def _on_rec():
+        # We use the lower-level HotKey + Listener approach because 
+        # pynput's GlobalHotKeys can sometimes leave modifiers "stuck" in a 
+        # pressed state on Windows, causing false triggers.
+        from pynput import keyboard
+
+        def _on_rec_activate():
             self.record_triggered.emit()
-            
-        def _on_ss():
+
+        def _on_ss_activate():
             self.screenshot_triggered.emit()
 
-        mapping = {}
-        if self._record_hk:
-            mapping[self._record_hk] = _on_rec
-        if self._screenshot_hk:
-            mapping[self._screenshot_hk] = _on_ss
+        # Parse hotkey strings into formal HotKey objects
+        hk_rec = keyboard.HotKey(keyboard.HotKey.parse(self._record_hk), _on_rec_activate)
+        hk_ss  = keyboard.HotKey(keyboard.HotKey.parse(self._screenshot_hk), _on_ss_activate)
+
+        def on_press(key):
+            # Pass the canonical key to the HotKey objects
+            k = self._ghk.canonical(key)
+            hk_rec.press(k)
+            hk_ss.press(k)
+
+        def on_release(key):
+            # Pass the canonical key to the HotKey objects
+            k = self._ghk.canonical(key)
+            hk_rec.release(k)
+            hk_ss.release(k)
 
         try:
-            with pynput_keyboard.GlobalHotKeys(mapping) as ghk:
-                self._ghk = ghk
-                ghk.join()
+            with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
+                self._ghk = listener
+                listener.join()
         except Exception as exc:
             print(f"[HotkeyListener] Error binding: {exc}")
 
@@ -97,6 +115,21 @@ class HotkeyListener(QThread):
         if self._ghk:
             self._ghk.stop()
         self.wait(2000)
+
+
+class PrepareWorker(QThread):
+    """Handles RecordingEngine.prepare in a background thread to avoid UI lag."""
+    finished = pyqtSignal(bool)
+
+    def __init__(self, engine, region, folder):
+        super().__init__()
+        self.engine = engine
+        self.region = region
+        self.folder = folder
+
+    def run(self):
+        success = self.engine.prepare(self.region, self.folder)
+        self.finished.emit(success)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -147,6 +180,7 @@ class WWRecorderApp:
         self._recent_panel: RecentFilesSidebar | None = None
         self._settings_sidebar: SettingsSidebar | None = None
         self._screenshot_mode = False  # True when selecting area for screenshot
+        self._screenshot_in_progress = False  # Guard against re-entrant spawning
 
         self._hotkey_listener: HotkeyListener | None = None
 
@@ -156,6 +190,12 @@ class WWRecorderApp:
 
         # Apply registry setting on startup
         self._sync_registry()
+
+        # Silent update check on boot
+        self._update_status = {"available": False, "version": "", "url": ""}
+        self._updater = UpdateChecker(APP_VERSION)
+        self._updater.finished.connect(self._on_update_check_finished)
+        self._updater.start()
 
     # ── Config ────────────────────────────────────────────────────────────────
 
@@ -170,11 +210,19 @@ class WWRecorderApp:
         return DEFAULT_CONFIG.copy()
 
     def _save_config(self) -> None:
+        """Write config atomically: write to .tmp then rename, preventing corruption."""
+        tmp_path = CONFIG_FILE.with_suffix('.json.tmp')
         try:
-            with CONFIG_FILE.open("w", encoding="utf-8") as f:
+            with tmp_path.open("w", encoding="utf-8") as f:
                 json.dump(self.config, f, indent=2)
+            os.replace(str(tmp_path), str(CONFIG_FILE))
         except Exception as exc:
             print(f"[Config] Save failed: {exc}")
+            # Clean up temp file if rename failed
+            try:
+                tmp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
 
     # ── Windows Registry (auto-start) ─────────────────────────────────────────
 
@@ -242,8 +290,8 @@ class WWRecorderApp:
     def _on_tray_message_clicked(self) -> None:
         if hasattr(self, "_last_saved_filepath") and self._last_saved_filepath:
             if os.path.isfile(self._last_saved_filepath):
-                # Opens folder and selects the file
-                subprocess.run(f'explorer /select,"{os.path.normpath(self._last_saved_filepath)}"')
+                # Opens the file directly in the default player (photo/video)
+                os.startfile(os.path.normpath(self._last_saved_filepath))
 
     # ── Dock ──────────────────────────────────────────────────────────────────
 
@@ -256,43 +304,108 @@ class WWRecorderApp:
         self.dock.show()
 
     def _on_screenshot_requested(self) -> None:
-        """Open the selection overlay in screenshot mode."""
+        """Open the selection overlay in screenshot mode with instant freeze."""
+        # Suppress if user is actively rebinding a hotkey
+        if self._is_hotkey_listening():
+            return
         if self.engine.is_recording():
+            return
+        if self._screenshot_in_progress:
             return
         if hasattr(self, '_overlay') and self._overlay and self._overlay.isVisible():
             return
 
+        self._screenshot_in_progress = True
+
+        # Force dock to collapse instantly if it's expanded before we freeze the screen
+        if hasattr(self, 'dock') and self.dock and self.dock._expanded:
+            self.dock._set_collapsed_geo(animate=False)
+            # Defer freeze by a fraction of a second to ensure OS clears the expanded dock from framebuffer
+            QTimer.singleShot(80, self._perform_screenshot_freeze)
+            return
+
+        self._perform_screenshot_freeze()
+
+    def _perform_screenshot_freeze(self) -> None:
+        """Execute the actual screen freeze and show the SelectionOverlay."""
+        # Instant Freeze: Capture before showing overlay
+        try:
+            pil_img = self.engine.grab_full_desktop()
+            # Convert PIL to QImage safely without ImageQt dependency if possible
+            # But ImageQt is cleaner if it works. Let's use a robust raw bytes conversion.
+            rgba_data = pil_img.convert("RGBA").tobytes("raw", "RGBA")
+            qimg = QImage(rgba_data, pil_img.size[0], pil_img.size[1], QImage.Format.Format_RGBA8888)
+            self._screenshot_bg_pixmap = QPixmap.fromImage(qimg)
+        except Exception as e:
+            print(f"[Screenshot] Freeze failed: {e}")
+            import traceback
+            traceback.print_exc()
+            self._screenshot_bg_pixmap = None
+
         self._screenshot_mode = True
         self._overlay = SelectionOverlay(mode="screenshot")
+        if self._screenshot_bg_pixmap:
+            self._overlay.set_background(self._screenshot_bg_pixmap)
+            
         self._overlay.selectionChanged.connect(self._on_screenshot_selection)
         self._overlay.show()
         self._overlay.raise_()
         self._overlay.activateWindow()
 
     def _on_screenshot_selection(self, region: dict) -> None:
-        """Handle area selected for screenshot."""
+        """Handle area selected for screenshot by cropping the frozen capture."""
         if hasattr(self, '_overlay') and self._overlay:
             self._overlay.close()
             self._overlay = None
 
         self._screenshot_mode = False
+        self._screenshot_in_progress = False
 
         if not region:
+            self._screenshot_bg_pixmap = None
             return  # Cancelled
 
-        # Convert logical coordinates to physical coordinates for mss (DPI scaling)
+        if not hasattr(self, '_screenshot_bg_pixmap') or not self._screenshot_bg_pixmap:
+            # Fallback to live capture if freeze failed (should not happen normally)
+            self._on_screenshot_selection_live_fallback(region)
+            return
+
+        # Selection coordinates are in logical pixels relative to virtual desktop
+        # Since the Pixmap size matches the total physical size of monitors, 
+        # we must map logical region to physical if there's DPI scaling.
+        
+        # In a multi-monitor setup, the virtual desktop bounds in logical pixels
+        # match our SelectionOverlay geometry.
+        # However, the physical pixmap might be larger.
+        
+        # Simple approach for now: Copy current region calculation but apply to pixmap
         r = QRect(int(region["left"]), int(region["top"]), int(region["width"]), int(region["height"]))
         if r.width() > 0 and r.height() > 0:
             screen = QApplication.screenAt(QPoint(r.left(), r.top()))
             ratio = screen.devicePixelRatio() if screen else 1.0
-            phys_region = {
-                "left": int(r.left() * ratio),
-                "top": int(r.top() * ratio),
-                "width": int(r.width() * ratio),
-                "height": int(r.height() * ratio),
-            }
+            
+            # Note: mss capture starts at virtual desktop (0,0) in physical space usually
+            # But mss monitors[0] is special. 
+            # If we used monitors[0], it's all screens.
+            
+            # To ensure no offset, we should crop the physical pixmap.
+            # Convert logical r to physical pr
+            pr = QRect(
+                int(r.left() * ratio),
+                int(r.top() * ratio),
+                int(r.width() * ratio),
+                int(r.height() * ratio)
+            )
+            
+            cropped = self._screenshot_bg_pixmap.copy(pr)
+            self._screenshot_bg_pixmap = None # Clear memory
+
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             out_dir = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
-            saved_path = self.engine.take_screenshot(phys_region, out_dir)
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
+            saved_path = os.path.join(out_dir, f"Screenshot_{timestamp}.png")
+            
+            cropped.save(saved_path, "PNG")
             self._last_saved_filepath = saved_path
             
             # Copy to clipboard
@@ -314,6 +427,34 @@ class WWRecorderApp:
             # Refresh recent files if open
             if self._recent_panel and self._recent_panel.isVisible():
                 self._recent_panel.refresh()
+
+    def _on_screenshot_selection_live_fallback(self, region: dict) -> None:
+        """Old live capture logic as fallback."""
+        r = QRect(int(region["left"]), int(region["top"]), int(region["width"]), int(region["height"]))
+        if r.width() > 0 and r.height() > 0:
+            screen = QApplication.screenAt(QPoint(r.left(), r.top()))
+            ratio = screen.devicePixelRatio() if screen else 1.0
+            phys_region = {
+                "left": int(r.left() * ratio),
+                "top": int(r.top() * ratio),
+                "width": int(r.width() * ratio),
+                "height": int(r.height() * ratio),
+            }
+            out_dir = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
+            saved_path = self.engine.take_screenshot(phys_region, out_dir)
+            self._last_saved_filepath = saved_path
+            
+            # ... clipboard and tray logic ...
+            if self.config.get("copy_to_clipboard", True):
+                if saved_path and os.path.exists(saved_path):
+                    mime = QMimeData()
+                    mime.setUrls([QUrl.fromLocalFile(saved_path)])
+                    img = QImage(saved_path)
+                    if not img.isNull():
+                        mime.setImageData(img)
+                    QApplication.clipboard().setMimeData(mime)
+            self.tray.showMessage("Screenshot Saved", f"{Path(saved_path).name}\nClick to view.", QSystemTrayIcon.MessageIcon.Information, 4000)
+            if self._recent_panel and self._recent_panel.isVisible(): self._recent_panel.refresh()
 
     def _on_dock_record(self) -> None:
         """Toggle recording from the dock button."""
@@ -339,6 +480,7 @@ class WWRecorderApp:
             output_folder,
             font_size_mode=self.config.get("font_size", "Default"),
             edge=self.config.get("dock_edge", "right"),
+            close_on_focus_loss=self.config.get("close_on_focus_loss", True),
         )
         self._recent_panel.settings_requested.connect(self._open_settings)
         self._recent_panel.closed.connect(lambda: setattr(self, '_recent_panel', None))
@@ -371,12 +513,30 @@ class WWRecorderApp:
         """
         If a recording is active: toggle pause/resume.
         Otherwise:  open the region-picker and start a new recording.
+        Suppressed when a hotkey input is actively listening for a new binding.
         """
+        # Suppress hotkey if user is actively rebinding a key in settings
+        if self._is_hotkey_listening():
+            return
         if self.engine.is_recording():
             if self.pill:
                 self.pill.toggle_pause()
         else:
             self._on_start_recording()
+
+    def _is_hotkey_listening(self) -> bool:
+        """Check if any hotkey input widget in the settings sidebar is currently listening."""
+        if not self._settings_sidebar or not self._settings_sidebar.isVisible():
+            return False
+        # Search for _HotkeyInput widgets that are in listening mode
+        try:
+            from dock_widget import _HotkeyInput
+            for widget in self._settings_sidebar.findChildren(_HotkeyInput):
+                if hasattr(widget, '_listening') and widget._listening:
+                    return True
+        except Exception:
+            pass
+        return False
 
     # ── Recording lifecycle ───────────────────────────────────────────────────
 
@@ -404,21 +564,31 @@ class WWRecorderApp:
             if hasattr(self, 'pill') and self.pill:
                 self.pill.close()
                 self.pill = None
+            # Discard any pre-warmed state
+            self.engine.discard()
             return
 
+        # Just store the latest region — do NOT prepare the engine yet.
+        # The user might resize/move the selection multiple times.
+        # Engine preparation happens once in _do_start when user clicks "Start".
         self._current_region = region
         
-        # Initialize engine audio config from defaults before showing pre-record pill
-        self.engine.set_system_audio(self.config.get("default_system_audio", True))
-        self.engine.set_mic(self.config.get("default_mic", False))
-        
+        # Initialize audio config from defaults only on first selection
+        if not getattr(self, '_audio_config_initialized', False):
+            self.engine.set_system_audio(self.config.get("default_system_audio", False))
+            self.engine.set_mic(self.config.get("default_mic", False))
+            self._audio_config_initialized = True
+
         if not getattr(self, 'pill', None) or not self.pill.isVisible():
             self.pill = PillWidget(self.engine, self.config, pre_record=True)
             self.pill.settings_requested.connect(self._open_settings)
+            self.pill.stopped.connect(self._on_recording_stopped)
+            self.pill.save_completed.connect(self._on_save_completed)
             self.pill.start_requested.connect(self._do_start)
             self.pill.show()
 
     def _do_start(self) -> None:
+        # Close the overlay first — we have the final region stored
         if hasattr(self, '_overlay') and self._overlay:
             self._overlay.close()
             self._overlay = None
@@ -426,7 +596,10 @@ class WWRecorderApp:
             self.pill.close()
             
         region = getattr(self, '_current_region', None)
+        if self.pill:
+            self.pill.set_recording_mode()
         if region:
+            self._audio_config_initialized = False  # Reset for next recording session
             self._start_recording(region)
 
     def _start_recording(self, region: dict) -> None:
@@ -448,20 +621,24 @@ class WWRecorderApp:
         if not ok:
             self.tray.showMessage(
                 APP_NAME, "Failed to start recording - is FFmpeg installed?",
-                QSystemTrayIcon.MessageIcon.Critical, 4000,
+                self.tray.icon(), 4000,
             )
             return
 
         self.tray.setToolTip(f"{APP_NAME} - Recording…")
         self._act_record.setEnabled(False)
 
-        self.pill = PillWidget(self.engine, self.config)
-        self.pill.stopped.connect(self._on_recording_stopped)
-
+        # Reuse existing pill if available from pre-record
+        if not self.pill:
+            self.pill = PillWidget(self.engine, self.config)
+            self.pill.stopped.connect(self._on_recording_stopped)
+            self.pill.save_completed.connect(self._on_save_completed)
+            self.pill.settings_requested.connect(self._open_settings)
+        
         # Update dock recording state
         if hasattr(self, 'dock'):
             self.dock.set_recording_state(True)
-        self.pill.settings_requested.connect(self._open_settings)
+            
         self.pill.show()
 
         # Outline handles logical coordinates (Qt handles the scaling)
@@ -469,17 +646,46 @@ class WWRecorderApp:
         self.border_widget.show()
 
     def _on_recording_stopped(self, filepath: str) -> None:
-        self.pill = None
+        """Called immediately when user clicks Stop/Discard — clears all visual UI."""
+        was_recording = self.border_widget is not None
         if self.border_widget:
             self.border_widget.close()
             self.border_widget = None
 
-        self.tray.setToolTip(f"{APP_NAME} - Ready")
+        if hasattr(self, '_overlay') and self._overlay:
+            self._overlay.close()
+            self._overlay = None
+
         self._act_record.setEnabled(True)
 
         # Update dock recording state
         if hasattr(self, 'dock'):
             self.dock.set_recording_state(False)
+
+        if filepath == "<SAVING>":
+            # Muxing in progress — pill stays alive (hidden) to run _StopWorker.
+            # Notification will come from _on_save_completed.
+            self.tray.setToolTip(f"{APP_NAME} - Saving…")
+            return
+
+        # For <DISCARDED> and other immediate results, clean up pill now
+        self.pill = None
+        self.tray.setToolTip(f"{APP_NAME} - Ready")
+
+        if filepath == "<DISCARDED>":
+            self._last_saved_filepath = None
+            if was_recording:
+                self.tray.showMessage(
+                    APP_NAME, "Recording discarded.",
+                    self.tray.icon(), 3000,
+                )
+        else:
+            self._last_saved_filepath = None
+
+    def _on_save_completed(self, filepath: str) -> None:
+        """Called when background muxing finishes — shows notification, copies to clipboard."""
+        self.pill = None
+        self.tray.setToolTip(f"{APP_NAME} - Ready")
 
         # Refresh recent files if open
         if self._recent_panel and self._recent_panel.isVisible():
@@ -488,7 +694,7 @@ class WWRecorderApp:
         if filepath and os.path.isfile(filepath):
             self._last_saved_filepath = filepath
             size_mb = os.path.getsize(filepath) / (1024 * 1024)
-            
+
             # Copy to clipboard
             if self.config.get("copy_to_clipboard", True):
                 mime = QMimeData()
@@ -498,17 +704,42 @@ class WWRecorderApp:
             self.tray.showMessage(
                 "Recording saved",
                 f"{os.path.basename(filepath)}  ({size_mb:.1f} MB)\nClick to view.",
-                QSystemTrayIcon.MessageIcon.Information,
+                self.tray.icon(),
                 4000,
             )
         else:
             self._last_saved_filepath = None
             self.tray.showMessage(
                 APP_NAME, "Recording finished (no output file).",
-                QSystemTrayIcon.MessageIcon.Warning, 3000,
+                self.tray.icon(), 3000,
             )
 
-    # ── Settings ──────────────────────────────────────────────────────────────
+    # ── Update Checker ────────────────────────────────────────────────────────
+
+    def _on_update_check_finished(self, available: bool, version: str, url: str):
+        self._update_status = {"available": available, "version": version, "url": url}
+        if available:
+            self.tray.showMessage(
+                "Update Available!",
+                f"WWRecorder {version} is now available.\nClick to download.",
+                self.tray.icon(),
+                10000
+            )
+
+    def _on_tray_message_clicked(self) -> None:
+        # Check if this was an update notification
+        if self._update_status["available"] and self._update_status["url"]:
+            import webbrowser
+            webbrowser.open(self._update_status["url"])
+            # Reset available so subsequent clicks don't re-open unless it's a new file save
+            # But wait, tray message click is also used for opening saved files.
+            # We need to distinguish.
+            return
+
+        if hasattr(self, "_last_saved_filepath") and self._last_saved_filepath:
+            if os.path.isfile(self._last_saved_filepath):
+                # Opens the file directly in the default player (photo/video)
+                os.startfile(os.path.normpath(self._last_saved_filepath))
 
     def _cancel_pre_record(self) -> None:
         if hasattr(self, '_overlay') and self._overlay:
@@ -517,6 +748,9 @@ class WWRecorderApp:
         if hasattr(self, 'pill') and self.pill and getattr(self.pill, '_pre_record', False):
             self.pill.close()
             self.pill = None
+        
+        # Ensure the pre-warmed engine is properly discarded/cleaned up
+        self.engine.discard()
 
     def _open_settings(self) -> None:
         """Open the settings sidebar (replaces legacy SettingsWindow)."""
@@ -529,9 +763,8 @@ class WWRecorderApp:
             self._recent_panel.close_panel()
 
         self._cancel_pre_record()
-
         self._settings_sidebar = SettingsSidebar(
-            self.config,
+            {**self.config, "current_version": APP_VERSION},
             default_config=DEFAULT_CONFIG,
             edge=self.config.get("dock_edge", "right"),
         )
@@ -544,6 +777,12 @@ class WWRecorderApp:
         w = self.config.get("sidebar_width", 380)
         self._settings_sidebar.resize(w, 10)
         self._settings_sidebar.open_panel()
+
+        # If a background check already found an update, reflect it in the UI immediately
+        if self._update_status["available"]:
+            self._settings_sidebar.set_update_status(
+                True, self._update_status["version"], self._update_status["url"]
+            )
 
     def _on_sidebar_resized(self, width: int) -> None:
         self.config["sidebar_width"] = width
