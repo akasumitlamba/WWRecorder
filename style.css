@@ -792,7 +792,7 @@ nav {
   gap: 10px;
   margin-bottom: 40px;
   font-size: 13px;
-  color: var(--text-3);
+  color: var(--text-2); /* Brighter label */
   animation: fade-up 0.9s 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -809,8 +809,8 @@ nav {
   border: 1px solid var(--border);
   border-radius: 99px;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text-2);
+  font-weight: 700; /* Bolder for the creator */
+  color: var(--text); /* Full brightness for the creator */
   transition: all 0.25s;
 }
 
@@ -818,6 +818,100 @@ nav {
   background: var(--surface);
   border-color: rgba(255, 255, 255, 0.3);
   color: var(--text);
+}
+
+/* ── Appreciation Ribbon ──────────────────── */
+.thanks-ribbon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 56px;
+  width: 100vw;
+  height: 48px;
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  /* Correct Full-Width Breakout */
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  box-shadow: 0 4px 30px rgba(0,0,0,0.4);
+  animation: fade-up 0.9s 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  z-index: 5;
+}
+
+.thanks-label {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.thanks-marquee-container {
+  overflow: hidden;
+  position: relative;
+  max-width: 900px;
+  display: flex;
+  align-items: center;
+}
+
+/* Mask only applies when scrolling to avoid weird edge fades on centered text */
+.marquee-active-mask {
+  mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 15%, black 85%, transparent);
+}
+
+.thanks-content {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  white-space: nowrap;
+  width: max-content;
+  padding: 0;
+  list-style: none;
+}
+
+.thanks-name {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500; /* Unbolded */
+  color: var(--text-3); /* Dimmer color */
+  letter-spacing: 0.02em;
+  padding: 0 16px;
+}
+
+.thanks-star-item {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.thanks-star {
+  width: 14px;
+  height: 14px;
+  color: var(--pill-gold);
+  filter: drop-shadow(0 0 5px rgba(245,166,35,0.4));
+  flex-shrink: 0;
+}
+
+/* Marquee logic (activated by JS if content overflows) */
+.marquee-active {
+  animation: thanks-scroll 25s linear infinite;
+  margin: 0; /* Reset auto margin when scrolling */
+}
+
+.thanks-ribbon:hover .marquee-active {
+  animation-play-state: paused;
+}
+
+@keyframes thanks-scroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); } 
 }
 
 .hero-actions {
