@@ -7,6 +7,7 @@ PyQt6>=6.6.0
 # ── Screen Capture ────────────────────────────────────────────────────────────
 mss>=9.0.1
 numpy>=1.26.0           # Used for fast BGR conversion in frame worker
+Pillow>=10.0.0          # Screenshot PNG export
 pywin32>=306            # Added for native Windows cursor pulling
 
 # ── Audio (Windows WASAPI loopback + Microphone) ─────────────────────────────
