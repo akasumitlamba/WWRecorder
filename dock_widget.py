@@ -21,12 +21,12 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QScrollArea, QLineEdit,
     QMessageBox, QSizePolicy, QFileDialog, QCheckBox,
-    QFrame, QComboBox,
+    QFrame, QComboBox, QToolTip,
 )
 from PyQt6.QtCore import (
     Qt, QRect, QPoint, QSize, QTimer, QMimeData, QUrl,
     pyqtSignal, QPropertyAnimation, QEasingCurve,
-    QRunnable, QThreadPool, QObject,
+    QRunnable, QThreadPool, QObject, QEvent,
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QBrush, QPen, QFont,
@@ -34,6 +34,8 @@ from PyQt6.QtGui import (
 )
 
 import subprocess
+import webbrowser
+from updater import UpdateChecker
 
 # ── Windows API ────────────────────────────────────────────────────────────────
 WDA_EXCLUDEFROMCAPTURE = 0x00000011
@@ -255,6 +257,7 @@ class _ShareWidget(QFrame):
         lay.addWidget(self._lbl, 1)
         
         self._ico = QLabel()
+        self._ico.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         pm = QPixmap(_asset("copy.png"))
         if not pm.isNull():
             self._ico.setPixmap(pm.scaled(14, 14, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
@@ -284,9 +287,13 @@ class _ShareWidget(QFrame):
         super().mousePressEvent(e)
         
     def _restore(self):
-        self._lbl.setText(self._url)
-        self._lbl.setStyleSheet("color: #DC2626; font-size: 11px; font-family: 'Segoe UI'; border: none; background: transparent;")
-        self._setup_normal_style()
+        try:
+            self._lbl.setText(self._url)
+            self._lbl.setStyleSheet("color: #DC2626; font-size: 11px; font-family: 'Segoe UI'; border: none; background: transparent;")
+            self._setup_normal_style()
+        except RuntimeError:
+            # Widget was already destroyed by Qt (sidebar closed before timer fired)
+            pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -338,6 +345,7 @@ class DockWidget(QWidget):
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         self.setMouseTracking(True)
 
         self._build_panel()
@@ -347,10 +355,21 @@ class DockWidget(QWidget):
         self._topmost_timer.timeout.connect(self._enforce_topmost)
         self._topmost_timer.start(2000)
 
-        QTimer.singleShot(150, self._apply_exclusion)
+        # First Launch Blink
+        self._is_first_launch = True
+        self._blink_on = False
+        self._first_blink_timer = QTimer(self)
+        self._first_blink_timer.setInterval(450)
+        self._first_blink_timer.timeout.connect(self._on_first_blink_tick)
+        self._first_blink_timer.start()
+
+    def _on_first_blink_tick(self):
+        if self._is_first_launch:
+            self._blink_on = not self._blink_on
+            self.update()
 
     def _enforce_topmost(self):
-        if self.isVisible():
+        if self.isVisible() and not self._expanded:
             if _user32:
                 HWND_TOPMOST = -1
                 SWP_NOSIZE = 0x0001
@@ -358,9 +377,6 @@ class DockWidget(QWidget):
                 SWP_NOACTIVATE = 0x0010
                 _user32.SetWindowPos(int(self.winId()), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
             self.raise_()
-
-    def _apply_exclusion(self):
-        _exclude_from_capture(int(self.winId()))
 
     def _build_panel(self):
         self._panel = QWidget(self)
@@ -377,7 +393,7 @@ class DockWidget(QWidget):
         layout.addWidget(self._btn_screenshot)
 
         hk_rec = self._config.get("hotkey", "<shift>+<backspace>").replace("<", "").replace(">", "").title()
-        self._btn_record = self._make_btn("record.png", f"Start / Stop Recording ({hk_rec})")
+        self._btn_record = self._make_btn("record.png", f"Recording ({hk_rec})")
         self._btn_record.clicked.connect(self.record_requested.emit)
         layout.addWidget(self._btn_record)
 
@@ -402,6 +418,7 @@ class DockWidget(QWidget):
                 self.setFixedSize(30, 30)
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 self.setMouseTracking(True)
+                self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
                 
                 self.icon_normal = QIcon()
                 self.icon_hover = QIcon()
@@ -421,15 +438,28 @@ class DockWidget(QWidget):
                     self.icon_hover = QIcon(pm_white)
                     
                     self.setIcon(self.icon_normal)
-                    
+
+                self._tip_timer = QTimer(self)
+                self._tip_timer.setSingleShot(True)
+                self._tip_timer.setInterval(400) # Standard tooltip delay
+                self._tip_timer.timeout.connect(self._show_tip)
+                
+            def _show_tip(self):
+                if self.underMouse() and self.toolTip():
+                    # Manual trigger bypasses WA_ShowWithoutActivating focus issues
+                    QToolTip.showText(QCursor.pos(), self.toolTip(), self)
+
             def enterEvent(self, e):
                 if not self.icon_hover.isNull():
                     self.setIcon(self.icon_hover)
+                self._tip_timer.start()
                 super().enterEvent(e)
                 
             def leaveEvent(self, e):
                 if not self.icon_normal.isNull():
                     self.setIcon(self.icon_normal)
+                self._tip_timer.stop()
+                QToolTip.hideText()
                 super().leaveEvent(e)
 
         btn = TintingToolButton(tooltip)
@@ -552,6 +582,11 @@ class DockWidget(QWidget):
 
     def enterEvent(self, event):
         self._collapse_timer.stop()
+        if self._is_first_launch:
+            self._is_first_launch = False
+            self._first_blink_timer.stop()
+            self.update()
+
         if not self._expanded and not self._is_dragging:
             self._expand()
         super().enterEvent(event)
@@ -642,8 +677,16 @@ class DockWidget(QWidget):
 
             p.fillPath(gp, QBrush(QColor(30, 30, 32, 220)))
 
+            # Add outline to grabber for visibility on dark backgrounds
+            p.setPen(QPen(CLR_BORDER, 1.0))
+            p.drawPath(gp)
+
             # 3 grab lines
-            p.setPen(QPen(QColor(200, 200, 200, 160), 1.5))
+            if self._is_first_launch and self._blink_on:
+                p.setPen(QPen(CLR_RED, 2.0))
+            else:
+                p.setPen(QPen(QColor(200, 200, 200, 160), 1.5))
+            
             cx = self.GRABBER_W // 2
             cy = self.GRABBER_H // 2
             for dy in [-7, 0, 7]:
@@ -657,10 +700,19 @@ class DockWidget(QWidget):
                     p.drawEllipse(cx - 3, 5, 6, 6)
                     p.drawEllipse(cx - 3, self.GRABBER_H - 11, 6, 6)
             else:
-                p.setBrush(CLR_RED)
-                p.setPen(Qt.PenStyle.NoPen)
-                p.drawEllipse(cx - 2, 6, 4, 4)
-                p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
+                # Normal or first-launch blink state for dots
+                if self._is_first_launch and self._blink_on:
+                    dot_color = CLR_RED_HVR
+                    dot_size = 5
+                    p.setBrush(dot_color)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(cx - (dot_size // 2), 6 - (dot_size - 4) // 2, dot_size, dot_size)
+                    p.drawEllipse(cx - (dot_size // 2), self.GRABBER_H - 10 - (dot_size - 4) // 2, dot_size, dot_size)
+                else:
+                    p.setBrush(CLR_RED)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(cx - 2, 6, 4, 4)
+                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
 
         p.end()
 
@@ -668,8 +720,10 @@ class DockWidget(QWidget):
 
     def set_recording_state(self, is_recording: bool):
         self._is_recording = is_recording
+        hk = self._config.get("hotkey", "<shift>+<backspace>").replace("<", "").replace(">", "").title()
+        
         if is_recording:
-            self._btn_record.setToolTip("Stop Recording")
+            self._btn_record.setToolTip(f"Stop Recording ({hk})")
             stop_ico = _asset("stop.png")
             if os.path.isfile(stop_ico):
                 self._btn_record.setIcon(QIcon(stop_ico))
@@ -679,7 +733,7 @@ class DockWidget(QWidget):
             """)
             self._pulse_timer.start()
         else:
-            self._btn_record.setToolTip("Record")
+            self._btn_record.setToolTip(f"Record ({hk})")
             rec_ico = _asset("record.png")
             if os.path.isfile(rec_ico):
                 self._btn_record.setIcon(QIcon(rec_ico))
@@ -714,7 +768,7 @@ class SidebarPanel(QWidget):
     DEFAULT_WIDTH = 380
     MAX_WIDTH = 600
 
-    def __init__(self, edge: str = "right", parent=None):
+    def __init__(self, edge: str = "right", close_on_focus_loss: bool = True, parent=None):
         flags = (
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
@@ -723,20 +777,56 @@ class SidebarPanel(QWidget):
         super().__init__(None, flags)
 
         self._edge = edge
+        self._close_on_focus_loss = close_on_focus_loss
         self._resizing = False
         self._resize_start_x = 0
         self._resize_start_w = 0
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        if not self._close_on_focus_loss:
+            self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         self.setMouseTracking(True)
         self.setMinimumWidth(self.MIN_WIDTH)
         self.setMaximumWidth(self.MAX_WIDTH)
 
-        QTimer.singleShot(150, self._apply_exclusion)
+    def set_close_on_focus_loss(self, enabled: bool):
+        self._close_on_focus_loss = enabled
 
-    def _apply_exclusion(self):
-        _exclude_from_capture(int(self.winId()))
+    def changeEvent(self, event):
+        if event.type() == QEvent.Type.ActivationChange:
+            if not self.isActiveWindow() and self._close_on_focus_loss:
+                # Use a small timer to prevent closing if a sub-dialog (like QFileDialog) is opened
+                # although in this app we usually don't have sub-dialogs for the sidebar itself.
+                QTimer.singleShot(100, self._check_should_close)
+        super().changeEvent(event)
+
+    def _check_should_close(self):
+        if not self.isVisible() or not self._close_on_focus_loss:
+            return
+        
+        active = QApplication.activeWindow()
+        if active == self:
+            return
+
+        # Check if the active window is a child or descendant of this sidebar
+        is_descendant = False
+        if active:
+            # Modal dialogs often have the sidebar as parent
+            p = active
+            while p:
+                if p == self:
+                    is_descendant = True
+                    break
+                try:
+                    p = p.parent()
+                except RuntimeError:
+                    # Handle cases where the object might be being destroyed
+                    p = None
+        
+        if not is_descendant and not self._resizing:
+            self.close_panel()
 
     def _position_sidebar(self, width: int = 0):
         sg = QApplication.primaryScreen().availableGeometry()
@@ -824,6 +914,10 @@ class SidebarPanel(QWidget):
 
         self.setGeometry(start_x, y, w, h)
         self.show()
+        
+        if self._close_on_focus_loss:
+            self.activateWindow()
+            self.raise_()
 
         self._anim = QPropertyAnimation(self, b"geometry")
         self._anim.setDuration(350)
@@ -1013,11 +1107,14 @@ class SettingsSidebar(SidebarPanel):
     settings_saved = pyqtSignal(dict)
     files_requested = pyqtSignal()
     quit_requested = pyqtSignal()
+    manual_update_check_requested = pyqtSignal()
 
     def __init__(self, config: dict, default_config: dict = None, edge: str = "right"):
-        super().__init__(edge)
+        super().__init__(edge, config.get("close_on_focus_loss", True))
         self._config = config.copy()
         self._default_config = default_config or {}
+        self._update_status = {"available": False, "version": "", "url": ""}
+        self._updater = None
         self._build_ui()
         self._position_sidebar()
 
@@ -1118,10 +1215,11 @@ class SettingsSidebar(SidebarPanel):
 
         # ── Default Behavior ─────────────────────────────────────────────────
         self._add_section_title(lay, "DEFAULT BEHAVIOR")
-        self._chk_sys = self._add_toggle(lay, "Record system audio by default", self._config.get("default_system_audio", True))
+        self._chk_sys = self._add_toggle(lay, "Record system audio by default", self._config.get("default_system_audio", False))
         self._chk_mic = self._add_toggle(lay, "Record microphone by default", self._config.get("default_mic", False))
         self._chk_boot = self._add_toggle(lay, "Start WWRecorder with Windows", self._config.get("start_on_boot", False))
         self._chk_clip = self._add_toggle(lay, "Auto-copy captures to clipboard", self._config.get("copy_to_clipboard", True))
+        self._chk_autoclose = self._add_toggle(lay, "Auto-close sidebar on focus loss", self._config.get("close_on_focus_loss", True))
 
         # ── Appearance ───────────────────────────────────────────────────────
         self._add_section_title(lay, "APPEARANCE")
@@ -1140,6 +1238,37 @@ class SettingsSidebar(SidebarPanel):
         self._add_section_title(lay, "SHARE APP")
         self._share_widget = _ShareWidget()
         lay.addWidget(self._share_widget)
+
+        lay.addSpacing(16)
+        # ── System / Updates ────────────────────────────────────────────────
+        self._add_section_title(lay, "SYSTEM")
+        
+        ver_row = QHBoxLayout()
+        ver_row.setContentsMargins(0, 4, 0, 0)
+        self._lbl_version = QLabel(f"Version {self._config.get('current_version', '1.2.0')}")
+        self._lbl_version.setStyleSheet("color: rgba(255,255,255,0.6); font-size: 12px; font-family: 'Segoe UI';")
+        ver_row.addWidget(self._lbl_version, 1)
+        
+        self._btn_check_update = QPushButton("Check for Updates")
+        self._btn_check_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_check_update.setMinimumWidth(110)
+        self._btn_check_update.setStyleSheet("""
+            QPushButton {
+                background: transparent; color: #DC2626; border: 1px solid #DC2626;
+                border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+            }
+            QPushButton:hover { background: rgba(220,38,38,0.1); }
+            QPushButton:disabled { color: rgba(255,255,255,0.4); border: 1px solid rgba(255,255,255,0.1); background: transparent; }
+        """)
+        self._btn_check_update.clicked.connect(self._on_check_updates)
+        ver_row.addWidget(self._btn_check_update)
+        lay.addLayout(ver_row)
+
+        # Status label moved to be very compact or hidden if not needed
+        self._lbl_update_status = QLabel("")
+        self._lbl_update_status.setVisible(False)
+        self._btn_update_now = QPushButton("Download Update") # Hidden by default
+        self._btn_update_now.setVisible(False)
 
         lay.addStretch()
 
@@ -1196,6 +1325,7 @@ class SettingsSidebar(SidebarPanel):
         self._chk_mic.toggled.connect(self._check_dirty)
         self._chk_boot.toggled.connect(self._check_dirty)
         self._chk_clip.toggled.connect(self._check_dirty)
+        self._chk_autoclose.toggled.connect(self._check_dirty)
         self._seg_font.valueChanged.connect(self._check_dirty)
         self._check_dirty()
 
@@ -1203,8 +1333,11 @@ class SettingsSidebar(SidebarPanel):
         credit = QLabel("<a href='https://github.com/akasumitlamba' style='color: #DC2626; text-decoration: none; font-size: 10px; font-weight: 600;'>Made by akasumitlamba</a>")
         credit.setOpenExternalLinks(True)
         credit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lay.addSpacing(6)
+        lay.addSpacing(10)
         lay.addWidget(credit)
+
+        scroll.setWidget(content)
+        root.addWidget(scroll, 1)
 
         scroll.setWidget(content)
         root.addWidget(scroll, 1)
@@ -1214,10 +1347,11 @@ class SettingsSidebar(SidebarPanel):
             self._edt_folder.text() != self._config.get("output_folder", "") or
             self._edt_hotkey.text() != self._config.get("hotkey", "") or
             self._edt_screenshot.text() != self._config.get("hotkey_screenshot", "") or
-            self._chk_sys.isChecked() != self._config.get("default_system_audio", True) or
+            self._chk_sys.isChecked() != self._config.get("default_system_audio", False) or
             self._chk_mic.isChecked() != self._config.get("default_mic", False) or
             self._chk_boot.isChecked() != self._config.get("start_on_boot", False) or
             self._chk_clip.isChecked() != self._config.get("copy_to_clipboard", True) or
+            self._chk_autoclose.isChecked() != self._config.get("close_on_focus_loss", True) or
             self._seg_font.value() != self._config.get("font_size", "Default")
         )
         self._btn_save.setEnabled(dirty)
@@ -1269,6 +1403,7 @@ class SettingsSidebar(SidebarPanel):
             "default_mic":          self._chk_mic.isChecked(),
             "start_on_boot":        self._chk_boot.isChecked(),
             "copy_to_clipboard":    self._chk_clip.isChecked(),
+            "close_on_focus_loss":  self._chk_autoclose.isChecked(),
             "font_size":            self._seg_font.value(),
         })
         self.settings_saved.emit(self._config)
@@ -1284,10 +1419,52 @@ class SettingsSidebar(SidebarPanel):
         self._chk_mic.setChecked(self._default_config.get("default_mic", False))
         self._chk_boot.setChecked(self._default_config.get("start_on_boot", False))
         self._chk_clip.setChecked(self._default_config.get("copy_to_clipboard", True))
+        self._chk_autoclose.setChecked(self._default_config.get("close_on_focus_loss", True))
         self._seg_font.setValue(self._default_config.get("font_size", "Default"))
 
     def get_config(self) -> dict:
         return self._config
+
+    def set_update_status(self, available: bool, version: str, url: str):
+        self._update_status = {"available": available, "version": version, "url": url}
+        if available:
+            self._btn_check_update.setText(f"Update Available!")
+            self._btn_check_update.setToolTip(f"A newer version ({version}) is ready.")
+            self._btn_check_update.setStyleSheet("""
+                QPushButton {
+                    background: #DC2626; color: #FFFFFF; border: none;
+                    border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 800;
+                }
+                QPushButton:hover { background: #B91C1C; }
+            """)
+            # Change click to open download URL
+            self._btn_check_update.clicked.disconnect()
+            self._btn_check_update.clicked.connect(self._on_update_now)
+        else:
+            from main import APP_VERSION
+            self._btn_check_update.setText(f"v{APP_VERSION} Latest")
+            self._btn_check_update.setEnabled(False)
+            self._btn_check_update.setStyleSheet("""
+                QPushButton {
+                    background: #22C55E; color: #000000; border: none;
+                    border-radius: 4px; padding: 4px 12px; font-size: 11px; font-weight: 800;
+                }
+            """)
+
+    def _on_check_updates(self):
+        self._btn_check_update.setEnabled(False)
+        self._btn_check_update.setText("Checking...")
+        from main import APP_VERSION
+        self._updater = UpdateChecker(APP_VERSION)
+        self._updater.finished.connect(self._on_manual_check_finished)
+        self._updater.start()
+
+    def _on_manual_check_finished(self, available: bool, version: str, url: str):
+        self.set_update_status(available, version, url)
+
+    def _on_update_now(self):
+        if self._update_status["url"]:
+            webbrowser.open(self._update_status["url"])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1365,7 +1542,7 @@ class _FileRow(QWidget):
             play_ico = _asset("play.png")
             if os.path.isfile(play_ico):
                 px = QPixmap(play_ico)
-                self._thumb.setPixmap(px.scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+                self._thumb.setPixmap(px.scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
                 self._thumb.setStyleSheet("background: rgba(220, 38, 38, 0.15); border-radius: 4px; border: 1px solid rgba(220, 38, 38, 0.3);")
             else:
                 self._thumb.setText("▶")
@@ -1452,23 +1629,33 @@ class _FileRow(QWidget):
         pm = QPixmap()
         pm.loadFromData(pm_data, "JPEG")
         if not pm.isNull():
-            # Add a slight play button overlay on top of the thumbnail
-            painter = QPainter(pm)
+            self._thumb.setText("")
+            # Scale the frame first, THEN draw the play button to prevent icon distortion
+            scaled_pm = pm.scaled(self._thumb.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation)
+            
+            # Crop to exact thumb size if needed
+            final_pm = scaled_pm.copy(
+                (scaled_pm.width() - self._thumb.width()) // 2,
+                (scaled_pm.height() - self._thumb.height()) // 2,
+                self._thumb.width(), self._thumb.height()
+            )
+
+            # Draw overlay on the correctly sized pixmap
+            painter = QPainter(final_pm)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-            painter.setBrush(QColor(0, 0, 0, 100))
+            painter.setBrush(QColor(0, 0, 0, 80)) # Darken slightly
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.drawRect(pm.rect())
+            painter.drawRect(final_pm.rect())
             
             play_ico = _asset("play.png")
             if os.path.isfile(play_ico):
-                ico = QPixmap(play_ico).scaled(32, 32, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                x = (pm.width() - ico.width()) // 2
-                y = (pm.height() - ico.height()) // 2
+                ico = QPixmap(play_ico).scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                x = (final_pm.width() - ico.width()) // 2
+                y = (final_pm.height() - ico.height()) // 2
                 painter.drawPixmap(x, y, ico)
             painter.end()
 
-            self._thumb.setText("")
-            self._thumb.setPixmap(pm.scaled(self._thumb.size(), Qt.AspectRatioMode.KeepAspectRatioByExpanding, Qt.TransformationMode.SmoothTransformation))
+            self._thumb.setPixmap(final_pm)
             self._thumb.setStyleSheet("background: #000000; border-radius: 4px; border: 1px solid #333;")
 
     def _icon_btn(self, icon_name, tip):
@@ -1476,6 +1663,7 @@ class _FileRow(QWidget):
         b.setToolTip(tip)
         b.setFixedSize(26, 26)
         b.setCursor(Qt.CursorShape.PointingHandCursor)
+        b.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         ico = _asset(icon_name)
         if os.path.isfile(ico):
             b.setIcon(QIcon(ico))
@@ -1546,8 +1734,8 @@ class RecentFilesSidebar(SidebarPanel):
 
     settings_requested = pyqtSignal()
 
-    def __init__(self, output_folder: str, font_size_mode: str = "Default", edge: str = "right"):
-        super().__init__(edge)
+    def __init__(self, output_folder: str, font_size_mode: str = "Default", edge: str = "right", close_on_focus_loss: bool = True):
+        super().__init__(edge, close_on_focus_loss)
         self._output_folder = output_folder
         self._font_size_mode = font_size_mode
         self._build_ui()
@@ -1712,7 +1900,7 @@ class RecentFilesSidebar(SidebarPanel):
         self._lbl_drag_info.setVisible(True)
 
         font_size_mode = getattr(self, "_font_size_mode", "Default")
-        for fpath, _ in files[:50]:
+        for fpath, _ in files[:15]:
             row = _FileRow(str(fpath), font_size_mode)
             row.open_requested.connect(self._open_file)
             row.rename_requested.connect(self._rename_file)
