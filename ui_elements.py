@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import (
     QApplication, QDialog, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QFileDialog, QLineEdit,
     QCheckBox, QGroupBox, QGraphicsDropShadowEffect,
-    QSizePolicy,
+    QSizePolicy, QToolTip,
 )
 from PyQt6.QtCore import (
     Qt, QRect, QPoint, QSize, QTimer, QThread,
@@ -25,21 +25,31 @@ from PyQt6.QtCore import (
 from PyQt6.QtGui import (
     QPainter, QColor, QBrush, QPen, QFont, QFontMetrics,
     QPainterPath, QLinearGradient, QIcon, QCursor,
+    QPixmap, QImage, QRegion,
 )
 
 # ── Windows API constants ──────────────────────────────────────────────────────
 WDA_EXCLUDEFROMCAPTURE = 0x00000011   # Invisible to all capture APIs
+WDA_MONITOR = 0x00000001              # Fallback for older Windows 10 versions
 
 _user32 = ctypes.windll.user32 if sys.platform == "win32" else None
-
+if _user32:
+    from ctypes import wintypes
+    _user32.SetWindowDisplayAffinity.argtypes = [wintypes.HWND, wintypes.DWORD]
+    _user32.SetWindowDisplayAffinity.restype = wintypes.BOOL
 
 def _exclude_from_capture(hwnd: int) -> None:
     """Mark this HWND so it is invisible to all screen-capture APIs."""
     if _user32:
         try:
-            _user32.SetWindowDisplayAffinity(ctypes.c_void_p(hwnd), WDA_EXCLUDEFROMCAPTURE)
+            # Try WDA_EXCLUDEFROMCAPTURE first (Windows 10 2004+)
+            res = _user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)
+            if not res:
+                # Fallback to WDA_MONITOR
+                _user32.SetWindowDisplayAffinity(hwnd, WDA_MONITOR)
         except Exception as exc:
-            print(f"[WWRecorder] SetWindowDisplayAffinity failed: {exc}")
+            pass
+
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -51,47 +61,44 @@ class SelectionOverlay(QWidget):
     
     def __init__(self, mode="record"):
         flags = (
-            Qt.WindowType.FramelessWindowHint
+            Qt.WindowType.Window
+            | Qt.WindowType.FramelessWindowHint 
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
         )
         super().__init__(None, flags)
 
-        self.selected_region = None
-        self.state = 'IDLE' 
+        self._mode = mode
+        self.state = 'IDLE'
         self._origin = None
         self._current = None
         self.rect_obj = QRect()
-        self.mode = mode
+        self._bg_pixmap = None
         
-        if self.mode == "screenshot":
+        if self._mode == "screenshot":
             self.hint_text = "  ⊞  Click and drag to select screenshot area  -  Esc to cancel  "
             self.selection_color = QColor(255, 59, 48)  # Red
         else:
             self.hint_text = "  ⊞  Click and drag to select recording area  -  Esc to cancel  "
             self.selection_color = QColor(10, 132, 255)  # Blue
-        
+
         self.handle_size = 5
         self.hovered_handle = None
-        
+
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setMouseTracking(True)
         self.setCursor(Qt.CursorShape.CrossCursor)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()
-
+        
+        # Determine logical desktop bounds
         bounds = QRect()
         for screen in QApplication.screens():
             bounds = bounds.united(screen.geometry())
         self.setGeometry(bounds)
 
-        self._hint = QLabel(
-            self.hint_text,
-            self,
-        )
+        self._hint = QLabel(self.hint_text, self)
         self._hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._hint.setStyleSheet(
-            """
+        self._hint.setStyleSheet("""
             QLabel {
                 color: #FFFFFF;
                 background: rgba(0,0,0,175);
@@ -101,13 +108,53 @@ class SelectionOverlay(QWidget):
                 font-weight: 500;
                 padding: 8px 20px;
             }
-            """
-        )
+        """)
         self._hint.adjustSize()
         self._hint.move(bounds.width() // 2 - self._hint.width() // 2, 28)
 
+    def set_background(self, pixmap: QPixmap):
+        """Set a static background image (frozen screenshot)."""
+        self._bg_pixmap = pixmap
+        self.update()
+
     def showEvent(self, event):
         super().showEvent(event)
+        # We use a small delay to ensure the window is mapped and ready before 
+        # we shout at Windows to give us the focus. This is more robust than 
+        # doing it immediately.
+        QTimer.singleShot(100, self._force_focus)
+
+    def _force_focus(self):
+        """Low-level Windows API call plus Qt activation to reliably steal focus."""
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                kernel32 = ctypes.windll.kernel32
+
+                hwnd = int(self.winId())
+                target_hwnd = user32.GetForegroundWindow()
+                target_thread = user32.GetWindowThreadProcessId(target_hwnd, None)
+                my_thread = kernel32.GetCurrentThreadId()
+
+                if target_thread != my_thread and target_thread != 0:
+                    user32.AttachThreadInput(my_thread, target_thread, True)
+                    user32.BringWindowToTop(hwnd)
+                    user32.ShowWindow(hwnd, 5) # SW_SHOW
+                    user32.SetForegroundWindow(hwnd)
+                    user32.SetFocus(hwnd)
+                    user32.AttachThreadInput(my_thread, target_thread, False)
+                else:
+                    user32.BringWindowToTop(hwnd)
+                    user32.ShowWindow(hwnd, 5)
+                    user32.SetForegroundWindow(hwnd)
+                    user32.SetFocus(hwnd)
+            except Exception as e:
+                print(f"Focus error: {e}")
+        
+        self.activateWindow()
+        self.raise_()
+        self.setFocus()
         self.grabKeyboard()
 
     def hideEvent(self, event):
@@ -135,6 +182,7 @@ class SelectionOverlay(QWidget):
         }
 
     def mousePressEvent(self, event):
+        self.setFocus()
         pos = event.position().toPoint()
         if event.button() == Qt.MouseButton.LeftButton:
             if self.state == 'IDLE':
@@ -170,7 +218,6 @@ class SelectionOverlay(QWidget):
             dp = pos - self._origin
             self.rect_obj.translate(dp)
             self._origin = pos
-            self._emit_change()
             self.update()
         elif self.state == 'RESIZING':
             dp = pos - self._origin
@@ -182,7 +229,6 @@ class SelectionOverlay(QWidget):
             if 'r' in h: r.setRight(r.right() + dp.x())
             self.rect_obj = r.normalized()
             self._origin = pos
-            self._emit_change()
             self.update()
         elif self.state == 'SELECTED':
             handles = self.get_handles()
@@ -211,6 +257,7 @@ class SelectionOverlay(QWidget):
                 self.setCursor(Qt.CursorShape.CrossCursor)
             elif self.state in ['MOVING', 'RESIZING']:
                 self.state = 'SELECTED'
+                self._emit_change()
             self.update()
 
     def _emit_change(self):
@@ -225,14 +272,28 @@ class SelectionOverlay(QWidget):
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor(0, 0, 0, 110))
 
+        # 1. Draw the static frozen background if we have one
+        if self._bg_pixmap:
+            p.drawPixmap(self.rect(), self._bg_pixmap)
+        else:
+            # Fallback if no frozen background: just clear background
+            p.fillRect(self.rect(), Qt.GlobalColor.transparent)
+
+        # 2. Dim the area OUTSIDE the selection
+        # We use QRegion to exclude the selection from the dimming fill
+        dim_color = QColor(0, 0, 0, 110)
         if self.rect_obj.isValid():
+            full_region = QRegion(self.rect())
+            sel_region = QRegion(self.rect_obj)
+            dim_region = full_region.subtracted(sel_region)
+            
+            p.setClipRegion(dim_region)
+            p.fillRect(self.rect(), dim_color)
+            p.setClipping(False)
+            
+            # 3. Draw selection border and handles
             sel = self.rect_obj
-            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
-            p.fillRect(sel, QColor(0, 0, 0, 0))
-            p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
-
             pen = QPen(self.selection_color, 1.5, Qt.PenStyle.DashLine)
             pen.setDashPattern([8, 4])
             p.setPen(pen)
@@ -242,6 +303,7 @@ class SelectionOverlay(QWidget):
             for hr in handles.values():
                 p.fillRect(hr, self.selection_color)
 
+            # 4. Draw dimensions label
             dim = f"{sel.width()} × {sel.height()}"
             p.setFont(QFont("Segoe UI", 10, QFont.Weight.Medium))
             fm = QFontMetrics(p.font())
@@ -256,6 +318,10 @@ class SelectionOverlay(QWidget):
             p.fillRect(bg_rect, bg_color)
             p.setPen(QColor(255, 255, 255))
             p.drawText(bg_rect, Qt.AlignmentFlag.AlignCenter, dim)
+        else:
+            # If no selection, dim the whole thing
+            p.fillRect(self.rect(), dim_color)
+
         p.end()
 
 
@@ -283,6 +349,10 @@ class CaptureBorderWidget(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
+        # Enforce exclusion initially
+        _exclude_from_capture(int(self.winId()))
+
+        # Use EXACT selection coordinates so border is visible at screen edges
         self.setGeometry(
             region["left"],
             region["top"],
@@ -290,19 +360,37 @@ class CaptureBorderWidget(QWidget):
             region["height"],
         )
 
-        # Apply capture exclusion after the HWND is valid
-        QTimer.singleShot(150, self._apply_exclusion)
+        # Enforce topmost to stay above Windows Taskbar
+        self._top_timer = QTimer(self)
+        self._top_timer.timeout.connect(self._enforce_topmost)
+        self._top_timer.start(500)
 
-    def _apply_exclusion(self):
+    def showEvent(self, event):
+        super().showEvent(event)
         _exclude_from_capture(int(self.winId()))
+
+    def _enforce_topmost(self):
+        if self.isVisible() and _user32:
+            HWND_TOPMOST = -1
+            SWP_NOSIZE = 0x0001
+            SWP_NOMOVE = 0x0002
+            SWP_NOACTIVATE = 0x0010
+            _user32.SetWindowPos(int(self.winId()), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+            _exclude_from_capture(int(self.winId()))
+        self.raise_()
 
     def paintEvent(self, _event):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        # Draw a thin solid red border to indicate recording area
-        pen = QPen(QColor(255, 59, 48, 220), 1.5, Qt.PenStyle.SolidLine)
+        # Draw a thicker dashed red border to indicate recording area
+        pen = QPen(QColor(255, 59, 48, 220), 2.5, Qt.PenStyle.DashLine)
+        pen.setDashPattern([6, 3]) 
         p.setPen(pen)
+        
+        # Border sits precisely on the inner boundary
+        # Since the widget is exactly the region size, drawing at adjusted(1,1,-1,-1)
+        # keeps the line VISIBLE and centered.
         rect_border = self.rect().adjusted(1, 1, -1, -1)
         p.drawRect(rect_border)
         
@@ -321,7 +409,7 @@ def _asset(filename: str) -> str:
 class _PillToolButton(QToolButton):
     """Icon only button used inside the Pill widget."""
 
-    def __init__(self, icon_filename: str, text: str, checkable: bool = False):
+    def __init__(self, icon_filename: str, text: str, checkable: bool = False, icon_off_filename: str = None):
         super().__init__()
         self.setCheckable(checkable)
         
@@ -331,29 +419,75 @@ class _PillToolButton(QToolButton):
         self.setIconSize(QSize(20, 20))
         self.setFixedSize(36, 36) # True square
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         
-        self.icon_path = _asset(icon_filename)
-        if os.path.isfile(self.icon_path):
-            self.setIcon(QIcon(self.icon_path))
-            
+        self.icon_path_on = _asset(icon_filename)
+        self.icon_path_off = _asset(icon_off_filename) if icon_off_filename else self.icon_path_on
+        
+        self._is_danger = False
+        self._update_icon()
         self._update_style()
-        self.toggled.connect(lambda: self._update_style())
+        self.toggled.connect(self._on_toggled)
+
+        self._tip_timer = QTimer(self)
+        self._tip_timer.setSingleShot(True)
+        self._tip_timer.setInterval(400) 
+        self._tip_timer.timeout.connect(self._show_tip)
+        self.setMouseTracking(True)
+
+    def set_danger(self, enabled: bool):
+        """Toggle between standard and 'danger' red styling."""
+        self._is_danger = enabled
+        self._update_style()
+
+    def _show_tip(self):
+        if self.underMouse() and self.toolTip():
+            QToolTip.showText(QCursor.pos(), self.toolTip(), self)
+
+    def enterEvent(self, e):
+        self._tip_timer.start()
+        super().enterEvent(e)
+
+    def leaveEvent(self, e):
+        self._tip_timer.stop()
+        QToolTip.hideText()
+        super().leaveEvent(e)
+        
+    def _on_toggled(self):
+        self._update_icon()
+        self._update_style()
+
+    def _update_icon(self):
+        path = self.icon_path_on if (not self.isCheckable() or self.isChecked()) else self.icon_path_off
+        if os.path.isfile(path):
+            self.setIcon(QIcon(path))
 
     def _update_style(self):
-        base_style = """
-            QToolButton {
-                background: #252528;
-                border: 1px solid #333336;
+        # Unified Red Shade: background #2A1F22, border #4A2B2E
+        if self._is_danger or (self.isCheckable() and not self.isChecked()):
+            bg = "#2A1F22"
+            border = "#4A2B2E"
+            hover = "#3A2326"
+        else:
+            bg = "#252528"
+            border = "#333336"
+            hover = "#333336"
+
+        base_style = f"""
+            QToolButton {{
+                background: {bg};
+                border: 1px solid {border};
                 border-radius: 6px;
                 padding: 0px;
-            }
-            QToolButton:hover { background: #333336; }
-            QToolButton:pressed { background: #1C1C1E; }
+            }}
+            QToolButton:hover {{ background: {hover}; }}
+            QToolButton:pressed {{ background: #1C1C1E; }}
         """
         checked_style = """
             QToolButton:checked {
-                background: #FFFFFF;
-                color: #1C1C1E;
+                background: rgba(255, 255, 255, 0.12);
+                color: #FFFFFF;
+                border: 1px solid rgba(255, 255, 255, 0.25);
             }
         """
         self.setStyleSheet(base_style + (checked_style if self.isCheckable() else ""))
@@ -372,11 +506,15 @@ class _StopWorker(QThread):
         super().__init__()
         self._engine = engine
     def run(self):
-        path = self._engine.stop()
+        # Phase 1: stop capture threads + close FFmpeg pipe (fast)
+        self._engine.stop_capture()
+        # Phase 2: mux audio+video into final file (slow)
+        path = self._engine.mux_and_save()
         self.finished.emit(path)
 
 class PillWidget(QWidget):
     stopped            = pyqtSignal(str)
+    save_completed     = pyqtSignal(str)   # Emitted when background muxing finishes
     settings_requested = pyqtSignal()
     start_requested    = pyqtSignal()
 
@@ -399,6 +537,7 @@ class PillWidget(QWidget):
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         self.setMouseTracking(True)
 
         self._build_ui()
@@ -411,14 +550,19 @@ class PillWidget(QWidget):
 
         QTimer.singleShot(150, self._apply_exclusion)
 
+    def showEvent(self, event):
+        super().showEvent(event)
+        _exclude_from_capture(int(self.winId()))
+
     def _enforce_topmost(self):
-        if self.isVisible():
+        if self.isVisible() and not self.underMouse():
             if _user32:
                 HWND_TOPMOST = -1
                 SWP_NOSIZE = 0x0001
                 SWP_NOMOVE = 0x0002
                 SWP_NOACTIVATE = 0x0010
                 _user32.SetWindowPos(int(self.winId()), HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+                _exclude_from_capture(int(self.winId()))
             self.raise_()
 
     def _apply_exclusion(self):
@@ -436,69 +580,63 @@ class PillWidget(QWidget):
         row.setSpacing(4)
 
         # ── Left Section: Recording Status ────────────────────────────────────
-        if self._pre_record:
-            self._btn_start = QPushButton("Start")
-            self._btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
-            self._btn_start.setStyleSheet(
-                """
-                QPushButton {
-                    background: #34C759;
-                    color: white;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                    padding: 8px 12px;
-                }
-                QPushButton:hover { background: #32D74B; }
-                """
-            )
-            self._btn_start.clicked.connect(self.start_requested.emit)
-            row.addWidget(self._btn_start)
-        else:
-            self._dot = QLabel("●")
-            self._dot.setStyleSheet("color:#FF3B30; font-size:14px; padding:0; margin:0;")
-            row.addWidget(self._dot)
-            
-            self._lbl_time = QLabel("00:00:00")
-            self._lbl_time.setFixedWidth(54)
-            self._lbl_time.setStyleSheet(
-                "color:#EBEBF5; font-family:'Segoe UI', monospace; font-size:13px; font-weight:600; margin-top:1px;"
-            )
-            row.addWidget(self._lbl_time)
-            row.addSpacing(4)
+        self._btn_start = QPushButton("Start")
+        self._btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_start.setStyleSheet(
+            """
+            QPushButton {
+                background: #34C759; color: white; border: none; border-radius: 6px;
+                font-weight: bold; padding: 6px 12px;
+            }
+            QPushButton:hover { background: #32D74B; }
+            """
+        )
+        self._btn_start.clicked.connect(self.start_requested.emit)
+        row.addWidget(self._btn_start)
 
-        sep = QWidget()
-        sep.setFixedSize(1, 20)
-        sep.setStyleSheet("background-color: #4A4A4C;")
-        row.addWidget(sep)
-        row.addSpacing(4)
+        self._sep_start = self._make_sep(row, True)
+        self._sep_start.setVisible(self._pre_record)
+
+        self._dot = QLabel("●")
+        self._dot.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._dot.setStyleSheet("color:#FF3B30; font-size:14px; padding:0; margin:0;")
+        row.addWidget(self._dot)
+        self._dot.setVisible(not self._pre_record)
+        
+        self._lbl_time = QLabel("00:00:00")
+        self._lbl_time.setFixedWidth(54)
+        self._lbl_time.setStyleSheet(
+            "color:#EBEBF5; font-family:'Segoe UI', monospace; font-size:13px; font-weight:600; margin-top:1px;"
+        )
+        row.addWidget(self._lbl_time)
+        self._lbl_time.setVisible(not self._pre_record)
+
+        self._sep_timer = self._make_sep(row, False)
 
         # ── Buttons ───────────────────────────────────────────────────────────
-        
         self._btn_pause = _PillToolButton("pause.png", "Pause\n(or Resume ▶)")
         self._btn_pause.clicked.connect(self.toggle_pause)
-        if self._pre_record: self._btn_pause.setDisabled(True)
         row.addWidget(self._btn_pause)
+        self._btn_pause.setVisible(not self._pre_record)
 
         self._btn_stop = _PillToolButton("stop.png", "Stop")
-        # Special style for stop button to have a slight reddish tint
-        stop_style = self._btn_stop.styleSheet() + """
-            QToolButton { background: #2A1F22; border: 1px solid #4A2B2E; }
-            QToolButton:hover { background: #3A2326; }
-        """
-        self._btn_stop.setStyleSheet(stop_style)
+        self._btn_stop.set_danger(True)
         self._btn_stop.clicked.connect(self._initiate_stop)
-        if self._pre_record: self._btn_stop.setDisabled(True)
         row.addWidget(self._btn_stop)
+        self._btn_stop.setVisible(not self._pre_record)
 
-        self._btn_sys = _PillToolButton("desktop_audio.png", "Desktop Audio\nON", checkable=True)
+        self._btn_stop.setVisible(not self._pre_record)
+
+        self._sep_stop = self._make_sep(row, False)
+
+        self._btn_sys = _PillToolButton("desktop_audio.png", "Desktop Audio\nON", checkable=True, icon_off_filename="desktop_audiooff.png")
         sys_state = self._engine.get_system_audio()
         self._btn_sys.setChecked(sys_state)
         self._btn_sys.update_text("Desktop Audio\nON" if sys_state else "Desktop Audio\nOFF")
         self._btn_sys.toggled.connect(self._on_sys_toggled)
         row.addWidget(self._btn_sys)
 
-        self._btn_mic = _PillToolButton("mic.png", "Microphone\nON", checkable=True)
+        self._btn_mic = _PillToolButton("mic.png", "Microphone\nON", checkable=True, icon_off_filename="micoff.png")
         mic_state = self._engine.get_mic()
         self._btn_mic.setChecked(mic_state)
         self._btn_mic.update_text("Microphone\nON" if mic_state else "Microphone\nOFF")
@@ -509,12 +647,28 @@ class PillWidget(QWidget):
         self._btn_settings.clicked.connect(self.settings_requested.emit)
         row.addWidget(self._btn_settings)
 
+        self._sep_settings = self._make_sep(row, True)
+
+        self._btn_discard = _PillToolButton("delete.png", "Discard Recording")
+        self._btn_discard.set_danger(True)
+        self._btn_discard.clicked.connect(self._initiate_discard)
+        if self._pre_record:
+            self._btn_discard.setToolTip("Cancel / Discard")
+        row.addWidget(self._btn_discard)
+
+        # ── Group Visibility Initialization ───────────────────────────────────
+        # Ensure every element starts in the correct state for the current mode
+        self._btn_start.setVisible(self._pre_record)
+        self._sep_start.setVisible(self._pre_record)
+        self._dot.setVisible(not self._pre_record)
+        self._lbl_time.setVisible(not self._pre_record)
+        self._sep_timer.setVisible(not self._pre_record)
+        self._btn_pause.setVisible(not self._pre_record)
+        self._btn_stop.setVisible(not self._pre_record)
+        self._sep_stop.setVisible(not self._pre_record)
+
         # ── Size Pill to content ───────────────────────────────────────────────
-        self._pill.adjustSize()
-        w = self._pill.sizeHint().width()
-        h = self._pill.sizeHint().height()
-        self.setFixedSize(w, h)
-        self._pill.setGeometry(0, 0, w, h)
+        self._update_size()
         outer.addWidget(self._pill)
 
     def _on_sys_toggled(self, checked):
@@ -540,6 +694,37 @@ class PillWidget(QWidget):
         self._blink.start()
         self._blink_on = True
 
+    def set_recording_mode(self):
+        """Transition from 'Pre-Record' (setup) to active recording UI."""
+        if not self._pre_record:
+            return
+        self._pre_record = False
+        
+        # Hide start button, show recording status
+        self._btn_start.hide()
+        self._dot.show()
+        self._lbl_time.show()
+        self._sep_timer.show()
+        self._sep_start.hide()
+        
+        # Show control buttons
+        self._btn_pause.show()
+        self._btn_stop.show()
+        self._sep_stop.show()
+        
+        # Setup and start timers
+        self._setup_timers()
+        self._update_size()
+
+    def _update_size(self):
+        """Recalculate layout and resize window to fit content."""
+        self._pill.adjustSize()
+        w = self._pill.sizeHint().width()
+        h = self._pill.sizeHint().height()
+        self.setFixedSize(w, h)
+        self.setFixedSize(w, h)
+        self._pill.setGeometry(0, 0, w, h)
+
     def _on_tick(self):
         if not self._engine.is_paused():
             self._elapsed += 1
@@ -563,27 +748,66 @@ class PillWidget(QWidget):
     def toggle_pause(self):
         if self._engine.is_paused():
             self._engine.resume()
-            self._btn_pause.update_text("Pause\n(or Resume ▶)")
+            self._btn_pause.update_text("Pause")
             self._btn_pause.setIcon(QIcon(_asset("pause.png")))
         else:
             self._engine.pause()
-            self._btn_pause.update_text("Resume\n(Paused)")
+            self._btn_pause.update_text("Resume")
             self._btn_pause.setIcon(QIcon(_asset("play.png")))
 
     def _initiate_stop(self):
-        self._tick.stop()
-        self._blink.stop()
-        self._btn_stop.setEnabled(False)
-        self._btn_stop.update_text("Stopping…")
-        self.setEnabled(False)
+        if hasattr(self, '_tick'): self._tick.stop()
+        if hasattr(self, '_blink'): self._blink.stop()
+
+        # Hide pill IMMEDIATELY — user sees instant response
+        self.hide()
+
+        # Tell main.py to clear border/overlay right now
+        self.stopped.emit("<SAVING>")
+
+        # Run capture stop + muxing in background
         self._stop_worker = _StopWorker(self._engine)
-        self._stop_worker.finished.connect(self._on_stop_done)
+        self._stop_worker.finished.connect(self._on_save_done)
         self._stop_worker.start()
 
-    def _on_stop_done(self, filepath: str):
+    def _initiate_discard(self):
+        if hasattr(self, '_tick'): self._tick.stop()
+        if hasattr(self, '_blink'): self._blink.stop()
+
+        # Hide pill IMMEDIATELY
         self.hide()
-        self.stopped.emit(filepath)
+        self.stopped.emit("<DISCARDED>")
+
+        # Discard in background (fast — no muxing needed)
+        self._discard_worker = _StopWorker.__new__(_StopWorker)  # avoid __init__
+        # Use a simple thread for the discard
+        import threading
+        threading.Thread(target=self._do_discard, daemon=True).start()
+
+    def _do_discard(self):
+        self._engine.discard()
+
+    def _on_save_done(self, filepath: str):
+        self.save_completed.emit(filepath)
         self.close()
+
+    def _make_sep(self, layout, visible=True):
+        """Creates a separator container with internal margins that collapse when hidden."""
+        container = QWidget()
+        container.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        
+        l = QHBoxLayout(container)
+        l.setContentsMargins(4, 0, 4, 0)
+        l.setSpacing(0)
+        
+        line = QWidget()
+        line.setFixedSize(1, 20)
+        line.setStyleSheet("background-color: #4A4A4C;")
+        l.addWidget(line)
+        
+        container.setVisible(visible)
+        layout.addWidget(container)
+        return container
 
     def paintEvent(self, _event):
         p = QPainter(self)
