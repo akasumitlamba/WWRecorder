@@ -257,6 +257,8 @@
       const DURATION = 2200; // ms
       const start = performance.now();
 
+      let downloadStarted = false;
+
       function tick(now) {
         const elapsed = now - start;
         const rawProg = Math.min(elapsed / DURATION, 1);
@@ -272,7 +274,11 @@
           return;
         }
 
-        // Animation done
+        // --- All Logic Below Here Only Runs Once ---
+        if (downloadStarted) return;
+        downloadStarted = true;
+
+        // Animation done visuals
         ringFill.style.stroke = 'var(--pill-green)';
         ringFill.style.filter = 'drop-shadow(0 0 6px rgba(34,197,94,0.5))';
         bar.style.background = 'linear-gradient(90deg, var(--pill-green), #4ade80)';
@@ -287,9 +293,18 @@
         pct.style.display = 'none';
         thanksEl.style.display = 'flex';
 
-        // Trigger real download
+        // Trigger real download safely
         setTimeout(() => {
-          window.location.href = downloadUrl;
+          const a = document.createElement('a');
+          a.style.display = 'none';
+          a.href = downloadUrl;
+          document.body.appendChild(a);
+          a.click();
+          
+          // Cleanup
+          setTimeout(() => {
+            if (document.body.contains(a)) document.body.removeChild(a);
+          }, 100);
         }, 500);
       }
 
