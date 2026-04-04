@@ -73,15 +73,16 @@ const revealObserver = new IntersectionObserver(
 );
 allRevealEls.forEach((el) => revealObserver.observe(el));
 
-/* ── Download redirection ───────────────────── */
+/* ── Download redirection (Event Delegation) ── */
 (function () {
-  /* Intercept all download links (.btn-primary and .nav-cta pointing to .exe releases) */
-  document.querySelectorAll('.btn-primary, .nav-cta').forEach((el) => {
-    if (el.href && el.href.endsWith('.exe')) {
-      el.addEventListener('click', (e) => {
-        e.preventDefault();
-        window.location.href = 'download.html?url=' + encodeURIComponent(el.href);
-      });
+  // Prevent redirection logic from running if we're already on the download page
+  if (window.location.pathname.includes('download.html')) return;
+
+  document.addEventListener('click', (e) => {
+    const el = e.target.closest('.btn-primary, .nav-cta, .download-dropdown-item');
+    if (el && el.href && el.href.endsWith('.exe')) {
+      e.preventDefault();
+      window.location.href = 'download.html?url=' + encodeURIComponent(el.href);
     }
   });
 })();
@@ -151,10 +152,12 @@ document.querySelectorAll('#nav-links a').forEach((a) => {
 /* ── Nav shadow on scroll ─────────────────── */
 window.addEventListener('scroll', () => {
   const nav = document.querySelector('nav');
-  if (window.scrollY > 8) {
-    nav.style.boxShadow = '0 1px 40px rgba(0,0,0,0.6)';
-  } else {
-    nav.style.boxShadow = '';
+  if (nav) {
+    if (window.scrollY > 8) {
+      nav.style.boxShadow = '0 1px 40px rgba(0,0,0,0.6)';
+    } else {
+      nav.style.boxShadow = '';
+    }
   }
 });
 
@@ -179,38 +182,80 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-/* ── Fetch Download Count ─────────────────── */
+/* ── Fetch & Populate Releases ────────────── */
 (async function () {
   const dlText = document.getElementById('dl-count-text');
   const dlContainer = document.getElementById('wwr-downloads');
+  const mainBtn = document.getElementById('main-download-btn');
+  const navBtn = document.getElementById('nav-download-cta');
+  const dlList = document.getElementById('download-list');
+
   if (!dlText || !dlContainer) return;
 
   try {
     const res = await fetch('https://api.github.com/repos/akasumitlamba/WWRecorder/releases');
     if (!res.ok) throw new Error('API Error');
     const releases = await res.json();
-    let totalDownloads = 0;
+    
+    // Filter out pre-releases
+    const stableWebReleases = releases.filter(rel => !rel.prerelease);
+    if (stableWebReleases.length === 0) return;
 
-    releases.forEach(release => {
-      if (release.assets) {
-        release.assets.forEach(asset => {
-          if (asset.name.endsWith('.exe')) {
-            totalDownloads += asset.download_count;
-          }
-        });
+    let totalDownloads = 0;
+    let latestExe = null;
+    let html = '';
+
+    stableWebReleases.forEach((release, index) => {
+      const exeAsset = release.assets.find(asset => asset.name.endsWith('.exe'));
+      if (exeAsset) {
+        totalDownloads += exeAsset.download_count;
+        
+        const isLatest = index === 0;
+        if (isLatest) latestExe = exeAsset.browser_download_url;
+
+        // Build dropdown item HTML
+        html += `
+          <a class="download-dropdown-item ${isLatest ? 'current' : ''}" 
+             href="${exeAsset.browser_download_url}" target="_blank">
+            <div class="download-dropdown-ver">
+              <span class="ver-badge ${isLatest ? 'current' : 'older'}">${isLatest ? 'Latest' : 'Older'}</span>
+              ${release.name || release.tag_name}
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+          </a>
+        `;
       }
     });
 
+    // Update Main Buttons
+    if (latestExe) {
+      if (mainBtn) mainBtn.href = latestExe;
+      if (navBtn) navBtn.href = latestExe;
+    }
+
+    // Update Dropdown List
+    if (dlList && html) {
+      dlList.innerHTML = html;
+    }
+
+    // Update Total Count
     if (totalDownloads > 0) {
       dlText.textContent = totalDownloads.toLocaleString() + ' Downloads on GitHub';
       dlContainer.style.color = 'var(--pill-green)';
-      setTimeout(() => dlContainer.style.color = 'var(--text-2)', 1500);
+      setTimeout(() => dlContainer.style.color = 'var(--text-3)', 1500);
     } else {
       dlContainer.style.display = 'none';
     }
   } catch (err) {
-    console.error('Failed to fetch downloads:', err);
-    dlContainer.style.display = 'none';
+    console.error('Failed to fetch releases:', err);
+    // Don't hide the container if it already has hardcoded fallback content
+    if (dlText.textContent.includes('Loading')) {
+        dlContainer.style.display = 'none';
+    }
   }
 })();
 
@@ -410,6 +455,44 @@ window.togglePillMic = function (btn) {
     }, { threshold: 0.15 });
     obs.observe(useSection);
   }
+})();
+
+/* ── Appreciation Ribbon Overflow Logic ───── */
+(function () {
+  const container = document.querySelector('.thanks-marquee-container');
+  const content = document.querySelector('.thanks-content');
+  if (!container || !content) return;
+
+  function updateMarquee() {
+    if (!container || !content) return;
+    
+    // Reset to measure correctly
+    content.classList.remove('marquee-active');
+    container.classList.remove('marquee-active-mask');
+
+    const containerWidth = container.offsetWidth;
+    const contentWidth = content.scrollWidth;
+
+    if (contentWidth > containerWidth) {
+      // Duplicate list items for seamless loop if not already done
+      const items = content.querySelectorAll('li:not(.thanks-duplicate)');
+      if (content.querySelectorAll('.thanks-duplicate').length === 0) {
+        items.forEach(item => {
+          const clone = item.cloneNode(true);
+          clone.classList.add('thanks-duplicate');
+          content.appendChild(clone);
+        });
+      }
+      content.classList.add('marquee-active');
+      container.classList.add('marquee-active-mask');
+    }
+  }
+
+  // Initial check and on resize
+  window.addEventListener('load', updateMarquee);
+  window.addEventListener('resize', updateMarquee);
+  // Re-check after a brief delay for any dynamic font loading
+  setTimeout(updateMarquee, 1500);
 })();
 
 /* ══════════════════════════════════════════
