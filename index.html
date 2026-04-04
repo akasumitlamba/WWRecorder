@@ -41,7 +41,7 @@
       <li><a href="#specs">Specs</a></li>
       <li><a href="#more-projects">More</a></li>
       <li>
-        <a class="nav-cta"
+        <a class="nav-cta" id="nav-download-cta"
           href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.1/WWRecorder_Setup_1.1.0.exe"
           target="_blank">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -91,7 +91,7 @@
 
       <div class="hero-actions">
         <div class="download-wrapper" id="download-wrapper">
-          <a class="btn-primary download-main-btn"
+          <a class="btn-primary download-main-btn" id="main-download-btn"
             href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.1/WWRecorder_Setup_1.1.0.exe"
             target="_blank">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -109,32 +109,34 @@
           </button>
           <div class="download-dropdown" id="download-dropdown">
             <div class="download-dropdown-header">All Versions</div>
-            <a class="download-dropdown-item current"
-              href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.1/WWRecorder_Setup_1.1.0.exe"
-              target="_blank">
-              <div class="download-dropdown-ver">
-                <span class="ver-badge current">Latest</span>
-                WWRecorder v1.1.0
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </a>
-            <a class="download-dropdown-item"
-              href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
-              target="_blank">
-              <div class="download-dropdown-ver">
-                <span class="ver-badge older">Older</span>
-                v1.0.0
-              </div>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-            </a>
+            <div id="download-list">
+              <a class="download-dropdown-item current"
+                href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.1/WWRecorder_Setup_1.1.0.exe"
+                target="_blank">
+                <div class="download-dropdown-ver">
+                  <span class="ver-badge current">Latest</span>
+                  WWRecorder v1.1.0
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </a>
+              <a class="download-dropdown-item"
+                href="https://github.com/akasumitlamba/WWRecorder/releases/download/v1.0/WWRecorder_Setup_1.0.0.exe"
+                target="_blank">
+                <div class="download-dropdown-ver">
+                  <span class="ver-badge older">Older</span>
+                  v1.0.0
+                </div>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+              </a>
+            </div>
           </div>
         </div>
         <a class="btn-secondary" href="https://github.com/akasumitlamba/WWRecorder" target="_blank">
@@ -169,6 +171,32 @@
         <span id="dl-count-text">Loading downloads...</span>
       </div>
 
+      <!-- Contributors Appreciation Ribbon (Full-Width) -->
+      <div class="thanks-ribbon reveal" style="transition-delay: 0.55s">
+        <div class="thanks-label">Special thanks to contributors:</div>
+        <div class="thanks-marquee-container">
+          <ul class="thanks-content">
+            <li class="thanks-star-item">
+              <svg class="thanks-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </li>
+            <li class="thanks-name">Sanjana Yadav</li>
+            <li class="thanks-star-item">
+              <svg class="thanks-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </li>
+            <li class="thanks-name">Neha Dumane</li>
+            <li class="thanks-star-item">
+              <svg class="thanks-star" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+            </li>
+          </ul>
+        </div>
+      </div>
+
     </section>
 
     <div class="stats-bar-interstitial">
@@ -179,7 +207,7 @@
             <div class="stat-label">Stable Frame Rate</div>
           </div>
           <div class="stat-item reveal-flip reveal-delay-1">
-            <div class="stat-value">CRF<em>28</em></div>
+            <div class="stat-value">CRF<em>30</em></div>
             <div class="stat-label">H.264 Quality</div>
           </div>
           <div class="stat-item reveal-flip reveal-delay-2">
@@ -1035,17 +1063,17 @@
           <tr>
             <td class="spec-label">Preset</td>
             <td data-label="Value">
-              <span class="spec-mono">superfast</span>
+              <span class="spec-mono">veryfast</span>
             </td>
             <td data-label="Notes">
-              Lower CPU than ultrafast, much better compression
+              Better compression without lagging the capture engine
             </td>
           </tr>
           <tr>
             <td class="spec-label">CRF Quality</td>
-            <td data-label="Value"><span class="spec-mono">28</span></td>
+            <td data-label="Value"><span class="spec-mono">30</span></td>
             <td data-label="Notes">
-              Higher = smaller file. 28 is excellent for screencasts.
+              Higher = smaller file. 30 achieves massive size reduction.
             </td>
           </tr>
           <tr>
@@ -1065,7 +1093,7 @@
             <td data-label="Value">
               <span class="spec-mono">WASAPI loopback</span>
             </td>
-            <td data-label="Notes">via soundcard 0.4+, 48 kHz stereo</td>
+            <td data-label="Notes">via soundcard 0.4+, Native/48kHz stereo, real-time sync</td>
           </tr>
           <tr>
             <td class="spec-label">Microphone</td>
@@ -1077,7 +1105,7 @@
           <tr>
             <td class="spec-label">Audio Output</td>
             <td data-label="Value">
-              <span class="spec-mono">AAC 192k</span>
+              <span class="spec-mono">AAC 96k</span>
             </td>
             <td data-label="Notes">
               amix for dual streams, direct copy for single
