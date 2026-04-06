@@ -2,9 +2,6 @@
 
 ---
 
-BUG Fixes in progress-update releases soon
-
----
 
 High-performance, lightweight screen recorder for Windows optimised for
 low-end hardware (Intel i3, integrated graphics). Produces compact, crash-
