@@ -1,6 +1,6 @@
 # WWRecorder - World Wide Recorder
 
-v1.3 preview is available in the releases- Screen annotation & image editor 
+v1.3 preview is available in the releases- Screen annotation & image editor -LTS realease scheduled for May 2026
 
 High-performance, lightweight screen recorder for Windows optimised for
 low-end hardware (Intel i3, integrated graphics). Produces compact, crash-
