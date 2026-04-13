@@ -3868,6 +3868,12 @@ footer {
   background: #000;
 }
 
+#download-list {
+  max-height: 160px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
 .download-dropdown-item {
   display: flex;
   align-items: center;
