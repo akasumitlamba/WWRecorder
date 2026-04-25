@@ -6,6 +6,7 @@ High-performance, lightweight screen recorder for Windows optimised for
 low-end hardware (Intel i3, integrated graphics). Produces compact, crash-
 resilient `.mkv` files via FFmpeg.
 
+
 ---
 
 ## Features
