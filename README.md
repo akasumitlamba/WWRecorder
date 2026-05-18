@@ -1,4 +1,4 @@
-# WWRecorder - World Wide Recorder
+# WWRecorder - World Wide Recorder v1.4
 
 Any feature request should be posted in the issues. 
 
