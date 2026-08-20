@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#090909">
+  <meta name="description" content="WWRecorder Privacy Policy: how the Windows screen recorder handles recordings, audio, settings, diagnostics, updates, and local data.">
+  <meta name="robots" content="index, follow">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Privacy Policy | WWRecorder">
+  <meta property="og:description" content="Clear information about how WWRecorder handles your data.">
+  <meta property="og:url" content="https://akasumitlamba.github.io/WWRecorder/privacy-policy.html">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/privacy-policy.html">
+  <title>Privacy Policy | WWRecorder</title>
+  <style>
+    :root {
+      --bg: #070707;
+      --surface: #101010;
+      --surface-raised: #151515;
+      --border: #2b2b2b;
+      --border-strong: #3a3a3a;
+      --text: #f5f5f5;
+      --muted: #a3a3a3;
+      --red: #dc2626;
+      --red-bright: #ef4444;
+      --red-dark: #7f1d1d;
+      --content: 1120px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--bg);
+    }
+
+    body {
+      margin: 0;
+      min-width: 300px;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 82% 8%, rgba(220, 38, 38, 0.13), transparent 28rem),
+        linear-gradient(180deg, #0a0a0a 0%, var(--bg) 38rem);
+      font-family: "Segoe UI", Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 16px;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: #f87171;
+      text-underline-offset: 3px;
+    }
+
+    a:hover { color: #fca5a5; }
+
+    a:focus-visible,
+    .skip-link:focus-visible {
+      outline: 3px solid var(--red-bright);
+      outline-offset: 4px;
+      border-radius: 4px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 20;
+      padding: 10px 14px;
+      color: white;
+      background: var(--red);
+      border-radius: 8px;
+      transform: translateY(-180%);
+      transition: transform 150ms ease;
+    }
+
+    .skip-link:focus { transform: translateY(0); }
+
+    .site-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(7, 7, 7, 0.9);
+      backdrop-filter: blur(16px);
+    }
+
+    .header-inner {
+      width: min(calc(100% - 40px), var(--content));
+      min-height: 68px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .brand {
+      color: white;
+      font-size: 0.96rem;
+      font-weight: 800;
+      letter-spacing: 0.13em;
+      text-decoration: none;
+    }
+
+    .brand-mark { color: var(--red-bright); }
+
+    .back-link {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .back-link:hover { color: white; }
+
+    main {
+      width: min(calc(100% - 40px), var(--content));
+      margin: 0 auto;
+      padding: 78px 0 96px;
+    }
+
+    .hero {
+      max-width: 850px;
+      margin-bottom: 56px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      margin: 0 0 18px;
+      color: #fca5a5;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--red-bright);
+      box-shadow: 0 0 18px rgba(239, 68, 68, 0.8);
+    }
+
+    h1, h2, h3 {
+      margin-top: 0;
+      color: white;
+      line-height: 1.16;
+      letter-spacing: -0.025em;
+    }
+
+    h1 {
+      max-width: 760px;
+      margin-bottom: 22px;
+      font-size: clamp(2.7rem, 7vw, 5.5rem);
+      letter-spacing: -0.055em;
+    }
+
+    .hero-copy {
+      max-width: 740px;
+      margin: 0;
+      color: #d4d4d4;
+      font-size: clamp(1.08rem, 2vw, 1.28rem);
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 22px;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 64px;
+    }
+
+    .summary-card {
+      min-height: 168px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: linear-gradient(145deg, rgba(21, 21, 21, 0.96), rgba(12, 12, 12, 0.96));
+    }
+
+    .summary-number {
+      display: block;
+      margin-bottom: 22px;
+      color: var(--red-bright);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+    }
+
+    .summary-card strong {
+      display: block;
+      margin-bottom: 6px;
+      color: white;
+      font-size: 1.05rem;
+    }
+
+    .summary-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.55;
+    }
+
+    .policy-layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 64px;
+      align-items: start;
+    }
+
+    .contents {
+      position: sticky;
+      top: 100px;
+      padding-left: 18px;
+      border-left: 2px solid var(--red-dark);
+    }
+
+    .contents-title {
+      margin: 0 0 10px;
+      color: white;
+      font-size: 0.74rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    .contents a {
+      display: block;
+      padding: 5px 0;
+      color: var(--muted);
+      font-size: 0.86rem;
+      line-height: 1.4;
+      text-decoration: none;
+    }
+
+    .contents a:hover { color: white; }
+
+    .policy-content { min-width: 0; }
+
+    .policy-section {
+      padding: 0 0 42px;
+      margin: 0 0 42px;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 105px;
+    }
+
+    .policy-section:last-child {
+      margin-bottom: 0;
+      border-bottom: 0;
+    }
+
+    h2 {
+      margin-bottom: 18px;
+      font-size: clamp(1.55rem, 3vw, 2.15rem);
+    }
+
+    h3 {
+      margin: 26px 0 8px;
+      font-size: 1.05rem;
+    }
+
+    p { margin: 0 0 16px; }
+
+    ul {
+      margin: 14px 0 20px;
+      padding-left: 1.2rem;
+    }
+
+    li { padding: 3px 0 3px 6px; }
+
+    li::marker { color: var(--red-bright); }
+
+    .callout {
+      margin: 24px 0;
+      padding: 20px 22px;
+      border: 1px solid rgba(239, 68, 68, 0.34);
+      border-left: 4px solid var(--red-bright);
+      border-radius: 10px;
+      background: rgba(127, 29, 29, 0.12);
+    }
+
+    .callout strong {
+      display: block;
+      margin-bottom: 4px;
+      color: white;
+    }
+
+    code {
+      padding: 0.14em 0.42em;
+      color: #fecaca;
+      background: #1f1111;
+      border: 1px solid #3f1d1d;
+      border-radius: 5px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 0.88em;
+      overflow-wrap: anywhere;
+    }
+
+    .contact-card {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: center;
+      margin-top: 24px;
+      padding: 24px;
+      border: 1px solid var(--border-strong);
+      border-radius: 14px;
+      background: var(--surface-raised);
+    }
+
+    .contact-card p { margin: 4px 0 0; color: var(--muted); }
+
+    .button {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 10px 17px;
+      color: white;
+      background: var(--red);
+      border: 1px solid #ef4444;
+      border-radius: 9px;
+      box-shadow: 0 8px 28px rgba(220, 38, 38, 0.18);
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .button:hover { color: white; background: var(--red-bright); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      background: #050505;
+    }
+
+    .footer-inner {
+      width: min(calc(100% - 40px), var(--content));
+      min-height: 96px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      color: #737373;
+      font-size: 0.86rem;
+    }
+
+    .footer-inner p { margin: 0; }
+
+    @media (max-width: 820px) {
+      main { padding-top: 58px; }
+      .summary { grid-template-columns: 1fr; }
+      .summary-card { min-height: auto; }
+      .policy-layout { grid-template-columns: 1fr; gap: 38px; }
+      .contents {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 20px;
+      }
+      .contents-title { grid-column: 1 / -1; }
+    }
+
+    @media (max-width: 560px) {
+      .header-inner, main, .footer-inner { width: min(calc(100% - 28px), var(--content)); }
+      .back-link { font-size: 0; }
+      .back-link::after { content: "Home"; font-size: 0.88rem; }
+      main { padding-bottom: 68px; }
+      h1 { font-size: clamp(2.45rem, 16vw, 3.5rem); }
+      .contents { grid-template-columns: 1fr; }
+      .contact-card, .footer-inner { align-items: flex-start; flex-direction: column; }
+      .button { width: 100%; }
+      .footer-inner { justify-content: center; padding: 24px 0; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { transition-duration: 0.01ms !important; }
+    }
+
+    @media print {
+      :root { --text: #111; --muted: #444; }
+      body { color: #111; background: white; font-size: 11pt; }
+      .site-header, .contents, footer, .summary { display: none; }
+      main { width: 100%; padding: 0; }
+      .hero { margin-bottom: 34px; }
+      h1, h2, h3, .contact-card strong { color: #111; }
+      a { color: #111; }
+      .policy-layout { display: block; }
+      .policy-section { break-inside: avoid; border-color: #bbb; }
+      .callout, .contact-card { background: none; border-color: #999; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to privacy policy</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="https://akasumitlamba.github.io/WWRecorder/" aria-label="WWRecorder home">
+        WW<span class="brand-mark">RECORDER</span>
+      </a>
+      <a class="back-link" href="https://akasumitlamba.github.io/WWRecorder/">← Back to WWRecorder</a>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">Privacy, in plain language</p>
+      <h1 id="page-title">Your captures stay yours.</h1>
+      <p class="hero-copy">
+        WWRecorder is a Windows screen recorder designed to process recordings, screenshots,
+        microphone audio, and system audio on your device. We do not run advertising,
+        analytics, or user-tracking systems.
+      </p>
+      <div class="meta" aria-label="Policy information">
+        <span>Effective: August 20, 2026</span>
+        <span>Last updated: August 20, 2026</span>
+        <span>Applies to: WWRecorder for Windows</span>
+      </div>
+    </section>
+
+    <section class="summary" aria-label="Privacy summary">
+      <article class="summary-card">
+        <span class="summary-number">01 / LOCAL</span>
+        <strong>Local media processing</strong>
+        <p>Your screen, audio, edits, and exported media are processed on your Windows device.</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-number">02 / NO TRACKING</span>
+        <strong>No accounts or analytics</strong>
+        <p>WWRecorder has no sign-in, advertising profile, usage analytics, or telemetry service.</p>
+      </article>
+      <article class="summary-card">
+        <span class="summary-number">03 / NETWORK</span>
+        <strong>GitHub update checks</strong>
+        <p>The app contacts GitHub to check for releases and, if requested, download an update.</p>
+      </article>
+    </section>
+
+    <div class="policy-layout">
+      <nav class="contents" aria-label="Policy sections">
+        <p class="contents-title">On this page</p>
+        <a href="#scope">Scope</a>
+        <a href="#data-handled">Data the app handles</a>
+        <a href="#local-storage">Local storage</a>
+        <a href="#network">Network activity</a>
+        <a href="#sharing">Sharing and selling</a>
+        <a href="#retention">Retention and deletion</a>
+        <a href="#security">Security</a>
+        <a href="#children">Children</a>
+        <a href="#changes">Policy changes</a>
+        <a href="#contact">Contact</a>
+      </nav>
+
+      <article class="policy-content">
+        <section class="policy-section" id="scope">
+          <h2>1. Scope</h2>
+          <p>
+            This Privacy Policy explains how WWRecorder (the “App”), developed and published by
+            Sumit Kumar Lamba (“we,” “us,” or “our”), handles information when you install and use
+            the App on a Windows device.
+          </p>
+          <p>
+            This policy covers the WWRecorder desktop application. Third-party websites you choose
+            to visit, including GitHub, are governed by their own privacy policies.
+          </p>
+        </section>
+
+        <section class="policy-section" id="data-handled">
+          <h2>2. Data the App handles</h2>
+          <p>WWRecorder handles the following information only to provide features you choose to use:</p>
+
+          <h3>Screen and media content</h3>
+          <ul>
+            <li>Pixels from the screen region you select for a recording or screenshot.</li>
+            <li>System audio when system-audio capture is enabled.</li>
+            <li>Microphone audio when microphone capture is enabled.</li>
+            <li>Text, drawings, crop selections, and other edits you add to a capture.</li>
+          </ul>
+          <p>
+            This content can include personal or sensitive information visible or audible in the area
+            you choose to capture. The App processes it locally to create the media file you requested.
+          </p>
+
+          <h3>Settings and file information</h3>
+          <p>
+            The App stores preferences such as your output folder, configured keyboard shortcuts,
+            audio defaults, appearance settings, update preferences, and dock position. It also reads
+            basic file information from your selected output folder to show recent captures.
+          </p>
+
+          <h3>Global keyboard shortcuts</h3>
+          <p>
+            WWRecorder listens for your configured global shortcuts so recording and screenshot actions
+            work while other apps are active. The App does not create a history of your keystrokes and
+            does not transmit them.
+          </p>
+
+          <h3>Clipboard content</h3>
+          <p>
+            When automatic clipboard copy is enabled, WWRecorder places a newly saved capture or its
+            file reference on the Windows clipboard. The App does not upload clipboard content.
+          </p>
+
+          <div class="callout">
+            <strong>What WWRecorder does not collect</strong>
+            We do not collect names, email addresses, account credentials, contacts, precise location,
+            advertising identifiers, payment information, browsing history, or usage analytics through the App.
+          </div>
+        </section>
+
+        <section class="policy-section" id="local-storage">
+          <h2>3. Local storage and diagnostics</h2>
+          <p>WWRecorder creates and uses files on your device:</p>
+          <ul>
+            <li>Recordings, screenshots, and exports are saved in the output folder you select.</li>
+            <li>Preferences are stored in <code>%APPDATA%\WWRecorder\config.json</code>.</li>
+            <li>Local application and crash logs are stored under <code>%APPDATA%\WWRecorder</code>.</li>
+            <li>Temporary recording files may be kept in the Windows temporary folder to finish processing or recover media after a failure.</li>
+            <li>If launch-at-startup is enabled, WWRecorder adds an entry to the current user’s Windows startup registry location.</li>
+          </ul>
+          <p>
+            Logs are stored locally and are not sent to us automatically. They may contain technical
+            error details and local file paths, but they are not designed to contain captured screen or
+            audio content. If you voluntarily share a log when requesting support, we will use it only
+            to investigate your request.
+          </p>
+        </section>
+
+        <section class="policy-section" id="network">
+          <h2>4. Network activity and third parties</h2>
+          <p>
+            On launch and when you manually check for updates, WWRecorder requests the latest release
+            information from the GitHub Releases API. If you choose to download an available update,
+            the installer is downloaded from a GitHub release address. These requests use encrypted
+            HTTPS connections.
+          </p>
+          <p>
+            Like any internet request, GitHub may receive technical connection information such as your
+            IP address, request time, and the App’s update-checker user-agent string. GitHub processes
+            that information under the
+            <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub General Privacy Statement</a>.
+            We do not receive a user-level update history from these requests.
+          </p>
+          <p>
+            Other than update checks, update downloads you request, and links you choose to open,
+            WWRecorder does not upload your recordings, screenshots, audio, settings, or logs to us or
+            to a cloud service.
+          </p>
+        </section>
+
+        <section class="policy-section" id="sharing">
+          <h2>5. Sharing, selling, and advertising</h2>
+          <p>
+            We do not sell or rent personal information. The App contains no advertising SDKs and does
+            not share captured content with data brokers, advertisers, or analytics providers.
+          </p>
+          <p>
+            Your content leaves your device only when you choose to move, copy, upload, share, or open
+            it with another application or service. That recipient’s terms and privacy practices then apply.
+          </p>
+        </section>
+
+        <section class="policy-section" id="retention">
+          <h2>6. Retention, control, and deletion</h2>
+          <p>
+            Because your recordings, screenshots, exports, settings, and logs are stored locally, you
+            control how long they remain on your device.
+          </p>
+          <ul>
+            <li>Delete media using WWRecorder or Windows File Explorer.</li>
+            <li>Clear clipboard content by copying something else or using Windows clipboard controls.</li>
+            <li>Reset settings in the App or remove the <code>%APPDATA%\WWRecorder</code> folder after closing the App.</li>
+            <li>During uninstall, choose the option to remove WWRecorder’s local configuration data when offered.</li>
+          </ul>
+          <p>
+            Successfully processed temporary recording files are removed automatically. Recovery media
+            left after an interrupted or failed recording may remain in the Windows temporary folder for
+            up to seven days so that the only playable copy is not silently lost.
+          </p>
+          <p>
+            We normally hold no App account or analytics record that can be accessed, corrected, or
+            deleted on our servers because the App does not create accounts or send such data to us.
+            Information you voluntarily submit through GitHub support channels is retained and controlled
+            according to GitHub’s features and policies.
+          </p>
+        </section>
+
+        <section class="policy-section" id="security">
+          <h2>7. Security</h2>
+          <p>
+            WWRecorder minimizes remote data handling by processing capture content locally and using
+            HTTPS for update-related network requests. No method of storage or transmission is completely
+            secure. You are responsible for choosing what appears in a capture, protecting your Windows
+            account and device, and sharing exported files only with intended recipients.
+          </p>
+        </section>
+
+        <section class="policy-section" id="children">
+          <h2>8. Children’s privacy</h2>
+          <p>
+            WWRecorder is a general-purpose productivity tool and is not directed to children under 13.
+            We do not knowingly collect personal information from children through the App. Because the
+            App records user-selected screen and audio content locally, a parent or guardian should
+            supervise a child’s use and any sharing of resulting files.
+          </p>
+        </section>
+
+        <section class="policy-section" id="changes">
+          <h2>9. Changes to this policy</h2>
+          <p>
+            We may update this Privacy Policy when the App’s features or legal obligations change. The
+            “Last updated” date at the top of this page will show when revisions were made. Material
+            changes will be published at this same URL.
+          </p>
+        </section>
+
+        <section class="policy-section" id="contact">
+          <h2>10. Contact</h2>
+          <p>
+            If you have a privacy question or believe WWRecorder is not behaving as described here,
+            contact the developer through the project’s GitHub issue tracker. Please do not attach a
+            private recording, screenshot, log, or other sensitive file to a public issue.
+          </p>
+          <div class="contact-card">
+            <div>
+              <strong>Sumit Kumar Lamba · WWRecorder</strong>
+              <p>Privacy and support inquiries</p>
+            </div>
+            <a class="button" href="https://github.com/akasumitlamba/WWRecorder/issues/new">Open a GitHub issue</a>
+          </div>
+        </section>
+      </article>
+    </div>
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+      <p>© 2026 Sumit Kumar Lamba. WWRecorder.</p>
+      <p>Local-first screen capture for Windows.</p>
+    </div>
+  </footer>
+</body>
+</html>
