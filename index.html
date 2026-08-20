@@ -1500,10 +1500,7 @@
           <h5>Legal</h5>
           <ul>
             <li>
-              <a href="#" onclick="
-                    openModal('modal-privacy');
-                    return false;
-                  ">Privacy Policy</a>
+              <a href="privacy-policy.html">Privacy Policy</a>
             </li>
             <li>
               <a href="#" onclick="
@@ -1542,58 +1539,6 @@
         </div>
       </div>
     </footer>
-  </div>
-
-  <div class="modal-overlay" id="modal-privacy" onclick="closeModalOutside(event, 'modal-privacy')">
-    <div class="modal">
-      <div class="modal-header">
-        <span class="modal-title">PRIVACY POLICY</span>
-        <button class="modal-close" onclick="closeModal('modal-privacy')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      </div>
-      <div class="modal-body">
-        <h3>No Data Collection</h3>
-        <p>
-          WWRecorder does not collect, transmit, store, or share any personal
-          data, usage analytics, crash reports, or telemetry of any kind. The
-          application runs entirely on your local machine.
-        </p>
-        <h3>Local Storage Only</h3>
-        <p>
-          All configuration is stored locally in
-          <code>%APPDATA%\WWRecorder\config.json</code>. Recordings are saved
-          to the output folder you configure. No files are uploaded anywhere.
-        </p>
-        <h3>Registry</h3>
-        <p>
-          If you enable auto-start, a single entry is written to
-          <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code>.
-          This is a standard Windows mechanism and can be removed via
-          Settings.
-        </p>
-        <h3>No Network Access</h3>
-        <p>
-          WWRecorder makes no network requests at any time. There are no
-          update checks, licence servers, or remote APIs involved in its
-          operation.
-        </p>
-        <h3>Third-Party Libraries</h3>
-        <p>
-          WWRecorder bundles FFmpeg (LGPL/GPL depending on build), mss,
-          soundcard, PyQt6, pynput, numpy, and pywin32. These operate entirely
-          locally. No third-party service receives data.
-        </p>
-        <h3>Contact</h3>
-        <p>
-          Questions? Open an issue on
-          <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank">GitHub</a>.
-        </p>
-      </div>
-    </div>
   </div>
 
   <div class="modal-overlay" id="modal-license" onclick="closeModalOutside(event, 'modal-license')">
