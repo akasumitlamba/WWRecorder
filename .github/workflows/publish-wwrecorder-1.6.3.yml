@@ -1,0 +1,34 @@
+name: Publish WWRecorder 1.6.3 download
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Download and verify installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p downloads/1.6.3
+          curl --fail --location --retry 5 --retry-all-errors \
+            https://github.com/akasumitlamba/WWRecorder/releases/download/v1.6.3/WWRecorder_Setup_1.6.3.exe \
+            --output downloads/1.6.3/WWRecorder_Setup_1.6.3.exe
+          echo "EC30B53E4F0CE2AC57FFAC66D3F9C90340B4DCA5C7CA9E6391926E6A82720EB9  downloads/1.6.3/WWRecorder_Setup_1.6.3.exe" | sha256sum --check
+      - name: Commit download and remove one-time workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads/1.6.3/WWRecorder_Setup_1.6.3.exe
+          git rm .github/workflows/publish-wwrecorder-1.6.3.yml
+          git commit -m "Add WWRecorder 1.6.3 installer"
+          git push origin HEAD:main
