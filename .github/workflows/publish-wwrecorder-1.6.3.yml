@@ -1,6 +1,8 @@
 name: Publish WWRecorder 1.6.3 download
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
