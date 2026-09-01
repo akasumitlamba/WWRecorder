@@ -1,190 +1,77 @@
-# WWRecorder - World Wide Recorder v1.4
+# WWRecorder public website
 
-Any feature request should be posted in the issues. 
+This folder contains the static GitHub Pages website for WWRecorder. It is deliberately independent of the desktop application's source and build system.
 
-High-performance, lightweight screen recorder for Windows optimised for
-low-end hardware (Intel i3, integrated graphics). Produces compact, crash-
-resilient `.mkv` files via FFmpeg.
+## Pages
 
+- `index.html` — product overview and feature tour
+- `download.html` — Microsoft Store and latest stable installer choices
+- `install-help.html` — Windows download and installation troubleshooting
+- `specs.html` — detailed platform, capture, audio, editing and storage specifications
+- `privacy-policy.html` — application and website privacy details
+- `legal.html` — distribution, ownership and third-party notices
 
----
+## Static release handling
 
-## Features
+The installer chooser requests:
 
-| Feature         | Detail                                                                            |
-| --------------- | --------------------------------------------------------------------------------- |
-| Codec           | H.264 `libx264` · `ultrafast` preset · CRF 23                                     |
-| Container       | `.mkv` (recoverable if app/system crashes)                                        |
-| Frame rate      | Hard-coded 30 FPS (stable on old CPUs)                                            |
-| System audio    | WASAPI loopback via `soundcard`                                                   |
-| Microphone      | Default mic via `soundcard`                                                       |
-| Audio toggle    | Real-time · no restart · zero-latency mute                                        |
-| Pause           | Frozen-frame technique - single continuous file, A/V sync preserved               |
-| Pill UI         | Borderless, always-on-top, invisible to screen capture (`WDA_EXCLUDEFROMCAPTURE`) |
-| Global hotkey   | `Shift+Backspace` (configurable) - works when minimised                           |
-| Auto-start      | Windows Registry `HKCU\...\Run`                                                   |
-| Single instance | Named mutex guard                                                                 |
-| Installer       | Inno Setup 6 · per-user · no UAC prompt                                           |
-
----
-
-## Project Structure
-
-```
-WWRecorder/
-├── main.py               # App entry: tray, hotkeys, registry, orchestration
-├── recorder.py           # Engine: mss → FFmpeg pipe, AudioMixer, A/V merge
-├── ui_elements.py        # SelectionOverlay, PillWidget, SettingsWindow
-├── wwrecorder.spec       # PyInstaller spec
-├── installer_config.iss  # Inno Setup 6 installer script
-├── requirements.txt
-└── assets/
-    ├── icon.ico          # ← You must provide this (256×256 recommended)
-    └── icon.png          # Optional
+```text
+https://api.github.com/repos/akasumitlamba/WWRecorder/releases?per_page=30
 ```
 
----
+The script filters out draft and prerelease entries, accepts only `.exe` assets hosted below the official WWRecorder GitHub Releases path, starts the newest stable installer from `download.html`, and exposes older stable installers in a version selector. If lookup fails, it links to the GitHub release page for manual review.
 
-## Quick Start (Development)
+## Publishing installer fingerprints
 
-### 1 - Install dependencies
+After publishing an installer, copy its release name, asset filename, and GitHub-provided SHA-256 digest into `OFFICIAL_INSTALLER_RELEASES` near the top of `script.js`:
+
+```javascript
+const OFFICIAL_INSTALLER_RELEASES = Object.freeze([
+  Object.freeze({
+    releaseName: 'WWRecorder 1.6.3',
+    filename: 'WWRecorder_Setup_1.6.3.exe',
+    sha256: 'paste-the-64-character-lowercase-sha256-here'
+  })
+]);
+```
+
+Generate the value on Windows with `Get-FileHash -Algorithm SHA256 "C:\path\to\WWRecorder_Setup.exe"`. The installation-help page compares visitor input locally; it does not upload either the installer or the fingerprint.
+
+## Local preview
+
+You can double-click this folder's `index.html` for a basic local preview. This `site` folder is the complete website root: its HTML, CSS and JavaScript are at the top level, with referenced artwork under `icons/` and `media/`.
+
+For the complete download/release behavior, preview through a local server because browsers may limit GitHub API requests from `file:` pages.
+
+From this folder:
 
 ```powershell
-pip install -r requirements.txt
+python -m http.server 8765 --bind 127.0.0.1
 ```
 
-### 2 - Obtain FFmpeg
+Then open `http://127.0.0.1:8765/`. A local server is preferable to opening the HTML as a `file:` URL because browsers may limit the GitHub API request from local files.
 
-Download a static Windows build from https://ffmpeg.org/download.html  
-and place `ffmpeg.exe` in the project root **or** on your system PATH.
+## Feature artwork
 
-### 3 - Run
+The feature tour uses five static PNGs from `media/features/`. Each image is built from the real WWRecorder interface rather than invented UI. The shared `backdrop.png` supplies consistent red-and-black framing while the desktop layout reserves 40% of every story for text and 60% for its image.
 
-```powershell
-python main.py
-```
+## Deployment
 
-WWRecorder appears in the system tray.  
-Double-click the tray icon **or** press `Shift+Backspace` to start.
+Upload or publish the contents of this `site` folder as the GitHub Pages repository root. No files from the parent `Supporting\Website` folder are required. No server runtime, package installation, database, secret or build command is required.
 
----
+## Maintenance checklist
 
-## Building a Distributable
+1. Keep application feature claims consistent with the current stable build.
+2. Keep the Microsoft Store URL in `index.html` and `download.html` current.
+3. Do not hard-code a prerelease installer into the primary download buttons.
+4. Test all internal links, the release API fallback and responsive layouts before publishing.
+5. Update the privacy and legal pages when application data handling or distribution changes.
+6. Add the exact published release name, installer filename, and SHA-256 to `OFFICIAL_INSTALLER_RELEASES`, then test both a matching and non-matching value.
+7. Keep the engineering page grounded in the current implementation. In particular, confirm capture source, timing filters, audio constants, recovery retention, and build inputs before changing technical claims.
+8. Keep the home-page narrative in this order: purpose, workflow, product fit and boundaries, reliability, then download. Do not reintroduce duplicate feature grids or unrelated project promotion into the main page flow.
 
-### Step 1 - PyInstaller
+## Source and rights
 
-```powershell
-# Ensure ffmpeg.exe is in the project root
-pyinstaller wwrecorder.spec
-```
+The original WWRecorder application source is published at `https://github.com/akasumitlamba/WWRecorder` under the MIT License. Keep source links and license wording aligned with the repository's root `LICENSE`, `legal.html`, and this folder's `LICENSE` notice.
 
-Output: `dist\WWRecorder\WWRecorder.exe` + all runtime files.
-
-### Step 2 - Inno Setup
-
-1. Install [Inno Setup 6](https://jrsoftware.org/isinfo.php)
-2. Compile:
-   ```powershell
-   iscc installer_config.iss
-   ```
-3. Find the installer at `installer_output\WWRecorder_Setup_1.0.0.exe`
-
----
-
-## Architecture Deep-Dive
-
-### Frame Pipeline
-
-```
-mss.grab(region) → BGRA numpy array
-    │  strip alpha (fast slice)
-    ▼
-BGR24 bytes → FFmpeg stdin pipe
-    │
-    ▼  [libx264, ultrafast, crf 23, yuv420p]
-temp_video.mkv
-```
-
-**Pause technique:** when paused, `_frame_worker` re-sends `_last_raw_frame`
-at exactly 30 FPS so FFmpeg's clock keeps ticking. This means video length
-equals wall-clock time, and the final A/V merge with `-shortest` stays in
-sync without any timestamp arithmetic.
-
-### Audio Pipeline
-
-```
-soundcard WASAPI loopback ──► float32 chunks ──┐
-                                               ├─► AudioMixer thread
-soundcard default mic ─────► float32 chunks ──┘      │
-                                                      │  mix + clip to [-1,1]
-                                                      ▼
-                                               int16 PCM → temp_audio.wav
-```
-
-On stop:
-
-```
-FFmpeg: temp_video.mkv + temp_audio.wav → final Recording_YYYY-MM-DD_HH-MM-SS.mkv
-        (-c:v copy · -c:a aac 128k · -shortest)
-```
-
-### Pill Invisibility
-
-```python
-# After the HWND is valid (~150 ms after show):
-ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, 0x00000011)
-#                                                    ^^^^^^^^^^
-#                                                    WDA_EXCLUDEFROMCAPTURE
-```
-
-This is a Windows 10 2004+ API. On older systems the call is silently
-ignored (the Pill will appear in recordings, but everything else works).
-
----
-
-## Configuration
-
-Stored at `%APPDATA%\WWRecorder\config.json`:
-
-```json
-{
-  "output_folder": "C:\\Users\\You\\Videos\\WWRecorder",
-  "hotkey": "<shift>+<backspace>",
-  "default_system_audio": true,
-  "default_mic": false,
-  "start_on_boot": false
-}
-```
-
-Hotkey syntax follows [pynput key names](https://pynput.readthedocs.io/en/latest/keyboard.html#key-classes).
-
----
-
-## Release Notes
-
-### v1.0.0 (Initial Release)
-
-- **Performance Optimized:** Uses H.264 encoding (`libx264`) with an `ultrafast` preset running at a stable 30 FPS.
-- **Crash-Resilient `.mkv` Output:** Records directly to `.mkv` containers ensuring your recordings are safe and recoverable.
-- **Seamless Pause & Resume:** Employs a frozen-frame technique to preserve exact Audio/Video synchronization in a single continuous file.
-- **System & Mic Audio Support:** Captures system audio (via WASAPI loopback) and default microphone input with real-time muting.
-- **Stealth 'Pill' UI:** Borderless, always-on-top control widget invisible to screen capture.
-- **Global Hotkeys & System Tray:** Start, pause, or stop recording using `Shift+Backspace`. Runs quietly in the background.
-- **Seamless Setup:** Standalone installer built with Inno Setup.
-
----
-
-## Known Limitations / TODOs
-
-- `WDA_EXCLUDEFROMCAPTURE` requires Windows 10 version 2004 (build 19041+).
-- Audio capture requires `soundcard` 0.4+ and Windows WASAPI. If no
-  loopback device is found, recording continues silently (video only).
-- The A/V merge step adds ~1–3 s after clicking Stop for long recordings.
-- Multi-monitor support: the region picker covers all screens; mss captures
-  whichever physical pixels are in the selected rect.
-
----
-
-## License
-
-Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0) - see LICENSE file.
+The application-source license does not grant rights to third-party components or permission to present an unofficial build as endorsed by WWRecorder.

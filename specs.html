@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050505">
+  <meta name="description" content="A source-grounded engineering deep dive into WWRecorder's capture, timing, audio, recovery, editing and Windows integration pipelines.">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/specs.html"><link rel="icon" type="image/png" href="icons/icon.png"><link rel="stylesheet" href="style.css?v=16">
+  <title>WWRecorder engineering deep dive</title>
+</head>
+<body class="inner-page specs-page" data-page="specs">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" data-header><a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button><nav id="site-nav" aria-label="Primary navigation">
+      <a href="index.html#features">How it works</a>
+      <a href="index.html#fit">Is it for me?</a>
+      <a href="index.html#under-the-hood">Under the hood</a>
+      <a href="install-help.html">Install help</a>
+      <a href="specs.html">Technical specs</a>
+      <button class="nav-download js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Download</button>
+    </nav></header>
+
+  <main class="inner-main specs-main" id="main">
+    <header class="spec-hero reveal">
+      <div class="spec-hero-copy">
+        <p class="section-kicker">Engineering deep dive</p>
+        <h1>Pixels in.<br><em>A recoverable MKV out.</em></h1>
+        <p>This is the implementation-level tour: coordinate spaces, capture buffers, timing repair, WASAPI behavior, FFmpeg filters, worker ownership and failure boundaries.</p>
+        <div class="spec-chips" aria-label="Core technologies"><code>PyQt6</code><code>MSS</code><code>NumPy BGRA</code><code>Win32 GDI</code><code>WASAPI</code><code>FFmpeg</code></div>
+      </div>
+      <aside class="runtime-card" aria-label="Runtime summary">
+        <span class="runtime-status"><i></i> LOCAL PIPELINE</span>
+        <dl><div><dt>Target cadence</dt><dd>30 FPS</dd></div><div><dt>Audio working format</dt><dd>float32 / 48 kHz final</dd></div><div><dt>Final video</dt><dd>H.264 / yuv420p</dd></div><div><dt>Final audio</dt><dd>Opus / 112 kbps</dd></div><div><dt>Container</dt><dd>Matroska / .mkv</dd></div></dl>
+      </aside>
+    </header>
+
+    <section class="requirements spec-requirements reveal" aria-label="System requirements">
+      <div><span>OS baseline</span><strong>Windows 10 2004+ / 11</strong><small>Required for full capture-exclusion behavior</small></div>
+      <div><span>Process architecture</span><strong>64-bit Windows build</strong><small>PyInstaller one-folder application</small></div>
+      <div><span>Capture region</span><strong>32 × 32 px minimum</strong><small>Dimensions are normalized to even pixels</small></div>
+      <div><span>Media network path</span><strong>None</strong><small>Capture, edit and compression stay local</small></div>
+    </section>
+
+    <section class="pipeline-section section-pad">
+      <div class="spec-section-heading reveal"><p class="section-kicker">01 / Capture topology</p><h2>The actual frame path.</h2><p>The engine builds the selected region from physical-pixel monitor segments, composites one contiguous BGRA frame, and streams it to FFmpeg.</p></div>
+      <div class="pipeline" aria-label="Video capture pipeline">
+        <article class="pipeline-node reveal"><span>01</span><small>INPUT</small><strong>MSS monitor grabs</strong><p>Each intersecting display is sampled in native desktop pixels, including displays at negative virtual coordinates.</p></article>
+        <i aria-hidden="true">→</i>
+        <article class="pipeline-node reveal"><span>02</span><small>COMPOSE</small><strong>NumPy BGRA canvas</strong><p>Segments are mapped into image-local coordinates and resized only when logical-to-physical geometry requires it.</p></article>
+        <i aria-hidden="true">→</i>
+        <article class="pipeline-node reveal"><span>03</span><small>CURSOR</small><strong>Win32 top-down DIB</strong><p><code>DrawIconEx</code> applies Windows alpha/AND/XOR rules in a reusable 512 px cursor surface.</p></article>
+        <i aria-hidden="true">→</i>
+        <article class="pipeline-node reveal"><span>04</span><small>PIPE</small><strong>FFmpeg rawvideo stdin</strong><p>Contiguous BGRA bytes enter x264 as <code>rawvideo</code>; the temporary stream uses ultrafast, zerolatency and CRF 23.</p></article>
+        <i aria-hidden="true">→</i>
+        <article class="pipeline-node reveal"><span>05</span><small>FINAL</small><strong>CFR Matroska</strong><p>Timing is rebuilt, audio is muxed, and the final pass uses veryfast, CRF 28, yuv420p and Opus.</p></article>
+      </div>
+    </section>
+
+    <section class="timing-lab section-pad" id="timing">
+      <div class="spec-section-heading reveal"><p class="section-kicker">02 / Timing laboratory</p><h2>Wall time is authoritative.</h2><p>A rawvideo pipe has no per-frame timestamps. WWRecorder measures active recording time independently so temporary CPU pressure cannot make motion run ahead of audio.</p></div>
+      <div class="timing-grid">
+        <article class="code-card reveal"><header><span>capture_clock.py</span><i></i></header><pre><code>deadline += 1 / 30
+if now &gt; deadline:
+    count_missed_slots()
+    deadline = now
+
+# never inject a stale catch-up frame</code></pre><p>The next loop captures the newest screen state instead of filling a backlog with duplicate pixels.</p></article>
+        <article class="code-card reveal"><header><span>final_timeline.ffmpeg</span><i></i></header><pre><code>select = remove_pause_ranges
+setpts = fit_survivors_to_wall_time
+fps    = 30
+tpad   = clone_final_frame_to_duration</code></pre><p>The final result is stable CFR 30 while later pause ranges are compressed out exactly once.</p></article>
+        <article class="metric-stack reveal"><div><span>Capture clock</span><strong><b>perf_counter()</b> monotonic wall time</strong></div><div><span>Overload policy</span><strong><b>Skip slots</b> instead of stale-frame catch-up</strong></div><div><span>Pause model</span><strong><b>Intervals</b> recorded under an engine state lock</strong></div><div><span>Tail policy</span><strong><b>tpad clone</b> only to measured active duration</strong></div></article>
+      </div>
+    </section>
+
+    <section class="audio-lab section-pad" id="audio">
+      <div class="spec-section-heading reveal"><p class="section-kicker">03 / Audio graph</p><h2>Short reads, resilient endpoints, voice-first mix.</h2><p>System playback and microphone capture run independently. Both follow the current Windows default endpoint and preserve the measured unavailable interval if a device changes mid-session.</p></div>
+      <div class="audio-flow reveal" aria-label="Audio processing flow"><span>WASAPI loopback</span><span>WASAPI microphone</span><i>50 ms float32 chunks<br>500 ms device buffer</i><strong>async 48 kHz timeline repair</strong><strong>mic: 70 Hz HPF → 2× gain → 2.5:1 compression</strong><strong>mix normalize=0 → limiter 0.95 → Opus 112k</strong></div>
+      <div class="tech-note-grid">
+        <article class="tech-note reveal"><span>MMCSS</span><h3>Priority where it matters</h3><p>Each Windows audio capture worker requests the <code>Audio</code> Multimedia Class Scheduler profile; the whole process is not promoted globally.</p></article>
+        <article class="tech-note reveal"><span>DISCONTINUITY</span><h3>No synthetic jitter gaps</h3><p>Ordinary callback lateness is not treated as missing sound. Silence is inserted only for measured endpoint-unavailable time; WASAPI discontinuities remain diagnostics.</p></article>
+        <article class="tech-note reveal"><span>LIVE TOGGLES</span><h3>Timeline stays continuous</h3><p>Turning a source off writes zeros for that source instead of tearing down its stream, so re-enable is immediate and track duration remains aligned.</p></article>
+      </div>
+    </section>
+
+    <section class="spec-ledger section-pad">
+      <div class="spec-section-heading reveal"><p class="section-kicker">04 / Implementation ledger</p><h2>The details engineers ask for.</h2><p>Values below are based on the current application source and build definition, not generic product-category claims.</p></div>
+      <div class="spec-groups">
+        <section class="spec-card reveal"><div class="spec-card-title"><span>CAPTURE</span><h2>Pixel and encode path</h2></div><table class="spec-table"><tbody>
+          <tr><th>Source acquisition</th><td><code>mss</code> + NumPy</td><td>Monitor intersections are captured as BGRA and assembled into a single output canvas.</td></tr>
+          <tr><th>Coordinate domains</th><td>Qt logical / Win32 physical / image-local</td><td>Negative virtual-desktop coordinates and per-segment scaling are kept explicit instead of applying one display DPR globally.</td></tr>
+          <tr><th>Input to encoder</th><td><code>rawvideo</code>, BGRA, 30 fps declaration</td><td>A locked stdin write owns each complete contiguous frame.</td></tr>
+          <tr><th>Temporary video</th><td>x264 ultrafast, zerolatency, CRF 23</td><td>Optimizes the live path for bounded capture latency rather than final size.</td></tr>
+          <tr><th>Final video</th><td>x264 veryfast, CRF 28, yuv420p</td><td>Re-encodes after timing repair for broad playback compatibility and a smaller file.</td></tr>
+          <tr><th>Cursor composition</th><td>Win32 <code>DrawIconEx</code></td><td>A top-down 32-bit DIB preserves native color, alpha and monochrome cursor semantics.</td></tr>
+        </tbody></table></section>
+
+        <section class="spec-card reveal"><div class="spec-card-title"><span>CONCURRENCY</span><h2>Threads, signals and ownership</h2></div><table class="spec-table"><tbody>
+          <tr><th>GUI boundary</th><td>Qt main thread</td><td>Widgets stay on the GUI thread; capture, audio, FFmpeg work, scanning and thumbnails run outside it.</td></tr>
+          <tr><th>Engine guard</th><td>State lock + preparing/finalizing flags</td><td>Overlapping sessions, duplicate stop and late completion signals cannot claim mutable engine resources twice.</td></tr>
+          <tr><th>Audio workers</th><td>System + mic + queued WAV writers</td><td>Capture reads do not block on every disk write; bounded queues turn a slow writer into a visible failure.</td></tr>
+          <tr><th>Recent-file scan</th><td>Generation-tagged result signal</td><td>Results from an older folder scan are ignored after settings or window lifetime changes.</td></tr>
+          <tr><th>Hotkeys</th><td><code>pynput</code> native listener thread</td><td>One listener owner handles configurable global combinations even when the app is minimized.</td></tr>
+          <tr><th>Shutdown bound</th><td>5 s worker join timeout</td><td>Every long-running owner has a timeout/error path instead of an unbounded GUI freeze.</td></tr>
+        </tbody></table></section>
+
+        <section class="spec-card reveal" id="recovery"><div class="spec-card-title"><span>RECOVERY</span><h2>File-safety contract</h2></div><table class="spec-table"><tbody>
+          <tr><th>Terminal states</th><td>Saved / explicitly discarded / recoverable</td><td>Every recording path must end in exactly one of these outcomes.</td></tr>
+          <tr><th>Work location</th><td><code>&lt;output&gt;\.wwr_temp</code></td><td>Large temporary video and WAV files stay on the selected output drive to avoid cross-volume finalization surprises.</td></tr>
+          <tr><th>Retention</th><td>7 days for recent orphan media</td><td>Cleanup removes only stale work files; a current failed capture is kept for recovery.</td></tr>
+          <tr><th>Publish gate</th><td>Non-empty final output required</td><td>Source media is deleted only after the final MKV exists and has a non-zero size.</td></tr>
+          <tr><th>Name collision</th><td>Second-resolution name + numbered sibling</td><td>Existing user files are never silently replaced by a same-second capture.</td></tr>
+          <tr><th>Screenshot save</th><td>Qt <code>QSaveFile</code></td><td>Image-editor output uses commit-style atomic replacement rather than exposing a partially written PNG.</td></tr>
+        </tbody></table></section>
+
+        <section class="spec-card reveal" id="windows"><div class="spec-card-title"><span>WINDOWS</span><h2>Native integration</h2></div><table class="spec-table"><tbody>
+          <tr><th>Capture exclusion</th><td><code>WDA_EXCLUDEFROMCAPTURE</code> / 0x11</td><td>Floating controls ask Windows 10 2004+ not to include them in supported capture APIs, with <code>WDA_MONITOR</code> fallback.</td></tr>
+          <tr><th>Audio backend</th><td>SoundCard Media Foundation / WASAPI</td><td>Loopback records the default render endpoint; microphone uses the current default capture endpoint.</td></tr>
+          <tr><th>Single instance</th><td>Named local mutex</td><td><code>Local\WWRecorder_mutex</code> prevents two coordinators from racing over tray state and capture ownership.</td></tr>
+          <tr><th>Autostart</th><td>Per-user Run registry value</td><td>Optional startup is stored under the current Windows account.</td></tr>
+          <tr><th>Playback output</th><td>Qt Multimedia + current default device</td><td>The player follows Windows default-output changes while retaining mute and volume state.</td></tr>
+          <tr><th>Updates</th><td>GitHub metadata → Microsoft Store</td><td>Network use is limited to update/release discovery; recordings are not uploaded.</td></tr>
+        </tbody></table></section>
+
+        <section class="spec-card reveal"><div class="spec-card-title"><span>EDITING</span><h2>Local media tooling</h2></div><table class="spec-table"><tbody>
+          <tr><th>Playback</th><td><code>QMediaPlayer</code> + <code>QAudioOutput</code></td><td>Seeking from EOF first enters a decodable paused state so the selected frame is shown without replaying sound.</td></tr>
+          <tr><th>Edit model</th><td>Trim + merged delete intervals</td><td>Video and audio use paired select/setpts and aselect/asetpts filters for the same kept timeline.</td></tr>
+          <tr><th>Export</th><td>Staging file + <code>os.replace</code></td><td>Overwrite is committed only after the worker completes; cancellation removes staging, not the loaded original.</td></tr>
+          <tr><th>Text overlays</th><td>FFmpeg drawtext input files</td><td>Text is written to temporary files to avoid shell/filter escaping corruption.</td></tr>
+          <tr><th>Annotation history</th><td>300 complete actions</td><td>Undo/redo stores full user gestures rather than a record for every mouse-move sample.</td></tr>
+          <tr><th>Text bound</th><td>500 characters per annotation</td><td>Native Qt text layout handles wrapping, cursor position and formatted overlay editing.</td></tr>
+        </tbody></table></section>
+
+        <section class="spec-card reveal"><div class="spec-card-title"><span>BUILD</span><h2>Runtime and distribution</h2></div><table class="spec-table"><tbody>
+          <tr><th>Application UI</th><td>Python + PyQt6</td><td>Qt Core, Gui, Widgets, Multimedia and MultimediaWidgets are explicitly collected for the frozen build.</td></tr>
+          <tr><th>Bundling</th><td>PyInstaller one-folder</td><td>FFmpeg, established PNG/GIF artwork, SoundCard native libraries and certifi CA data ship with the executable.</td></tr>
+          <tr><th>Installer</th><td>Inno Setup 6, per-user</td><td>The installer wraps the frozen distribution; website sources, tests and documentation are not runtime payload.</td></tr>
+          <tr><th>Dependency bounds</th><td>PyQt6 6.7–&lt;7; MSS 10; NumPy 2</td><td>Pillow, pywin32, SoundCard, pynput and certifi are also version-bounded in the runtime requirements.</td></tr>
+          <tr><th>Thumbnail cache</th><td>256-entry global LRU</td><td>Recent-file previews are capped instead of growing for the full process lifetime.</td></tr>
+          <tr><th>Configuration</th><td><code>%APPDATA%\WWRecorder\config.json</code></td><td>Preferences and diagnostics remain local to the Windows profile.</td></tr>
+        </tbody></table></section>
+      </div>
+    </section>
+
+    <section class="state-contract section-pad reveal" id="state">
+      <p class="section-kicker">05 / State contract</p><h2>Recording is a state machine.</h2>
+      <div class="state-line" aria-label="Recording state sequence"><span>idle</span><i>→</i><span>selecting</span><i>→</i><span>ready</span><i>→</i><span>preparing</span><i>→</i><span class="active">recording</span><i>↔</i><span>paused</span><i>→</i><span>stopping</span><i>→</i><span>saving</span><i>→</i><span>idle</span></div>
+      <p>Start, stop and discard are idempotent at the coordinator boundary. A completed capture is never silently deleted, and user-visible failures say whether recovery media is safe.</p>
+    </section>
+
+    <section class="closing reveal"><h2>Prefer the visual tour?</h2><p>Return to the product page to see these systems through the current WWRecorder interface.</p><div class="hero-actions"><a class="button button-secondary" href="index.html#features">View features</a><button class="button button-primary js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Choose download</button></div></section>
+  </main>
+        <footer class="site-footer">
+    <div class="footer-brand">
+      <a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a>
+      <p class="footer-credit">Designed and developed by <a class="author-name" href="https://github.com/akasumitlamba" target="_blank" rel="noopener">Sumit Kumar Lamba</a>.</p>
+      <p class="footer-copyright">© <span data-current-year></span> Sumit Kumar Lamba · Application source licensed under MIT.</p>
+    </div>
+    <div class="footer-columns">
+      <div>
+        <strong>Product</strong>
+        <a href="index.html#features">How it works</a>
+        <a href="index.html#fit">Is it for me?</a>
+        <a href="specs.html">Technical specs</a>
+        <a href="download.html">Download choices</a>
+        <a href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">Microsoft Store</a>
+      </div>
+      <div>
+        <strong>Install &amp; Safety</strong>
+        <a href="install-help.html">Installation help</a>
+        <a href="install-help.html#verify-installer">Check SHA-256 hash</a>
+        <a href="install-help.html#edge-warning">Edge download warning</a>
+        <a href="install-help.html#smartscreen-warning">Windows SmartScreen</a>
+        <a href="install-help.html#smart-app-control">Smart App Control</a>
+      </div>
+      <div>
+        <strong>Project &amp; Code</strong>
+        <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Request a feature</a>
+      </div>
+      <div>
+        <strong>Legal &amp; Trust</strong>
+        <a href="privacy-policy.html">Privacy policy</a>
+        <a href="legal.html">Legal</a>
+        <a href="legal.html#third-party">Third-party notices</a>
+        <a href="privacy-policy.html#network">Offline data guarantee</a>
+      </div>
+    </div>
+  </footer>
+  <script src="script.js?v=7" defer></script>
+</body>
+</html>
