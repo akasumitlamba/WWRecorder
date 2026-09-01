@@ -1,316 +1,90 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Downloading... - WWRecorder</title>
-  <meta name="description" content="Downloading your file..." />
-
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="style.css" />
-  <style>
-    /* Specific styles for download page to avoid mixing with global fixed overlay */
-    body {
-      overflow-x: hidden;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-    
-    .dl-page-hero {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 120px 20px 60px;
-      position: relative;
-    }
-
-    .dl-grid-bg {
-      position: absolute;
-      inset: 0;
-      background-image:
-        linear-gradient(rgba(255, 45, 45, 0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255, 45, 45, 0.03) 1px, transparent 1px);
-      background-size: 48px 48px;
-      mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
-      z-index: -1;
-    }
-
-    /* Override the overlay-specific transforms so it renders nicely inline */
-    .dl-card-static {
-      background: var(--bg-2);
-      border: 1px solid var(--border-2);
-      border-radius: 24px;
-      padding: 48px 56px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      min-width: 380px;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,45,45,0.08);
-      opacity: 1; 
-      transform: none;
-      margin-bottom: 60px;
-      position: relative;
-    }
-
-    .guide-container {
-      max-width: 800px;
-      width: 100%;
-      background: var(--bg-2);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 40px;
-      margin-top: 40px;
-    }
-
-    .guide-header {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 24px;
-      color: var(--pill-gold);
-    }
-    
-    .guide-header svg {
-      width: 28px;
-      height: 28px;
-    }
-
-    .guide-header h2 {
-      font-family: var(--display);
-      font-size: 32px;
-      letter-spacing: 0.04em;
-    }
-
-    .guide-text {
-      font-size: 15px;
-      color: var(--text-2);
-      line-height: 1.7;
-      margin-bottom: 32px;
-    }
-
-    .guide-step {
-      display: flex;
-      gap: 16px;
-      margin-bottom: 24px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-    }
-
-    .guide-step-num {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      background: var(--red-dim);
-      color: var(--red);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-family: var(--display);
-      font-size: 18px;
-      flex-shrink: 0;
-    }
-
-    .guide-step-content h4 {
-      font-size: 16px;
-      color: var(--text);
-      margin-bottom: 6px;
-    }
-    
-    .guide-step-content p {
-      font-size: 14px;
-      color: var(--text-2);
-      line-height: 1.6;
-    }
-
-    .highlight-word {
-      color: #fff;
-      font-weight: 700;
-      background: rgba(255,255,255,0.1);
-      padding: 2px 6px;
-      border-radius: 4px;
-    }
-
-  </style>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050505">
+  <meta name="description" content="WWRecorder standalone installer download status, stable version selector and Windows installation help.">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/download.html"><link rel="icon" type="image/png" href="icons/icon.png"><link rel="stylesheet" href="style.css?v=16">
+  <title>Downloading WWRecorder</title>
 </head>
+<body class="inner-page" data-page="download">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" data-header><a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button><nav id="site-nav" aria-label="Primary navigation">
+      <a href="index.html#features">How it works</a>
+      <a href="index.html#fit">Is it for me?</a>
+      <a href="index.html#under-the-hood">Under the hood</a>
+      <a href="install-help.html">Install help</a>
+      <a href="specs.html">Technical specs</a>
+      <button class="nav-download js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Download</button>
+    </nav></header>
 
-<body>
-  <div id="cursor-dot"></div>
-  <div id="cursor-ring"></div>
+  <main class="inner-main" id="main">
+    <header class="inner-hero reveal"><p class="section-kicker">Standalone installer</p><h1>Preparing your<br><em>download.</em></h1><p>This page starts the selected stable installer and stays available so you can restart the download, choose an older stable version, or follow Windows installation help.</p></header>
 
-  <nav style="justify-content: center;">
-    <div class="nav-logo">
-      <div class="nav-dot"></div>
-      <a href="index.html">WWRecorder</a>
+    <section class="download-status-grid">
+      <div class="download-status-card" data-download-status-card>
+        <div class="download-glyph has-svg loading" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></div>
+        <h1 data-download-title>Finding latest stable installer</h1>
+        <p data-download-text>WWRecorder is checking the official GitHub release list. Prereleases are excluded.</p>
+        <div class="download-target-pill" data-target-pill style="display:none"><span class="target-label">Target:</span> <strong data-target-name>WWRecorder_Setup.exe</strong></div>
+        <div class="download-progress" aria-hidden="true"><span></span></div>
+        <div class="download-status-actions"><a class="button button-primary" data-manual-download href="https://github.com/akasumitlamba/WWRecorder/releases/latest"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true"><span data-button-label>Download installer</span></a><a class="button button-secondary" href="install-help.html">Installation help</a></div>
+      </div>
+      <aside class="release-panel">
+        <p class="section-kicker">Published versions</p><h2>Choose a stable release</h2><p>The newest stable installer is selected automatically. Older stable versions remain available when you need compatibility with a previous installation.</p>
+        <label for="version-select">Installer version</label><select class="version-select" id="version-select" data-version-select><option>Loading stable releases…</option></select>
+        <p class="selected-row"><strong>Selected:</strong> <span class="selected-badge" data-selected-release>Checking GitHub…</span></p>
+        <div class="download-inline-help"><strong>Having trouble?</strong><br>If Edge blocks the file, or Windows shows SmartScreen or Smart App Control, keep this page open and use the steps below. Do not bypass a warning for a file from an unexpected address.</div>
+        <div class="download-store-note"><span class="ms-logo large" aria-hidden="true"><i></i><i></i><i></i><i></i></span><p>Prefer the simplest route? <a href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">Install from Microsoft Store</a>.</p></div>
+      </aside>
+    </section>
+
+    <section class="quick-help reveal">
+      <p class="section-kicker">If the installer is blocked</p><h2>Match the message you see.</h2>
+      <div class="quick-help-grid"><article class="quick-help-card"><span>01</span><strong>Edge blocks the download</strong><p>Open Downloads, select the three dots beside the file, then choose Keep → Show more → Keep anyway.</p></article><article class="quick-help-card"><span>02</span><strong>Windows protected your PC</strong><p>After verifying the file came from the official WWRecorder release, choose More info and then Run anyway if Windows offers it.</p></article><article class="quick-help-card"><span>03</span><strong>Smart App Control blocks it</strong><p>There is no one-file bypass. Use Microsoft Store where possible before considering a device-wide security change.</p></article></div>
+      <div class="hero-actions"><a class="button button-primary" href="install-help.html">See illustrated installation help</a><a class="button button-secondary" href="https://learn.microsoft.com/en-us/troubleshoot/microsoft-edge/development/download-failures" target="_blank" rel="noopener">Microsoft Edge guidance</a></div>
+    </section>
+  </main>
+
+        <footer class="site-footer">
+    <div class="footer-brand">
+      <a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a>
+      <p class="footer-credit">Designed and developed by <a class="author-name" href="https://github.com/akasumitlamba" target="_blank" rel="noopener">Sumit Kumar Lamba</a>.</p>
+      <p class="footer-copyright">© <span data-current-year></span> Sumit Kumar Lamba · Application source licensed under MIT.</p>
     </div>
-  </nav>
-
-  <section class="dl-page-hero">
-    <div class="dl-grid-bg"></div>
-
-    <!-- Download animation card -->
-    <div class="dl-card-static" id="dl-card">
-      <div class="dl-icon-wrap" id="dl-icon-wrap">
-        <svg class="dl-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
-        </svg>
-        <svg class="dl-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="opacity: 0; transform: scale(0.5); position: absolute; color: var(--pill-green);">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-        <svg class="dl-ring" viewBox="0 0 44 44" style="transform: rotate(-90deg); position: absolute; inset: 0;">
-          <circle cx="22" cy="22" r="19" fill="none" stroke="var(--border)" stroke-width="3" />
-          <circle id="dl-ring-fill" cx="22" cy="22" r="19" fill="none" stroke="var(--red)" stroke-width="3" stroke-linecap="round" stroke-dasharray="119.4" stroke-dashoffset="119.4" style="transition: stroke-dashoffset 0.05s linear, stroke 0.4s ease; filter: drop-shadow(0 0 4px var(--red-glow));" />
-        </svg>
+    <div class="footer-columns">
+      <div>
+        <strong>Product</strong>
+        <a href="index.html#features">How it works</a>
+        <a href="index.html#fit">Is it for me?</a>
+        <a href="specs.html">Technical specs</a>
+        <a href="download.html">Download choices</a>
+        <a href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">Microsoft Store</a>
       </div>
-
-      <p class="dl-status" id="dl-status" style="font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-3);">Starting your download…</p>
-
-      <div style="width: 100%; height: 3px; background: var(--surface-2); border-radius: 99px; overflow: hidden;">
-        <div id="dl-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--red), #ff7070); border-radius: 99px; box-shadow: 0 0 8px var(--red-glow); transition: width 0.05s linear, background 0.4s ease;"></div>
+      <div>
+        <strong>Install &amp; Safety</strong>
+        <a href="install-help.html">Installation help</a>
+        <a href="install-help.html#verify-installer">Check SHA-256 hash</a>
+        <a href="install-help.html#edge-warning">Edge download warning</a>
+        <a href="install-help.html#smartscreen-warning">Windows SmartScreen</a>
+        <a href="install-help.html#smart-app-control">Smart App Control</a>
       </div>
-
-      <p id="dl-pct" style="font-family: var(--display); font-size: 36px; color: var(--text); letter-spacing: 0.04em; line-height: 1; margin-top: 8px;">0%</p>
-      
-      <div id="dl-thanks" style="display: none; align-items: center; flex-direction: column; gap: 8px; text-align: center; margin-top: -20px;">
-         <p style="font-family: var(--display); font-size: 32px; color: var(--pill-green); letter-spacing: 0.04em;">Thanks! 🎉</p>
-         <p style="font-size: 13px; color: var(--text-2); line-height: 1.6;">If the download didn't start automatically, <br><a id="manual-link" href="#" style="color: var(--red); text-decoration: underline; text-underline-offset: 3px;">click here to restart it</a>.</p>
+      <div>
+        <strong>Project &amp; Code</strong>
+        <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Request a feature</a>
+      </div>
+      <div>
+        <strong>Legal &amp; Trust</strong>
+        <a href="privacy-policy.html">Privacy policy</a>
+        <a href="legal.html">Legal</a>
+        <a href="legal.html#third-party">Third-party notices</a>
+        <a href="privacy-policy.html#network">Offline data guarantee</a>
       </div>
     </div>
-
-    <!-- Troubleshooting Guide -->
-    <div class="guide-container reveal">
-      <div class="guide-header">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-          <line x1="12" y1="9" x2="12" y2="13"/>
-          <line x1="12" y1="17" x2="12.01" y2="17"/>
-        </svg>
-        <h2>Blocked by Windows / Browser?</h2>
-      </div>
-      
-      <p class="guide-text">
-        Because this application is new and self-published, <strong>Microsoft Edge</strong> and <strong>Windows Defender SmartScreen</strong> might temporarily flag it as "isn't commonly downloaded." This is a standard automatic check for new indie software. (I've already submitted a request to Microsoft to whitelist it, but until it's processed, you can safely bypass it). 
-        <br><br>Here is how you can easily keep the file:
-      </p>
-
-      <div class="guide-step reveal-left">
-        <div class="guide-step-num">1</div>
-        <div class="guide-step-content">
-          <h4>Edge Browser "Commonly Downloaded" Warning</h4>
-          <p>If Edge blocks the download in the top-right downloads flyout, hover over the blocked file, click the <strong>three dots <span class="highlight-word">...</span></strong>, and select <span class="highlight-word">Keep</span> from the menu.</p>
-        </div>
-      </div>
-
-      <div class="guide-step reveal-right reveal-delay-1">
-        <div class="guide-step-num">2</div>
-        <div class="guide-step-content">
-          <h4>Confirm Trust</h4>
-          <p>A secondary warning popup will appear saying "Make sure you trust the file". Click on the <strong>Show more  <span class="highlight-word">⌄</span></strong> or <strong>More Info</strong> button, then select <span class="highlight-word">Keep anyway</span>.</p>
-        </div>
-      </div>
-      
-      <div class="guide-step reveal-left reveal-delay-2">
-        <div class="guide-step-num">3</div>
-        <div class="guide-step-content">
-          <h4>Windows Protected Your PC (SmartScreen)</h4>
-          <p>When you run the <code>.exe</code> installer for the first time, Windows might show a blue SmartScreen warning. Simply click <strong>More info</strong> on the left, and then click the new <span class="highlight-word">Run anyway</span> button that appears at the bottom.</p>
-        </div>
-      </div>
-
-    </div>
-  </section>
-
-  <script src="script.js"></script>
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      // Get URL from query parameters
-      const params = new URLSearchParams(window.location.search);
-      let downloadUrl = params.get('url');
-      
-      // Default fallback if no URL provided is WWRecorder
-      if (!downloadUrl) {
-         downloadUrl = 'https://github.com/akasumitlamba/WWRecorder/releases/download/v1.2/WWRecorder_Setup_1.3.0.exe';
-      }
-
-      document.getElementById('manual-link').href = downloadUrl;
-
-      // Animate fake progress bar
-      const bar = document.getElementById('dl-bar');
-      const pct = document.getElementById('dl-pct');
-      const ringFill = document.getElementById('dl-ring-fill');
-      const checkIcon = document.querySelector('.dl-check');
-      const dlIcon = document.querySelector('.dl-icon');
-      const statusEl = document.getElementById('dl-status');
-      const thanksEl = document.getElementById('dl-thanks');
-      
-      const CIRC = 119.4;
-      const DURATION = 2200; // ms
-      const start = performance.now();
-
-      let downloadStarted = false;
-
-      function tick(now) {
-        const elapsed = now - start;
-        const rawProg = Math.min(elapsed / DURATION, 1);
-        const prog = 1 - Math.pow(1 - rawProg, 3);
-        const p = Math.round(prog * 100);
-
-        bar.style.width = p + '%';
-        pct.textContent = p + '%';
-        ringFill.style.strokeDashoffset = CIRC * (1 - prog);
-
-        if (rawProg < 1) {
-          requestAnimationFrame(tick);
-          return;
-        }
-
-        // --- All Logic Below Here Only Runs Once ---
-        if (downloadStarted) return;
-        downloadStarted = true;
-
-        // Animation done visuals
-        ringFill.style.stroke = 'var(--pill-green)';
-        ringFill.style.filter = 'drop-shadow(0 0 6px rgba(34,197,94,0.5))';
-        bar.style.background = 'linear-gradient(90deg, var(--pill-green), #4ade80)';
-        bar.style.boxShadow = '0 0 8px rgba(34,197,94,0.4)';
-        
-        dlIcon.style.opacity = '0';
-        dlIcon.style.transform = 'scale(0.5)';
-        checkIcon.style.opacity = '1';
-        checkIcon.style.transform = 'scale(1)';
-
-        statusEl.textContent = 'Opening download\u2026';
-        pct.style.display = 'none';
-        thanksEl.style.display = 'flex';
-
-        // Trigger real download safely
-        setTimeout(() => {
-          const a = document.createElement('a');
-          a.style.display = 'none';
-          a.href = downloadUrl;
-          document.body.appendChild(a);
-          a.click();
-          
-          // Cleanup
-          setTimeout(() => {
-            if (document.body.contains(a)) document.body.removeChild(a);
-          }, 100);
-        }, 500);
-      }
-
-      // Start tick slightly later to render first
-      setTimeout(() => requestAnimationFrame(tick), 200);
-    });
-  </script>
+  </footer>
+  <script src="script.js?v=7" defer></script>
 </body>
 </html>

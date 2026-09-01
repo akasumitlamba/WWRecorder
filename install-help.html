@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050505">
+  <meta name="description" content="Illustrated help for Edge download warnings, Windows Defender SmartScreen and Smart App Control when installing WWRecorder.">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/install-help.html"><link rel="icon" type="image/png" href="icons/icon.png"><link rel="stylesheet" href="style.css?v=16">
+  <title>WWRecorder installation help</title>
+</head>
+<body class="inner-page" data-page="help">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" data-header><a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button><nav id="site-nav" aria-label="Primary navigation">
+      <a href="index.html#features">How it works</a>
+      <a href="index.html#fit">Is it for me?</a>
+      <a href="index.html#under-the-hood">Under the hood</a>
+      <a href="install-help.html">Install help</a>
+      <a href="specs.html">Technical specs</a>
+      <button class="nav-download js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Download</button>
+    </nav></header>
+
+  <main class="inner-main" id="main">
+    <header class="inner-hero reveal"><p class="section-kicker">Standalone installer help</p><h1>Find the message you see.<br><em>Follow only those steps.</em></h1><p>Windows uses several different protections for downloads and applications. The illustrations below show where the relevant controls normally appear. Exact wording can vary with your Edge and Windows version.</p></header>
+
+    <aside class="help-summary reveal"><div><strong>Microsoft Store avoids most standalone-installer warnings.</strong><p>Use the Store version first if it is available on your device. Windows handles acquisition and updates through the Store.</p></div><a class="store-button" href="https://aka.ms/AA1364bx" target="_blank" rel="noopener"><span class="ms-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span><small>GET IT FROM</small>Microsoft</span></a></aside>
+
+    <div class="help-sections">
+      <section class="help-section reveal" id="edge-warning">
+        <div class="help-copy"><span class="help-index">01 / MICROSOFT EDGE</span><h2>“Isn’t commonly downloaded”</h2><p>This message concerns download reputation. A new file or publisher may not yet have enough download history for Edge to recognise it.</p><ol><li>Open Edge Downloads.</li><li>Select <strong>More actions (…)</strong> beside the WWRecorder file.</li><li>Choose <strong>Keep</strong>.</li><li>Choose <strong>Show more</strong>, then <strong>Keep anyway</strong>.</li></ol><p>Only continue after confirming the address begins with <code>github.com/akasumitlamba/WWRecorder/releases/</code>.</p><a class="official-link" href="https://learn.microsoft.com/en-us/deployedge/microsoft-edge-security-smartscreen" target="_blank" rel="noopener">View Microsoft’s screenshots and guidance →</a></div>
+        <figure class="help-visual" aria-label="Illustration of the Edge download warning steps"><div class="edge-window"><div class="edge-title"><span>Downloads</span><span>×</span></div><div class="edge-file"><span class="file-icon">EXE</span><p><strong>WWRecorder_Setup.exe</strong><small>Isn’t commonly downloaded</small></p><span class="dots">…</span></div><div class="edge-menu"><span class="active">Keep</span><span>Delete</span></div><div class="edge-confirm"><strong>Make sure you trust WWRecorder_Setup.exe</strong><p>Microsoft Defender SmartScreen reported that this app is not commonly downloaded.</p><div class="mock-buttons"><span class="mock-button">Cancel</span><span class="mock-button primary">Show more</span><span class="mock-button primary">Keep anyway</span></div></div></div></figure>
+      </section>
+
+      <section class="help-section reveal" id="smartscreen-warning">
+        <div class="help-copy"><span class="help-index">02 / WINDOWS SMARTSCREEN</span><h2>“Windows protected your PC”</h2><p>This blue prompt appears when you run an application that Windows does not recognise. It is different from the Edge download warning.</p><ol><li>Verify that you downloaded the official WWRecorder setup.</li><li>Select <strong>More info</strong>.</li><li>Check that the app name is the expected WWRecorder installer.</li><li>If Windows offers it and the source is correct, select <strong>Run anyway</strong>.</li></ol><p>Stop if the warning reports known malware, the filename is unexpected, or you did not initiate the download.</p><a class="official-link" href="https://support.microsoft.com/en-us/microsoft-edge/how-can-smartscreen-help-protect-me-in-microsoft-edge-1c9a874a-6826-be5e-45b1-67fa445a74c8" target="_blank" rel="noopener">Learn how Microsoft Defender SmartScreen works →</a></div>
+        <figure class="help-visual" aria-label="Illustration of the Windows Defender SmartScreen dialog"><div class="smartscreen-window"><h3>Windows protected your PC</h3><p>Microsoft Defender SmartScreen prevented an unrecognised app from starting. Running this app might put your PC at risk.</p><p><strong>App:</strong> WWRecorder_Setup.exe</p><a class="more-info">More info</a><div><span class="mock-button">Run anyway</span><span class="mock-button primary">Don’t run</span></div></div></figure>
+      </section>
+
+      <section class="help-section reveal" id="smart-app-control">
+        <div class="help-copy"><span class="help-index">03 / SMART APP CONTROL</span><h2>No “Run anyway” option</h2><p>Smart App Control is stricter. Microsoft says there is currently no bypass for one specific application. It may block an unsigned application when its cloud service cannot make a confident safety prediction.</p><p><strong>Recommended:</strong> install WWRecorder from Microsoft Store instead of changing a device-wide security setting.</p><p>If you intentionally decide to change it, open <strong>Windows Security → App &amp; browser control → Smart App Control settings</strong>. Read the Windows warning before switching it off. Recent Windows updates may allow it to be enabled again, but availability and policy differ across devices.</p><div class="risk-note">Turning Smart App Control off changes protection for other applications too. Company or school devices may prevent the change; contact the administrator rather than working around policy.</div><a class="official-link" href="https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions" target="_blank" rel="noopener">Read Microsoft’s current Smart App Control FAQ →</a></div>
+        <figure class="help-visual" aria-label="Illustration of the Windows Security App and browser control page"><div class="security-window"><div class="security-head"><span class="shield">✓</span>Windows Security</div><div class="security-body"><div class="security-nav"><span>Home</span><span>Virus &amp; threat protection</span><span class="active">App &amp; browser control</span><span>Device security</span></div><div class="security-content"><h4>App &amp; browser control</h4><div class="security-card"><b>Smart App Control</b>Review Smart App Control settings</div><div class="security-card"><b>Reputation-based protection</b>Protect your device from malicious or potentially unwanted apps, files and websites.</div><div class="security-card"><b>Exploit protection</b>Built into Windows to help protect your device.</div></div></div></div></figure>
+      </section>
+    </div>
+
+    <section class="hash-checker reveal" id="verify-installer">
+      <div class="hash-copy">
+        <p class="section-kicker">Concerned about security?</p>
+        <h2>Check the installer’s SHA-256 fingerprint.</h2>
+        <p>A matching fingerprint confirms that the downloaded file is byte-for-byte identical to an installer fingerprint published on this site. It does not replace Windows security checks.</p>
+        <ol>
+          <li>Open PowerShell in Windows.</li>
+          <li>
+            Run this command in PowerShell:
+            <div class="code-copy-snippet">
+              <code data-powershell-cmd>Get-FileHash -Algorithm SHA256 "C:\path\to\WWRecorder_Setup.exe"</code>
+              <button class="button-copy-cmd" data-copy-cmd type="button" aria-label="Copy PowerShell command">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy command</span>
+              </button>
+            </div>
+            <small class="cmd-tip">Replace <code>"C:\path\to\WWRecorder_Setup.exe"</code> with your downloaded installer path (or drag and drop the EXE into PowerShell).</small>
+          </li>
+          <li>Copy the 64-character value shown under <strong>Hash</strong>, then paste or type it below.</li>
+        </ol>
+      </div>
+      <div class="hash-box">
+        <label for="installer-hash">Installer SHA-256</label>
+        <div class="hash-entry"><input id="installer-hash" data-hash-input type="text" inputmode="text" autocomplete="off" spellcheck="false" maxlength="96" placeholder="Paste or type the 64-character SHA-256 value"><button class="button button-secondary hash-paste" data-paste-hash type="button">Paste</button><button class="button button-primary" data-check-hash type="button">Check</button></div>
+        <p class="hash-result" data-hash-result role="status" aria-live="polite">No file is uploaded. The comparison happens in this page.</p>
+      </div>
+    </section>
+
+    <section class="other-help reveal"><article><h3>“Virus detected”</h3><p>Open Windows Security → Virus &amp; threat protection → Protection history. Do not restore a file identified as known malware. Download again from the official stable release and report the detection if it continues.</p></article><article><h3>Work or school computer</h3><p>Managed policy can remove Keep or Run anyway. Ask your administrator to approve the Store listing or installer. Do not bypass organisational security.</p></article><article><h3>Windows in S mode</h3><p>S mode limits installation to Microsoft Store. Use the Store listing, or review Microsoft’s S mode guidance before changing Windows mode.</p></article><article><h3>Incomplete or damaged file</h3><p>Delete the partial download, remove it from the browser’s Downloads list, confirm free disk space, and download it again over a stable connection.</p></article></section>
+
+    <section class="closing reveal"><h2>Still blocked?</h2><p>Include the exact warning text, Windows version, download route and installer filename in a support issue. Do not post private recordings or unreviewed logs.</p><div class="hero-actions"><a class="button button-primary" href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Open a support issue</a><a class="button button-secondary" href="download.html">Return to download</a></div></section>
+  </main>
+
+        <footer class="site-footer">
+    <div class="footer-brand">
+      <a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a>
+      <p class="footer-credit">Designed and developed by <a class="author-name" href="https://github.com/akasumitlamba" target="_blank" rel="noopener">Sumit Kumar Lamba</a>.</p>
+      <p class="footer-copyright">© <span data-current-year></span> Sumit Kumar Lamba · Application source licensed under MIT.</p>
+    </div>
+    <div class="footer-columns">
+      <div>
+        <strong>Product</strong>
+        <a href="index.html#features">How it works</a>
+        <a href="index.html#fit">Is it for me?</a>
+        <a href="specs.html">Technical specs</a>
+        <a href="download.html">Download choices</a>
+        <a href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">Microsoft Store</a>
+      </div>
+      <div>
+        <strong>Install &amp; Safety</strong>
+        <a href="install-help.html">Installation help</a>
+        <a href="install-help.html#verify-installer">Check SHA-256 hash</a>
+        <a href="install-help.html#edge-warning">Edge download warning</a>
+        <a href="install-help.html#smartscreen-warning">Windows SmartScreen</a>
+        <a href="install-help.html#smart-app-control">Smart App Control</a>
+      </div>
+      <div>
+        <strong>Project &amp; Code</strong>
+        <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Request a feature</a>
+      </div>
+      <div>
+        <strong>Legal &amp; Trust</strong>
+        <a href="privacy-policy.html">Privacy policy</a>
+        <a href="legal.html">Legal</a>
+        <a href="legal.html#third-party">Third-party notices</a>
+        <a href="privacy-policy.html#network">Offline data guarantee</a>
+      </div>
+    </div>
+  </footer>
+  <script src="script.js?v=7" defer></script>
+</body>
+</html>

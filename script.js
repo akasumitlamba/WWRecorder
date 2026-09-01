@@ -1,629 +1,478 @@
-/* ── Custom Cursor ────────────────────────── */
-(function () {
-  const dot = document.getElementById('cursor-dot');
-  const ring = document.getElementById('cursor-ring');
-  if (!dot || !ring) return;
+(() => {
+  'use strict';
 
-  let mouseX = -100, mouseY = -100;
-  let ringX = -100, ringY = -100;
-  let rafId;
+  const RELEASES_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases?per_page=30';
+  const RELEASES_FALLBACK = 'https://github.com/akasumitlamba/WWRecorder/releases/latest';
+  const OFFICIAL_ASSET_PREFIX = 'https://github.com/akasumitlamba/WWRecorder/releases/download/';
 
-  /* Move dot instantly */
-  document.addEventListener('mousemove', (e) => {
-    mouseX = e.clientX;
-    mouseY = e.clientY;
-    dot.style.left = mouseX + 'px';
-    dot.style.top = mouseY + 'px';
+  // GitHub-published installer names and SHA-256 digests from release asset metadata.
+  const OFFICIAL_INSTALLER_RELEASES = Object.freeze([
+    Object.freeze({ releaseName: 'WWRecorder 1.6.3', filename: 'WWRecorder_Setup_1.6.3.exe', sha256: 'ec30b53e4f0ce2ac57ffac66d3f9c90340b4dca5c7ca9e6391926e6a82720eb9' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.6.0 Public Beta', filename: 'WWRecorder_Setup_1.6.exe', sha256: 'caa0cc1d8741a81937933ab1105510397305913bff516cef7e5c9287636e1694' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.5.0', filename: 'WWRecorder_Setup_1.5.exe', sha256: 'caf5d2afaa366f503453f8ac09211ce47af8b457163eafd853bb24dbd7a4a687' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.4.0', filename: 'WWRecorder_Setup_1.4.exe', sha256: '79606df1d4401fdb1b1a81efea358799d2e9bb1d231a127fa770d81a8f4d30c0' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.3.0', filename: 'WWRecorder_Setup_1.3.exe', sha256: '92d4423ad2847abdba62b5e9f9c17d1ab6093c48438a3ef59dabfb6a6c4da551' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.2.0', filename: 'WWRecorder_Setup_1.2.0.exe', sha256: 'aa311bf01c4c8d9a1cfeb03567bce5024cdda20fb79e926a8b364245908a5f05' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.1.0', filename: 'WWRecorder_Setup_1.1.0.exe', sha256: '2e43ad4bb835ef2fd963810491ec9cf3a0206a26f315d61016e961b33cc54621' }),
+    Object.freeze({ releaseName: 'WWRecorder v1.0.0', filename: 'WWRecorder_Setup_1.0.0.exe', sha256: '72c7ef30b60dc5cbbe59971b9d3f61aa6a19d209e3d50f9fb443a26eabb4a2cf' })
+  ]);
+
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const header = document.querySelector('[data-header]');
+  const menuButton = document.querySelector('.menu-toggle');
+  const nav = document.querySelector('#site-nav');
+
+  document.querySelectorAll('[data-current-year]').forEach((node) => {
+    node.textContent = String(new Date().getFullYear());
   });
 
-  /* Lazy-follow ring via RAF for smooth trailing */
-  function animateRing() {
-    ringX += (mouseX - ringX) * 0.12;
-    ringY += (mouseY - ringY) * 0.12;
-    ring.style.left = ringX + 'px';
-    ring.style.top = ringY + 'px';
-    rafId = requestAnimationFrame(animateRing);
-  }
-  animateRing();
+  const updateScroll = () => {
+    const top = window.scrollY || document.documentElement.scrollTop;
+    header?.classList.toggle('scrolled', top > 12);
+  };
+  updateScroll();
+  window.addEventListener('scroll', updateScroll, { passive: true });
 
-  /* Hover state on interactive elements */
-  const hoverTargets = 'a, button, [role="button"], .feature-card, .step-card, .nav-cta, .nav-logo, .btn-primary, .btn-secondary, .pill-icon-btn, .pill-btn-start, label, input, select, textarea';
-  document.addEventListener('mouseover', (e) => {
-    if (e.target.closest(hoverTargets)) {
-      document.body.classList.add('cursor-hover');
-    }
-  });
-  document.addEventListener('mouseout', (e) => {
-    if (e.target.closest(hoverTargets)) {
-      document.body.classList.remove('cursor-hover');
-    }
-  });
+  let scrollFramePending = false;
+  const updateScrollEffects = () => {
+    scrollFramePending = false;
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    if (reduceMotion) return;
 
-  /* Click burst */
-  document.addEventListener('mousedown', () => document.body.classList.add('cursor-click'));
-  document.addEventListener('mouseup', () => document.body.classList.remove('cursor-click'));
-
-  /* Hide when leaving window */
-  document.addEventListener('mouseleave', () => {
-    dot.style.opacity = '0';
-    ring.style.opacity = '0';
-  });
-  document.addEventListener('mouseenter', () => {
-    dot.style.opacity = '';
-    ring.style.opacity = '';
-  });
-})();
-
-/* ── Reveal on scroll (bidirectional) ────── */
-const revealClasses = ['.reveal', '.reveal-left', '.reveal-right', '.reveal-scale', '.reveal-flip', '.section-eyebrow', '.stat-item'];
-const allRevealEls = document.querySelectorAll(revealClasses.join(','));
-
-const revealObserver = new IntersectionObserver(
-  (entries) => {
-    entries.forEach((e) => {
-      /* Add class when entering viewport, remove when leaving */
-      if (e.isIntersecting) {
-        e.target.classList.add('visible');
-      } else {
-        e.target.classList.remove('visible');
-      }
+    document.querySelectorAll('.feature-story').forEach((story) => {
+      const rect = story.getBoundingClientRect();
+      const active = rect.top < window.innerHeight * .68 && rect.bottom > window.innerHeight * .32;
+      story.classList.toggle('is-active', active);
+      const travel = Math.max(1, rect.height - window.innerHeight);
+      const amount = Math.max(0, Math.min(1, -rect.top / travel));
+      story.style.setProperty('--story-shift', `${(amount - .5) * -18}px`);
+      story.style.setProperty('--story-scale', String(.008 + amount * .012));
     });
-  },
-  { threshold: 0.05, rootMargin: '0px 0px -20px 0px' },
-);
-allRevealEls.forEach((el) => revealObserver.observe(el));
+  };
+  const requestScrollEffects = () => {
+    if (scrollFramePending) return;
+    scrollFramePending = true;
+    requestAnimationFrame(updateScrollEffects);
+  };
+  updateScrollEffects();
+  window.addEventListener('scroll', requestScrollEffects, { passive: true });
+  window.addEventListener('resize', requestScrollEffects, { passive: true });
 
-/* ── Download redirection (Event Delegation) ── */
-(function () {
-  // Prevent redirection logic from running if we're already on the download page
-  if (window.location.pathname.includes('download.html')) return;
+  if (!reduceMotion && window.matchMedia('(pointer:fine)').matches) {
+    document.addEventListener('pointermove', (event) => {
+      document.body.style.setProperty('--pointer-x', `${event.clientX}px`);
+      document.body.style.setProperty('--pointer-y', `${event.clientY}px`);
+      const hero = document.querySelector('.hero-centered');
+      if (hero && event.clientY <= hero.offsetHeight) {
+        const x = event.clientX / window.innerWidth - .5;
+        const y = event.clientY / Math.max(1, hero.offsetHeight) - .5;
+        hero.style.setProperty('--hero-grid-x', `${x * -9}px`);
+        hero.style.setProperty('--hero-grid-y', `${y * -9}px`);
+        hero.style.setProperty('--hero-orbit-x', `${x * 15}px`);
+        hero.style.setProperty('--hero-orbit-y', `${y * 15}px`);
+      }
+    }, { passive: true });
 
-  document.addEventListener('click', (e) => {
-    const el = e.target.closest('.btn-primary, .nav-cta, .download-dropdown-item');
-    if (el && el.href && el.href.endsWith('.exe')) {
-      e.preventDefault();
-      window.location.href = 'download.html?url=' + encodeURIComponent(el.href);
-    }
+    document.querySelectorAll('.capability,.fit-card,.practical-item,.engineering-card,.project-card,.pipeline-node,.tech-note,.spec-card,.code-card').forEach((card) => {
+      card.addEventListener('pointermove', (event) => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mx', `${event.clientX - rect.left}px`);
+        card.style.setProperty('--my', `${event.clientY - rect.top}px`);
+      }, { passive: true });
+    });
+  }
+
+  menuButton?.addEventListener('click', () => {
+    const open = menuButton.getAttribute('aria-expanded') !== 'true';
+    menuButton.setAttribute('aria-expanded', String(open));
+    nav?.classList.toggle('open', open);
   });
-})();
+  nav?.querySelectorAll('a,button').forEach((item) => item.addEventListener('click', () => {
+    nav.classList.remove('open');
+    menuButton?.setAttribute('aria-expanded', 'false');
+  }));
 
-
-(function () {
-  const glow = document.querySelector('.hero-glow');
-  const grid = document.querySelector('.hero-grid');
-  if (!glow && !grid) return;
-
-  let ticking = false;
-  window.addEventListener('scroll', () => {
-    if (!ticking) {
-      requestAnimationFrame(() => {
-        const y = window.scrollY;
-        if (glow) glow.style.transform = `translate(-50%, calc(-50% + ${y * 0.18}px))`;
-        if (grid) grid.style.transform = `translateY(${y * 0.08}px)`;
-        ticking = false;
+  const revealNodes = document.querySelectorAll('.reveal,.reveal-left,.reveal-right,.project-reveal-left,.project-reveal-right');
+  if (!reduceMotion && 'IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('in-view');
+        }
       });
-      ticking = true;
-    }
-  });
-})();
-
-/* ── Section entrance line (horizontal rule sweep) ── */
-(function () {
-  const eyebrows = document.querySelectorAll('.section-eyebrow');
-  const lineObserver = new IntersectionObserver((entries) => {
-    entries.forEach((e) => {
-      if (e.isIntersecting) {
-        e.target.classList.add('eyebrow-visible');
-        lineObserver.unobserve(e.target);
-      }
-    });
-  }, { threshold: 0.5 });
-  eyebrows.forEach((el) => lineObserver.observe(el));
-})();
-
-/* ── Configure: note ↔ group highlight bridge ── */
-(function () {
-  const notes = document.querySelectorAll('.cfg-note[data-target]');
-  notes.forEach((note) => {
-    const target = document.getElementById(note.dataset.target);
-    if (!target) return;
-
-    note.addEventListener('mouseenter', () => {
-      target.classList.add('highlighted');
-      note.classList.add('active');
-    });
-    note.addEventListener('mouseleave', () => {
-      target.classList.remove('highlighted');
-      note.classList.remove('active');
-    });
-  });
-})();
-
-
-function toggleMenu() {
-  document.getElementById('nav-links').classList.toggle('open');
-}
-document.querySelectorAll('#nav-links a').forEach((a) => {
-  a.addEventListener('click', () => {
-    document.getElementById('nav-links').classList.remove('open');
-  });
-});
-
-/* ── Nav shadow on scroll ─────────────────── */
-window.addEventListener('scroll', () => {
-  const nav = document.querySelector('nav');
-  if (nav) {
-    if (window.scrollY > 8) {
-      nav.style.boxShadow = '0 1px 40px rgba(0,0,0,0.6)';
-    } else {
-      nav.style.boxShadow = '';
-    }
+    }, { threshold: 0.01, rootMargin: '0px 0px 40px 0px' });
+    revealNodes.forEach((node) => observer.observe(node));
+  } else {
+    revealNodes.forEach((node) => node.classList.add('in-view'));
   }
-});
 
-/* ── Modals ───────────────────────────────── */
-function openModal(id) {
-  document.getElementById(id).classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
-  document.body.style.overflow = '';
-}
-function closeModalOutside(e, id) {
-  if (e.target === document.getElementById(id)) closeModal(id);
-}
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    document.querySelectorAll('.modal-overlay.open').forEach((m) => {
-      m.classList.remove('open');
-      document.body.style.overflow = '';
-    });
-  }
-});
-
-/* ── Fetch & Populate Releases ────────────── */
-(async function () {
-  const dlText = document.getElementById('dl-count-text');
-  const dlContainer = document.getElementById('wwr-downloads');
-  const mainBtn = document.getElementById('main-download-btn');
-  const navBtn = document.getElementById('nav-download-cta');
-  const dlList = document.getElementById('download-list');
-
-  if (!dlText || !dlContainer) return;
-
-  try {
-    const res = await fetch('https://api.github.com/repos/akasumitlamba/WWRecorder/releases');
-    if (!res.ok) throw new Error('API Error');
-    const releases = await res.json();
-    
-    // Filter out pre-releases
-    const stableWebReleases = releases.filter(rel => !rel.prerelease);
-    if (stableWebReleases.length === 0) return;
-
-    let totalDownloads = 0;
-    let latestExe = null;
-    let html = '';
-
-    stableWebReleases.forEach((release, index) => {
-      const exeAsset = release.assets.find(asset => asset.name.endsWith('.exe'));
-      if (exeAsset) {
-        totalDownloads += exeAsset.download_count;
-        
-        const isLatest = index === 0;
-        if (isLatest) latestExe = exeAsset.browser_download_url;
-
-        // Build dropdown item HTML
-        html += `
-          <a class="download-dropdown-item ${isLatest ? 'current' : ''}" 
-             href="${exeAsset.browser_download_url}" target="_blank">
-            <div class="download-dropdown-ver">
-              <span class="ver-badge ${isLatest ? 'current' : 'older'}">${isLatest ? 'Latest' : 'Older'}</span>
-              ${release.name || release.tag_name}
-            </div>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </a>
-        `;
-      }
-    });
-
-    // Update Main Buttons
-    if (latestExe) {
-      if (mainBtn) mainBtn.href = latestExe;
-      if (navBtn) navBtn.href = latestExe;
+  let releasePromise;
+  const fetchStableReleases = () => {
+    if (!releasePromise) {
+      releasePromise = fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Release lookup failed')))
+        .then((releases) => releases
+          .filter((release) => !release.draft && !release.prerelease)
+          .map((release) => ({
+            name: release.name || release.tag_name,
+            tag: release.tag_name,
+            published: release.published_at,
+            asset: Array.isArray(release.assets) ? release.assets.find((asset) => /\.exe$/i.test(asset.name)) : null
+          }))
+          .filter((release) => release.asset && release.asset.browser_download_url.startsWith(OFFICIAL_ASSET_PREFIX)));
     }
-
-    // Update Dropdown List
-    if (dlList && html) {
-      dlList.innerHTML = html;
-    }
-
-    // Update Total Count
-    if (totalDownloads > 0) {
-      dlText.textContent = totalDownloads.toLocaleString() + ' Downloads on GitHub';
-      dlContainer.style.color = 'var(--pill-green)';
-      setTimeout(() => dlContainer.style.color = 'var(--text-3)', 1500);
-    } else {
-      dlContainer.style.display = 'none';
-    }
-  } catch (err) {
-    console.error('Failed to fetch releases:', err);
-    // Don't hide the container if it already has hardcoded fallback content
-    if (dlText.textContent.includes('Loading')) {
-        dlContainer.style.display = 'none';
-    }
-  }
-})();
-
-/* ── Pill UI Interactive Logic ────────────── */
-let pillRunning = false;
-let pillPaused = false;
-let pillSeconds = 0;
-let pillInterval = null;
-
-const pillIdle = document.getElementById('pill-idle');
-const pillRec = document.getElementById('pill-recording');
-const pillTimerEl = document.getElementById('pill-timer-display');
-const pillPauseBtn = document.getElementById('pill-pause-btn');
-const pillHint = document.getElementById('pill-hint');
-
-function formatTime(s) {
-  const h = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const sec = String(s % 60).padStart(2, '0');
-  return `${h}:${m}:${sec}`;
-}
-
-window.pillStartRecording = function () {
-  if (pillRunning) return;
-  pillRunning = true;
-  pillPaused = false;
-  pillSeconds = 0;
-
-  pillIdle.style.opacity = '0';
-  pillIdle.style.transform = 'scale(0.92)';
-  setTimeout(() => {
-    pillIdle.classList.add('hidden');
-    pillRec.classList.remove('hidden');
-    pillRec.style.opacity = '0';
-    pillRec.style.transform = 'scale(0.92)';
-    requestAnimationFrame(() => {
-      pillRec.style.transition = 'opacity 0.35s, transform 0.35s';
-      pillRec.style.opacity = '1';
-      pillRec.style.transform = 'scale(1)';
-    });
-  }, 250);
-
-  if (pillHint) pillHint.innerHTML = 'Click <strong>⏸</strong> to pause or <strong>■</strong> to stop';
-
-  pillInterval = setInterval(() => {
-    if (!pillPaused) {
-      pillSeconds++;
-      if (pillTimerEl) pillTimerEl.textContent = formatTime(pillSeconds);
-    }
-  }, 1000);
-};
-
-window.pillStopRecording = function () {
-  if (!pillRunning) return;
-  clearInterval(pillInterval);
-  pillRunning = false;
-  pillPaused = false;
-  pillSeconds = 0;
-
-  pillRec.style.transition = 'opacity 0.3s, transform 0.3s';
-  pillRec.style.opacity = '0';
-  pillRec.style.transform = 'scale(0.92)';
-
-  setTimeout(() => {
-    pillRec.classList.add('hidden');
-    pillRec.style.opacity = '';
-    pillRec.style.transform = '';
-
-    pillIdle.classList.remove('hidden');
-    pillIdle.style.opacity = '0';
-    pillIdle.style.transform = 'scale(0.92)';
-    pillIdle.style.transition = 'opacity 0.35s, transform 0.35s';
-    requestAnimationFrame(() => {
-      pillIdle.style.opacity = '1';
-      pillIdle.style.transform = 'scale(1)';
-    });
-  }, 300);
-
-  if (pillTimerEl) pillTimerEl.textContent = '00:00:00';
-  if (pillHint) pillHint.innerHTML = 'Click <strong>Start</strong> to try the interactive demo ↑';
-
-  if (pillPauseBtn) {
-    pillPauseBtn.classList.remove('paused');
-    pillPauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
-    pillPauseBtn.title = 'Pause';
-  }
-};
-
-window.togglePillPause = function () {
-  if (!pillRunning) return;
-  pillPaused = !pillPaused;
-
-  if (pillPauseBtn) {
-    if (pillPaused) {
-      pillPauseBtn.classList.add('paused');
-      pillPauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>`;
-      pillPauseBtn.title = 'Resume';
-      if (pillHint) pillHint.innerHTML = '<em>Paused — last frame is being re-sent to FFmpeg</em>';
-    } else {
-      pillPauseBtn.classList.remove('paused');
-      pillPauseBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>`;
-      pillPauseBtn.title = 'Pause';
-      if (pillHint) pillHint.innerHTML = 'Click <strong>⏸</strong> to pause or <strong>■</strong> to stop';
-    }
-  }
-};
-
-window.togglePillAudio = function (btn) {
-  btn.classList.toggle('active');
-  const isOn = btn.classList.contains('active');
-  btn.title = isOn ? 'Mute system audio' : 'Unmute system audio';
-  btn.style.transform = 'scale(0.85)';
-  setTimeout(() => { btn.style.transform = ''; }, 150);
-};
-
-window.togglePillMic = function (btn) {
-  btn.classList.toggle('active');
-  const isOn = btn.classList.contains('active');
-  btn.title = isOn ? 'Mute mic' : 'Unmute mic';
-  btn.style.transform = 'scale(0.85)';
-  setTimeout(() => { btn.style.transform = ''; }, 150);
-};
-
-/* ══════════════════════════════════════════
-    AUTO-CYCLING SHOWCASE (How to Use)
-══════════════════════════════════════════ */
-(function () {
-  const useSlides = ['dock', 'screenshot', 'recording', 'files', 'settings'];
-  let useIdx = 0;
-  let useTimer = null;
-  let useHovered = false;
-
-  window.switchShowcase = function (tabName) {
-    // Update slides
-    document.querySelectorAll('.showcase-slide').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById('slide-' + tabName);
-    if (target) {
-      target.style.animation = 'none';
-      target.offsetHeight;
-      target.style.animation = '';
-      target.classList.add('active');
-    }
-    // Update step highlights
-    document.querySelectorAll('.use-step').forEach(step => {
-      step.classList.toggle('step-active', step.dataset.highlight === tabName);
-    });
-    // Sync index
-    const idx = useSlides.indexOf(tabName);
-    if (idx !== -1) useIdx = idx;
+    return releasePromise;
   };
 
-  function useNext() {
-    useIdx = (useIdx + 1) % useSlides.length;
-    window.switchShowcase(useSlides[useIdx]);
+  const formatReleaseDate = (value) => {
+    if (!value) return '';
+    return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value));
+  };
+
+  let modal = document.querySelector('[data-download-modal]');
+  if (!modal) {
+    document.body.insertAdjacentHTML('beforeend', `
+      <div class="download-modal" data-download-modal hidden>
+        <div class="modal-backdrop" data-modal-close></div>
+        <section class="download-dialog" role="dialog" aria-modal="true" aria-labelledby="download-title-shared">
+          <button class="modal-close" type="button" aria-label="Close download choices" data-modal-close>×</button>
+          <div class="modal-heading">
+            <span class="download-glyph has-svg" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></span>
+            <div class="modal-heading-text">
+              <p class="section-kicker">Download WWRecorder</p>
+              <h2 id="download-title-shared">Choose an installation source</h2>
+            </div>
+          </div>
+          <div class="download-choices">
+            <a class="download-choice store-choice" href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">
+              <span class="choice-icon-wrap" aria-hidden="true"><span class="ms-logo large"><i></i><i></i><i></i><i></i></span></span>
+              <span class="choice-text">
+                <small>RECOMMENDED</small>
+                <strong>Microsoft Store</strong>
+                <em>Install and receive Store updates</em>
+              </span>
+            </a>
+            <a class="download-choice installer-choice" href="download.html">
+              <span class="choice-icon-wrap" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></span>
+              <span class="choice-text">
+                <small>STANDALONE</small>
+                <strong>Installer</strong>
+                <em>Latest stable release from GitHub</em>
+              </span>
+            </a>
+          </div>
+          <details class="release-picker"><summary>Older stable installers</summary><div class="release-list" data-release-list><span>Loading published releases…</span></div></details>
+          <a class="modal-help" href="install-help.html">Having trouble downloading or installing? View help →</a>
+        </section>
+      </div>`);
+    modal = document.querySelector('[data-download-modal]');
   }
 
-  function startUseTimer() {
-    if (useTimer) return;
-    useTimer = setInterval(() => {
-      if (!useHovered) useNext();
-    }, 3000);
+  const releaseLists = document.querySelectorAll('[data-release-list]');
+  const renderReleaseLists = (releases) => {
+    releaseLists.forEach((list) => {
+      list.replaceChildren();
+      if (!releases.length) {
+        const link = document.createElement('a');
+        link.href = RELEASES_FALLBACK;
+        link.target = '_blank';
+        link.rel = 'noopener';
+        link.textContent = 'Open GitHub release history';
+        list.append(link);
+        return;
+      }
+      releases.forEach((release, index) => {
+        const link = document.createElement('a');
+        const params = new URLSearchParams({ url: release.asset.browser_download_url, version: release.tag });
+        link.href = `download.html?${params}`;
+        const title = document.createElement('span');
+        title.textContent = `${release.tag} · ${release.asset.name}`;
+        const meta = document.createElement(index === 0 ? 'b' : 'small');
+        meta.textContent = index === 0 ? 'Latest stable' : formatReleaseDate(release.published);
+        link.append(title, meta);
+        list.append(link);
+      });
+    });
+  };
+
+  if (releaseLists.length) {
+    fetchStableReleases().then(renderReleaseLists).catch(() => renderReleaseLists([]));
   }
 
-  function stopUseTimer() {
-    if (useTimer) { clearInterval(useTimer); useTimer = null; }
-  }
-
-  // Step hover pauses auto-cycle, shows that step
-  document.querySelectorAll('.use-step[data-highlight]').forEach(step => {
-    step.addEventListener('mouseenter', () => {
-      useHovered = true;
-      window.switchShowcase(step.dataset.highlight);
-    });
-    step.addEventListener('mouseleave', () => {
-      useHovered = false;
-    });
-    step.addEventListener('click', () => {
-      window.switchShowcase(step.dataset.highlight);
-    });
+  let lastFocused;
+  const openDownloadModal = () => {
+    if (!modal) return;
+    lastFocused = document.activeElement;
+    modal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    modal.querySelector('.modal-close')?.focus();
+    if (releaseLists.length) fetchStableReleases().then(renderReleaseLists).catch(() => renderReleaseLists([]));
+  };
+  const closeDownloadModal = () => {
+    if (!modal) return;
+    modal.hidden = true;
+    document.body.style.overflow = '';
+    lastFocused?.focus?.();
+  };
+  document.querySelectorAll('.js-download-open').forEach((button) => button.addEventListener('click', openDownloadModal));
+  modal?.querySelectorAll('[data-modal-close]').forEach((button) => button.addEventListener('click', closeDownloadModal));
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && modal && !modal.hidden) closeDownloadModal();
   });
 
-  // Also pause auto-cycle when hovering over the visual area so the user can interact with the pill
-  const useVisual = document.querySelector('.use-visual');
-  if (useVisual) {
-    useVisual.addEventListener('mouseenter', () => useHovered = true);
-    useVisual.addEventListener('mouseleave', () => useHovered = false);
-  }
+  const initializeDownloadPage = async () => {
+    if (document.body.dataset.page !== 'download') return;
+    const statusCard = document.querySelector('[data-download-status-card]');
+    const statusTitle = document.querySelector('[data-download-title]');
+    const statusText = document.querySelector('[data-download-text]');
+    const manualLink = document.querySelector('[data-manual-download]');
+    const versionSelect = document.querySelector('[data-version-select]');
+    const releaseName = document.querySelector('[data-selected-release]');
+    const params = new URLSearchParams(window.location.search);
+    let requestedUrl = params.get('url') || '';
+    const requestedVersion = params.get('version') || '';
+    let activeUrl = '';
 
-  // Start/stop when section is visible
-  const useSection = document.getElementById('use');
-  if (useSection) {
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) startUseTimer();
-        else stopUseTimer();
-      });
-    }, { threshold: 0.15 });
-    obs.observe(useSection);
-  }
-})();
+    const targetPill = document.querySelector('[data-target-pill]');
+    const targetName = document.querySelector('[data-target-name]');
+    const buttonLabel = document.querySelector('[data-button-label]');
 
-/* ── Appreciation Ribbon Overflow Logic ───── */
-(function () {
-  const container = document.querySelector('.thanks-marquee-container');
-  const content = document.querySelector('.thanks-content');
-  if (!container || !content) return;
+    const setActiveRelease = (release, isAutoStarting = false) => {
+      if (!release?.asset?.browser_download_url?.startsWith(OFFICIAL_ASSET_PREFIX)) return false;
+      activeUrl = release.asset.browser_download_url;
+      if (manualLink) {
+        manualLink.href = activeUrl;
+        if (buttonLabel) {
+          buttonLabel.textContent = `Download ${release.tag}`;
+        } else {
+          manualLink.innerHTML = `<img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true"> Download ${release.tag}`;
+        }
+      }
+      if (releaseName) releaseName.textContent = `${release.tag} · ${release.asset.name}`;
+      if (targetName) targetName.textContent = `${release.tag} (${release.asset.name})`;
+      if (targetPill) targetPill.style.display = 'inline-flex';
 
-  function updateMarquee() {
-    if (!container || !content) return;
-    
-    // Reset to measure correctly
-    content.classList.remove('marquee-active');
-    container.classList.remove('marquee-active-mask');
+      if (statusTitle) {
+        statusTitle.textContent = isAutoStarting ? `Downloading ${release.tag}` : `Ready to download ${release.tag}`;
+      }
+      if (statusText) {
+        statusText.textContent = isAutoStarting
+          ? `Starting download for ${release.asset.name}. If the download does not start automatically, click Download ${release.tag} below.`
+          : `Selected target: ${release.asset.name} (${formatReleaseDate(release.published)}). Click Download ${release.tag} below to start.`;
+      }
+      return true;
+    };
 
-    const containerWidth = container.offsetWidth;
-    const contentWidth = content.scrollWidth;
+    const startDownload = () => {
+      if (!activeUrl) return;
+      statusCard?.classList.add('ready');
+      window.location.href = activeUrl;
+    };
 
-    if (contentWidth > containerWidth) {
-      // Duplicate list items for seamless loop if not already done
-      const items = content.querySelectorAll('li:not(.thanks-duplicate)');
-      if (content.querySelectorAll('.thanks-duplicate').length === 0) {
-        items.forEach(item => {
-          const clone = item.cloneNode(true);
-          clone.classList.add('thanks-duplicate');
-          content.appendChild(clone);
+    manualLink?.addEventListener('click', (event) => {
+      if (!activeUrl) event.preventDefault();
+    });
+
+    try {
+      const releases = await fetchStableReleases();
+      if (!releases.length) throw new Error('No stable installer found');
+      const requested = requestedUrl.startsWith(OFFICIAL_ASSET_PREFIX)
+        ? releases.find((release) => release.asset.browser_download_url === requestedUrl)
+        : releases.find((release) => release.tag === requestedVersion);
+      const chosen = requested || releases[0];
+      setActiveRelease(chosen, true);
+
+      if (versionSelect) {
+        versionSelect.replaceChildren();
+        releases.forEach((release, index) => {
+          const option = document.createElement('option');
+          option.value = release.asset.browser_download_url;
+          option.textContent = `${release.tag}${index === 0 ? ' (latest stable)' : ''} · ${formatReleaseDate(release.published)}`;
+          option.selected = release.asset.browser_download_url === activeUrl;
+          versionSelect.append(option);
+        });
+        versionSelect.addEventListener('change', () => {
+          const release = releases.find((item) => item.asset.browser_download_url === versionSelect.value);
+          if (release) {
+            setActiveRelease(release, false);
+            statusCard?.classList.add('ready');
+          }
         });
       }
-      content.classList.add('marquee-active');
-      container.classList.add('marquee-active-mask');
+      window.setTimeout(startDownload, 900);
+    } catch (error) {
+      if (statusTitle) statusTitle.textContent = 'Open the stable release page';
+      if (statusText) statusText.textContent = 'The live installer lookup is unavailable. Review the latest stable release directly on GitHub.';
+      if (manualLink) {
+        manualLink.href = RELEASES_FALLBACK;
+        manualLink.textContent = 'Open GitHub releases';
+      }
     }
-  }
-
-  // Initial check and on resize
-  window.addEventListener('load', updateMarquee);
-  window.addEventListener('resize', updateMarquee);
-  // Re-check after a brief delay for any dynamic font loading
-  setTimeout(updateMarquee, 1500);
-})();
-
-/* ══════════════════════════════════════════
-    AUTO-CYCLING CONFIG (Works your way)
-══════════════════════════════════════════ */
-(function () {
-  const cfgSlides = ['output', 'hotkeys', 'defaults', 'save'];
-  let cfgIdx = 0;
-  let cfgTimer = null;
-  let cfgHovered = false;
-
-  window.switchCfgSlide = function (name) {
-    // Update slides
-    document.querySelectorAll('.cfg-slide').forEach(s => s.classList.remove('active'));
-    const target = document.getElementById('cfgslide-' + name);
-    if (target) {
-      target.style.animation = 'none';
-      target.offsetHeight;
-      target.style.animation = '';
-      target.classList.add('active');
-    }
-    // Update step highlights
-    document.querySelectorAll('.cfg-step').forEach(step => {
-      step.classList.toggle('step-active', step.dataset.cfghighlight === name);
-    });
-    // Sync index
-    const idx = cfgSlides.indexOf(name);
-    if (idx !== -1) cfgIdx = idx;
   };
 
-  function cfgNext() {
-    cfgIdx = (cfgIdx + 1) % cfgSlides.length;
-    window.switchCfgSlide(cfgSlides[cfgIdx]);
-  }
+  initializeDownloadPage();
 
-  function startCfgTimer() {
-    if (cfgTimer) return;
-    cfgTimer = setInterval(() => {
-      if (!cfgHovered) cfgNext();
-    }, 3000);
-  }
-
-  function stopCfgTimer() {
-    if (cfgTimer) { clearInterval(cfgTimer); cfgTimer = null; }
-  }
-
-  // Step hover pauses auto-cycle, shows that step
-  document.querySelectorAll('.cfg-step[data-cfghighlight]').forEach(step => {
-    step.addEventListener('mouseenter', () => {
-      cfgHovered = true;
-      window.switchCfgSlide(step.dataset.cfghighlight);
-    });
-    step.addEventListener('mouseleave', () => {
-      cfgHovered = false;
-    });
-    step.addEventListener('click', () => {
-      window.switchCfgSlide(step.dataset.cfghighlight);
-    });
+  
+  document.querySelector('[data-copy-cmd]')?.addEventListener('click', async () => {
+    const btn = document.querySelector('[data-copy-cmd]');
+    const cmdText = document.querySelector('[data-powershell-cmd]')?.textContent || 'Get-FileHash -Algorithm SHA256 "C:\\path\\to\\WWRecorder_Setup.exe"';
+    try {
+      await navigator.clipboard.writeText(cmdText);
+      if (btn) {
+        btn.classList.add('copied');
+        const span = btn.querySelector('span');
+        if (span) span.textContent = 'Copied!';
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          if (span) span.textContent = 'Copy command';
+        }, 2000);
+      }
+    } catch (e) {
+      if (btn) {
+        const span = btn.querySelector('span');
+        if (span) span.textContent = 'Press Ctrl+C';
+      }
+    }
   });
 
-  // Start/stop when section is visible
-  const cfgSection = document.getElementById('configure');
-  if (cfgSection) {
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) startCfgTimer();
-        else stopCfgTimer();
+  const hashInput = document.querySelector('[data-hash-input]');
+  const hashResult = document.querySelector('[data-hash-result]');
+  const normaliseHash = (value) => String(value || '').trim().replace(/\s+/g, '').toLowerCase();
+  const showHashResult = (message, state) => {
+    if (!hashResult) return;
+    hashResult.textContent = message;
+    hashResult.dataset.state = state;
+  };
+
+  document.querySelector('[data-paste-hash]')?.addEventListener('click', async () => {
+    try {
+      const value = await navigator.clipboard.readText();
+      if (hashInput) hashInput.value = value.trim();
+      showHashResult('Pasted. Select Check to compare the fingerprint.', 'neutral');
+    } catch (error) {
+      showHashResult('Clipboard access was unavailable. Paste into the field manually.', 'warning');
+      hashInput?.focus();
+    }
+  });
+
+  document.querySelector('[data-check-hash]')?.addEventListener('click', () => {
+    const entered = normaliseHash(hashInput?.value);
+    if (!/^[a-f0-9]{64}$/.test(entered)) {
+      showHashResult('Enter the complete 64-character SHA-256 value shown by PowerShell.', 'warning');
+      return;
+    }
+    const published = OFFICIAL_INSTALLER_RELEASES
+      .map((release) => ({ ...release, sha256: normaliseHash(release.sha256) }))
+      .filter((release) => /^[a-f0-9]{64}$/.test(release.sha256));
+    if (!published.length) {
+      showHashResult('Official fingerprints have not been published here yet. This file cannot be verified on this page.', 'warning');
+      return;
+    }
+    const matchedRelease = published.find((release) => release.sha256 === entered);
+    if (matchedRelease) {
+      showHashResult(`Verified. This matches ${matchedRelease.releaseName} (${matchedRelease.filename}).`, 'success');
+    } else {
+      showHashResult('No match. Do not run this file. Download it again from Microsoft Store or the official GitHub release.', 'danger');
+    }
+  });
+
+  // Navbar active item indicator (red and bold on active page or scrolled section)
+  const navLinks = Array.from(document.querySelectorAll('#site-nav a:not(.nav-download)'));
+  const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+
+  const updateActiveNavLink = () => {
+    const isHomePage = currentPath === 'index.html' || currentPath === '' || document.body.dataset.page === 'home';
+
+    if (isHomePage) {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const atBottom = window.innerHeight + scrollTop >= document.documentElement.scrollHeight - 70;
+      const scrollPos = scrollTop + Math.min(240, window.innerHeight * 0.35);
+      const sections = [
+        { id: 'under-the-hood', el: document.getElementById('under-the-hood') },
+        { id: 'fit', el: document.getElementById('fit') },
+        { id: 'features', el: document.getElementById('features') }
+      ];
+
+      let activeSectionId = null;
+      if (atBottom && sections[0].el) {
+        activeSectionId = sections[0].id;
+      } else {
+        for (const section of sections) {
+          if (section.el && section.el.offsetTop <= scrollPos) {
+            activeSectionId = section.id;
+            break;
+          }
+        }
+      }
+
+      navLinks.forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        const targetId = href.startsWith('#') ? href.slice(1) : href.split('#')[1];
+        if (targetId && activeSectionId && targetId === activeSectionId) {
+          link.classList.add('is-active');
+          link.setAttribute('aria-current', 'true');
+        } else {
+          link.classList.remove('is-active');
+          if (link.getAttribute('aria-current') !== 'page') {
+            link.removeAttribute('aria-current');
+          }
+        }
       });
-    }, { threshold: 0.15 });
-    obs.observe(cfgSection);
+    } else {
+      navLinks.forEach((link) => {
+        const href = link.getAttribute('href') || '';
+        const linkFile = href.split('#')[0].split('/').pop();
+        if (linkFile && linkFile === currentPath) {
+          link.classList.add('is-active');
+          link.setAttribute('aria-current', 'page');
+        } else {
+          link.classList.remove('is-active');
+          if (link.getAttribute('aria-current') === 'page') {
+            link.removeAttribute('aria-current');
+          }
+        }
+      });
+    }
+  };
+
+  updateActiveNavLink();
+  window.addEventListener('scroll', updateActiveNavLink, { passive: true });
+  window.addEventListener('resize', updateActiveNavLink, { passive: true });
+
+  // Document Table of Contents scroll spy
+  const docTocLinks = Array.from(document.querySelectorAll('.doc-toc a'));
+  if (docTocLinks.length) {
+    const docSections = docTocLinks.map((link) => {
+      const id = (link.getAttribute('href') || '').replace('#', '');
+      return { id, el: document.getElementById(id), link };
+    }).filter((item) => item.el);
+
+    const updateDocToc = () => {
+      const scrollTop = window.scrollY || document.documentElement.scrollTop;
+      const atBottom = window.innerHeight + scrollTop >= document.documentElement.scrollHeight - 70;
+      const scrollPos = scrollTop + Math.min(240, window.innerHeight * 0.35);
+
+      let activeItem = null;
+      if (atBottom && docSections.length) {
+        activeItem = docSections[docSections.length - 1];
+      } else {
+        for (let i = docSections.length - 1; i >= 0; i--) {
+          if (docSections[i].el.offsetTop <= scrollPos) {
+            activeItem = docSections[i];
+            break;
+          }
+        }
+      }
+      if (!activeItem && docSections.length) activeItem = docSections[0];
+
+      docSections.forEach((item) => {
+        item.link.classList.toggle('is-active', activeItem && item.id === activeItem.id);
+      });
+    };
+
+    updateDocToc();
+    window.addEventListener('scroll', updateDocToc, { passive: true });
+    window.addEventListener('resize', updateDocToc, { passive: true });
   }
+
 })();
-
-/* ══════════════════════════════════════════
-    DOWNLOAD DROPDOWN
-══════════════════════════════════════════ */
-window.toggleDownloadDropdown = function (e) {
-  e.preventDefault();
-  e.stopPropagation();
-  const dropdown = document.getElementById('download-dropdown');
-  const toggle = document.getElementById('download-toggle');
-  const isOpen = dropdown.classList.contains('open');
-
-  if (isOpen) {
-    dropdown.classList.remove('open');
-    toggle.classList.remove('open');
-  } else {
-    dropdown.classList.add('open');
-    toggle.classList.add('open');
-  }
-};
-
-// Close dropdown on click outside
-document.addEventListener('click', function (e) {
-  const wrapper = document.getElementById('download-wrapper');
-  const dropdown = document.getElementById('download-dropdown');
-  const toggle = document.getElementById('download-toggle');
-  if (!wrapper || !dropdown) return;
-
-  if (!wrapper.contains(e.target)) {
-    dropdown.classList.remove('open');
-    if (toggle) toggle.classList.remove('open');
-  }
-});
-
-// Close dropdown on Escape
-document.addEventListener('keydown', function (e) {
-  if (e.key === 'Escape') {
-    const dropdown = document.getElementById('download-dropdown');
-    const toggle = document.getElementById('download-toggle');
-    if (dropdown) dropdown.classList.remove('open');
-    if (toggle) toggle.classList.remove('open');
-  }
-});
-
-/* ══════════════════════════════════════════
-    R FLICKER ANIMATION (tubelight on the R)
-══════════════════════════════════════════ */
-(function () {
-  const r = document.getElementById('flicker-r');
-  if (!r) return;
-
-  // Wait for the hero fade-up animation to finish, then start the R flicker
-  setTimeout(() => {
-    r.classList.add('flickering');
-
-    // After the flicker animation (1.4s) completes, set final lit state
-    setTimeout(() => {
-      r.classList.remove('flickering');
-      r.classList.add('lit');
-    }, 1500);
-  }, 1000);
-})();
-

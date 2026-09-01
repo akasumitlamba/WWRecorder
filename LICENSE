@@ -1,18 +1,19 @@
-CC BY-NC 4.0 (Creative Commons Attribution-NonCommercial 4.0 International)
+WWRecorder website, application source, and marks notice
 
-This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
+Copyright (c) 2026 Sumit Kumar Lamba
 
-You are free to:
+The original WWRecorder application source code is published at
+https://github.com/akasumitlamba/WWRecorder under the MIT License. The MIT
+License permits use, copying, modification, distribution, sublicensing, and
+sale of the application source and derivative software, provided its copyright
+and license notice are retained. See the repository's root LICENSE file for the
+complete terms and warranty disclaimer.
 
-- Share — copy and redistribute the material in any medium or format
-- Adapt — remix, transform, and build upon the material
+Unless a separate notice says otherwise, the website's original editorial
+content and artwork are not included in that software license. The MIT License
+does not grant permission to use the WWRecorder name, logo, or other marks in a
+way that suggests endorsement, affiliation, or an official build.
 
-Under the following terms:
-
-- Attribution — You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use.
-- NonCommercial — You may not use the material for commercial purposes, make money from it, or monetize it.
-
-No additional restrictions — You may not apply legal terms or technological measures that legally restrict others from doing anything the license permits.
-
-For the full legal text of this license, please visit:
-https://creativecommons.org/licenses/by-nc/4.0/legalcode
+Third-party components remain governed by their respective licenses and
+notices. Microsoft Store acquisitions may also be subject to the terms
+presented by Microsoft Store. See legal.html for additional information.
