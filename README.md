@@ -4,6 +4,7 @@ This folder contains the static GitHub Pages website for WWRecorder. It is delib
 
 ## Pages
 
+
 - `index.html` — product overview and feature tour
 - `download.html` — Microsoft Store and latest stable installer choices
 - `install-help.html` — Windows download and installation troubleshooting
