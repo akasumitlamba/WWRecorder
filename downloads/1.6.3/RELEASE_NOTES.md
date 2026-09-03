@@ -28,6 +28,7 @@ WWRecorder 1.6.3 is a reliability and usability update focused on accurate multi
 - Blocked unknown scripts and executables from being launched through Recent Files or save notifications.
 - Replaced common technical error codes with clearer, actionable messages and improved Tab-key navigation.
 - Fixed the dock Record button intermittently doing nothing while a sidebar was open.
+- Fixed startup on other PCs by removing an incompatible ICU DLL that had leaked into the previous package from the build environment.
 
 ## Enhancements
 
@@ -51,6 +52,6 @@ This installer is an in-place update for earlier WWRecorder 1.6 versions and kee
 ## Installer verification
 
 - File: `WWRecorder_Setup_1.6.3.exe`
-- Size: 84,324,140 bytes (80.42 MiB)
-- SHA-256: `D3179C0F59A8B1BCC62FE4E86D315E30A8EC22E1DB35ED18FA634983203B321F`
+- Size: 73,866,869 bytes (70.44 MiB)
+- SHA-256: `283ECCC39D17B35D9300FD441605D6C3F5413CE313D026E3AA4BFC87AE7B0FCC`
 - Authenticode: Unsigned. Windows may show a SmartScreen warning until a trusted code-signing certificate is added.
