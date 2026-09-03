@@ -40,7 +40,7 @@ WWRecorder 1.6.3 is a reliability and usability update focused on accurate multi
 
 ## Verification
 
-- 86 automated regression tests passed before packaging.
+- 139 automated regression tests passed before packaging.
 - Multi-monitor logic was tested with synthetic 100%, 125%, and 150% scaling, negative monitor coordinates, and cross-monitor pixel composition.
 - All application modules compiled successfully and the frozen application completed a startup smoke test.
 
@@ -51,6 +51,6 @@ This installer is an in-place update for earlier WWRecorder 1.6 versions and kee
 ## Installer verification
 
 - File: `WWRecorder_Setup_1.6.3.exe`
-- Size: 73,843,173 bytes (70.42 MiB)
-- SHA-256: `EC30B53E4F0CE2AC57FFAC66D3F9C90340B4DCA5C7CA9E6391926E6A82720EB9`
+- Size: 84,324,140 bytes (80.42 MiB)
+- SHA-256: `D3179C0F59A8B1BCC62FE4E86D315E30A8EC22E1DB35ED18FA634983203B321F`
 - Authenticode: Unsigned. Windows may show a SmartScreen warning until a trusted code-signing certificate is added.
