@@ -37,11 +37,13 @@ WWRecorder 1.6.3 is a reliability and usability update focused on accurate multi
 - Recent Files generates the first 15 previews immediately, then loads more as they approach the visible scroll area using a limited background pool.
 - Developer-mode information and its button now wrap correctly inside the Settings sidebar.
 - Recent Files tips now describe the real photo, video, search, and preview-loading behavior.
+- Recent Files tips now use only one line of vertical space, without reserving blank space below the tip.
+- The live annotator now includes a color-aware laser pointer with a soft glow. Consecutive laser strokes remain visible while drawing, then the complete group waits three seconds after the final stroke and fades out together over one second. The photo editor is unchanged.
 - Mixed-DPI capture uses a per-monitor pixel map instead of assuming the entire desktop has one scale.
 
 ## Verification
 
-- 139 automated regression tests passed before packaging.
+- 142 automated regression tests passed before packaging.
 - Multi-monitor logic was tested with synthetic 100%, 125%, and 150% scaling, negative monitor coordinates, and cross-monitor pixel composition.
 - All application modules compiled successfully and the frozen application completed a startup smoke test.
 
@@ -52,6 +54,6 @@ This installer is an in-place update for earlier WWRecorder 1.6 versions and kee
 ## Installer verification
 
 - File: `WWRecorder_Setup_1.6.3.exe`
-- Size: 73,866,869 bytes (70.44 MiB)
-- SHA-256: `283ECCC39D17B35D9300FD441605D6C3F5413CE313D026E3AA4BFC87AE7B0FCC`
+- Size: 73,865,011 bytes (70.44 MiB)
+- SHA-256: `78210044CFA3D36A048760A4EA69B9CE912A256B03883E4C4DC39ADF6D802E3B`
 - Authenticode: Unsigned. Windows may show a SmartScreen warning until a trusted code-signing certificate is added.
