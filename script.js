@@ -144,7 +144,7 @@
             </div>
           </div>
           <div class="download-choices">
-            <a class="download-choice store-choice" href="https://aka.ms/AA1364bx" target="_blank" rel="noopener">
+            <a class="download-choice store-choice" href="ms-windows-store://pdp/?productid=9PBS5VDWFXND">
               <span class="choice-icon-wrap" aria-hidden="true"><span class="ms-logo large"><i></i><i></i><i></i><i></i></span></span>
               <span class="choice-text">
                 <small>RECOMMENDED</small>
