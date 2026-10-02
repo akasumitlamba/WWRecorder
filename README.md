@@ -1,105 +1,152 @@
 # WWRecorder
 
-WWRecorder is a lightweight, open-source screen recorder and screenshot tool for Windows. Record a selected area, capture system and microphone audio, annotate while you work, and make quick edits without leaving the app.
+**Record, capture, annotate, and make quick edits—all on your device.**
 
-[Website](https://akasumitlamba.github.io/WWRecorder/) · [Download](https://akasumitlamba.github.io/WWRecorder/download.html) · [Microsoft Store](https://aka.ms/AA1364bx) · [Report an issue](https://github.com/akasumitlamba/WWRecorder/issues)
+WWRecorder is a lightweight desktop screen recorder and screenshot tool for Windows, with an additional Linux Flatpak preview. Capture a selected area, include computer sound and microphone audio, draw while you explain, and finish your recording or screenshot in the built-in editors.
 
-## Highlights
+[Website](https://akasumitlamba.github.io/WWRecorder/) · [Downloads](https://akasumitlamba.github.io/WWRecorder/download.html) · [GitHub Releases](https://github.com/akasumitlamba/WWRecorder/releases) · [Report an issue](https://github.com/akasumitlamba/WWRecorder/issues)
 
-- Record a selected screen area to H.264 video in a recoverable MKV container.
-- Capture system audio, microphone audio, or both, with controls available while recording.
-- Pause and resume a recording without creating separate clips.
-- Take region screenshots and save them as PNG files.
-- Draw live with pencil, highlighter, shapes, text, and a temporary laser pointer.
-- Annotate, crop, rotate, and flip screenshots in the built-in image editor.
-- Play videos and make quick edits such as trimming, removing sections, muting audio, adding timed text, and saving video frames.
-- Find, preview, rename, copy, drag, and delete captures from the Recent Files panel.
-- Use the floating edge dock, system tray, configurable global shortcuts, and optional Start with Windows setting.
-- Keep captures on your device: media processing is local and no WWRecorder account is required.
+## Version and download status
 
-## Requirements
+The latest documented application build is **1.7.0**. Build availability and published releases are listed separately below.
 
-- Windows 10 version 2004 or later, or Windows 11
-- 64-bit Windows
+| Distribution | Where to find it | Status |
+| --- | --- | --- |
+| Windows EXE | [Latest GitHub release](https://github.com/akasumitlamba/WWRecorder/releases/latest) | Currently the `v1.6` release, containing `WWRecorder_Setup_1.6.3.exe`. |
+| Windows MSIX 1.7.0 | [Package details and checksum](downloads/1.7/) | Store submission package. The package notes record certification/publication as pending; this unsigned file is **not a direct sideload installer**. |
+| Linux Flatpak 1.7.0 | Preview development | Targets x86_64 Kubuntu/KDE Plasma. No Linux bundle is currently listed in this repository's downloads or releases. |
 
-Windows 10 version 2004 or later is recommended so Windows can exclude WWRecorder's floating controls from supported screen-capture APIs.
+The current MSIX Store product ID is **`9PBS5VDWFXND`**: [Microsoft Store product page](https://apps.microsoft.com/detail/9PBS5VDWFXND). A configured product ID or uploaded submission package does not by itself establish Store availability.
 
-## Install
+Download installers from the official links above and check the artifact's version and status. A newer file under `downloads/` is not automatically a newer stable GitHub release.
 
-Choose either the [Microsoft Store version](https://aka.ms/AA1364bx) or a standalone installer from [GitHub Releases](https://github.com/akasumitlamba/WWRecorder/releases).
+## Features
 
-For standalone installers, download only from the official WWRecorder repository and review the release details before running the file.
+### Screen recording and audio
 
-## Getting started
+- Select a rectangular screen area and record H.264 video in an MKV container.
+- Capture computer sound, microphone audio, both, or neither, with source controls available during recording.
+- Pause and resume within the same recording; stop to save or explicitly discard the session.
+- Keep a visible recording state through floating controls and the desktop dock.
+- Preserve temporary media when final processing fails, with feedback about the failure.
 
-1. Launch WWRecorder. It stays available from the system tray and floating edge dock.
-2. Choose **Record**, then drag to select the area you want to capture.
-3. Enable system audio or microphone audio as needed, then start recording.
-4. Use the recording controls to pause, resume, annotate, stop and save, or discard.
+### Screenshots and annotation
 
-The default shortcuts are:
+- Capture a selected region as PNG, with optional clipboard copying.
+- Draw live with pencil, highlighter, arrows, rectangles, circles, and text; use an eraser and undo/redo.
+- Point things out with a temporary laser trail that fades after use.
+- Open saved images in the image editor to annotate, crop, rotate, flip, zoom, and save another copy.
 
-| Action | Shortcut |
+### Playback and quick video edits
+
+- Play recordings with seeking, playback speed, volume, fullscreen controls, and still-frame capture.
+- Trim the beginning/end, remove sections, and add timed text overlays.
+- Include or remove sound from an exported video. The **Export Audio** switch controls sound inclusion; it is not an audio-only file exporter.
+- Use **Save As** to keep the original, or explicitly save a completed replacement.
+
+### Everyday desktop tools
+
+- A floating edge dock, tray access, and configurable global shortcuts.
+- Recent Files with previews, playback/editing, rename, copy, drag, and delete actions.
+- Configurable output folder, interface sizing, audio defaults, and startup preferences.
+- Local media processing with no WWRecorder account required.
+
+Live desktop annotation and some capture controls differ on Wayland; see the Linux preview notes below.
+
+## Getting started on Windows
+
+Use 64-bit Windows 10 version 2004 or later, or Windows 11.
+
+1. Install a published Windows EXE from [GitHub Releases](https://github.com/akasumitlamba/WWRecorder/releases).
+2. Launch WWRecorder. Look for the edge dock and tray icon rather than a conventional main window.
+3. Choose **Record**, then drag to select the capture area.
+4. Enable computer sound and/or microphone audio if needed, then press **Start**. Both audio sources are off by default.
+5. Pause/resume as needed, then **Stop** to save. Allow final processing to finish before opening the result.
+6. Open **Recent Files** to play, edit, rename, copy, or manage your captures.
+
+Choose **Screenshot** to capture an image, or open a saved screenshot to annotate it.
+
+| Default shortcut | Action |
 | --- | --- |
-| Start a recording selection | `Shift+Backspace` |
-| Take a region screenshot | `Shift+Home` |
+| `Shift + Backspace` | Start recording selection |
+| `Shift + Home` | Take a region screenshot |
+| `Escape` | Cancel the current selection or dismiss the current local mode |
 
-You can change both shortcuts in Settings. By default, captures are saved to `%USERPROFILE%\Videos\WWRecorder`.
+Both global shortcuts can be changed in Settings. Captures default to `%USERPROFILE%\Videos\WWRecorder`; choose another folder in Settings.
 
-## Run from source
+## Windows EXE and MSIX
 
-WWRecorder is built with Python 3.13, PyQt6, and FFmpeg.
+The current distribution design uses **one shared application** for EXE and full-trust MSIX. Capture, audio, annotation, playback, editing, and settings controls are shared. Installation-specific integrations differ:
 
-```powershell
-git clone https://github.com/akasumitlamba/WWRecorder.git
-cd WWRecorder
+| Integration | EXE | MSIX |
+| --- | --- | --- |
+| Updates | Checks the official GitHub stable-release feed and opens the release page | Managed through Microsoft Store; does not query the EXE update feed |
+| Startup | Windows user startup registration | Windows StartupTask |
+| Settings | `%APPDATA%\WWRecorder` | Package-private `LocalState\WWRecorder` |
+| Initial preferences | Uses existing EXE settings | Can import existing EXE settings once when no packaged configuration exists |
 
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
-python main.py
+After the initial import, preferences are independent. Saved media remains in the selected output folder. A local-test MSIX identity is separate from the production Store product.
+
+## Linux Flatpak preview
+
+The Linux preview targets **x86_64 Kubuntu / KDE Plasma** and reuses the recording, audio-processing, image-editing, and video-editing core.
+
+On **Wayland**, the desktop asks permission to share a screen or window. Choose the source, then select an area in the preview or use the whole source. Desktop-approved shortcut bindings take precedence. On **X11**, capture and shortcuts use the corresponding desktop integrations.
+
+Current Wayland preview limitations:
+
+- Live desktop drawing and a global capture border are unavailable.
+- Recording controls are not automatically excluded from monitor captures. Move them outside the selected crop or share a target window.
+- Saved-image annotation and video text editing remain available.
+- Real KDE permission, shortcut, device-switching, multi-monitor, and long-recording acceptance testing remains necessary.
+
+Linux startup is opt-in. This is a preview, not a claim of full Windows feature parity or an available Flathub release. Installation instructions will accompany a published Linux bundle.
+
+## How it works
+
+```text
+Dock / tray / shortcut
+        ↓
+Selection and recording controls
+        ↓
+Screen frames + separate computer/microphone audio
+        ↓
+Temporary media → FFmpeg timing, compression, and mixing
+        ↓
+Saved recording → Recent Files → playback / editing / export
 ```
 
-The application expects `ffmpeg.exe` in the repository root or FFmpeg to be available on `PATH`.
+The application uses Python and PyQt6 for the desktop interface, MSS and NumPy for Windows/X11 screen frames, SoundCard/WASAPI for Windows audio, and FFmpeg for media processing. The Wayland preview uses desktop portals, PipeWire, and GStreamer for authorized capture.
 
-## Tests
+Slow work runs outside the GUI thread. Recording preparation, pause, stop, finalization, and recovery have explicit lifecycle handling. Mixed-DPI screen regions are mapped per monitor rather than using one scale factor for the whole desktop.
 
-```powershell
-pytest -q
-python -m py_compile main.py recorder.py ui_elements.py dock_widget.py video_editor.py annotation_tool.py updater.py
-```
+See the [engineering overview](https://akasumitlamba.github.io/WWRecorder/specs.html) for more background.
 
-## Build for Windows
+## Source and development
 
-Create the application bundle with PyInstaller:
+This public repository contains the website, downloads, and published application source files. **Its current source snapshot is not a complete checkout of the latest development build.** The root source still reports 1.6.3, while the 1.7.0 Store package is published separately under `downloads/1.7`.
 
-```powershell
-pyinstaller --clean wwrecorder.spec
-```
+Some runtime modules, dependency manifests, tests, and current packaging scripts are not present here. Cloning this repository alone is therefore not a supported way to run or rebuild 1.7.0. Use the published installers to try the application. This README does not imply that package uploads also updated all public source files.
 
-The output is written to `dist\WWRecorder`. To create the Windows installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) and compile `installer_config.iss`:
+## Privacy and file safety
 
-```powershell
-iscc installer_config.iss
-```
+Recording, screenshots, annotation, and editing are processed locally. WWRecorder does not require an account and does not include advertising or usage-analytics telemetry. EXE update checks contact GitHub over HTTPS; Store delivery and opened external links use their respective services.
 
-Unofficial builds must not be presented as endorsed by or affiliated with WWRecorder.
+In the current implementation, recording work files are kept in `.wwr_temp` under the selected output folder. If saving fails, preserve the reported recovery files and recover useful media promptly; temporary-file cleanup is not permanent archival storage.
 
-## Privacy
+See the [Privacy Policy](https://akasumitlamba.github.io/WWRecorder/privacy-policy.html) for local storage, settings, diagnostics, update checks, and retention details.
 
-Recording, screenshot, annotation, and export processing happens on your Windows device. WWRecorder does not require an account and does not include advertising or usage-analytics telemetry. It may connect to GitHub over HTTPS to check for public updates.
+## Feedback and contributions
 
-See the [WWRecorder Privacy Policy](https://akasumitlamba.github.io/WWRecorder/privacy-policy.html) for details about local files, settings, diagnostics, update checks, and retention.
+[Bug reports and feature requests](https://github.com/akasumitlamba/WWRecorder/issues) are welcome. Include:
 
-## Contributing
+- App version and installation type: EXE, MSIX, or Linux preview.
+- Windows version or Linux desktop/session type, especially X11 versus Wayland.
+- Steps to reproduce, expected behavior, and what actually happened.
+- Relevant display scaling and audio-device details for capture issues.
 
-Bug reports, feature requests, and pull requests are welcome. Please search [existing issues](https://github.com/akasumitlamba/WWRecorder/issues) before opening a new one, and include clear reproduction steps for bugs. Run the tests and compilation check before submitting code changes.
-
-Do not attach private recordings, screenshots, audio, access tokens, or unreviewed diagnostic logs to a public issue.
+Do not attach private recordings, screenshots, audio, access tokens, or unreviewed diagnostic logs to a public issue. For source contributions, describe the target version and required files so changes can be checked against the appropriate development snapshot.
 
 ## License
 
-WWRecorder's original application source code is available under the [MIT License](LICENSE).
-
-The MIT License does not grant rights to the WWRecorder name, logo, or other trademarks. Bundled third-party components remain subject to their own licenses.
+See [LICENSE](LICENSE) and the [legal notices](https://akasumitlamba.github.io/WWRecorder/legal.html) for application-source, website, and third-party terms. The WWRecorder name, logo, and other marks do not grant permission to imply endorsement or affiliation. Bundled third-party components retain their own licenses.
