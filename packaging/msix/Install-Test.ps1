@@ -9,8 +9,8 @@ try {
         Import-Certificate -FilePath $certPath -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
         exit 0
     }
-    $packages = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*_local-test.msix')
-    if ($packages.Count -ne 1) { throw 'Keep exactly one local-test MSIX beside this installer script.' }
+    $packages = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.msix')
+    if ($packages.Count -ne 1) { throw 'Keep exactly one MSIX beside this installer script.' }
     $signature = Get-AuthenticodeSignature -LiteralPath $packages[0].FullName
     if (-not $signature.SignerCertificate -or $signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint) { throw 'The MSIX signature does not match the supplied test certificate.' }
     Add-Type -AssemblyName System.IO.Compression.FileSystem
