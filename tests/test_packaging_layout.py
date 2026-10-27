@@ -107,3 +107,36 @@ def test_unplated_assets_have_transparent_edges_and_real_sizes(tmp_path):
         expected = module.render_icon(source, size)
         assert max(ImageStat.Stat(ImageChops.difference(actual, expected)).mean) < 1
 
+
+
+import pytest
+
+@pytest.mark.parametrize('names,accepted', [
+    (['WWRecorder_1.7.0.10_x64.msix'], True),
+    (['WWRecorder_1.7.0.10_x64_local-test.msix'], True),
+    ([], False),
+    (['first.msix','second.msix'], False),
+])
+def test_msix_install_helper_discovers_normal_names_and_rejects_ambiguity(tmp_path,names,accepted):
+    import shutil
+    shell = shutil.which('pwsh') or shutil.which('powershell.exe')
+    if not shell:
+        pytest.skip('Requires PowerShell; exercised on Windows CI')
+    for name in names:
+        (tmp_path/name).write_bytes(b'package-discovery-fixture')
+    helper=(ROOT/'packaging/msix/Install-Test.ps1').read_text()
+    start=helper.index('    $packages =')
+    end=helper.index('    $signature =',start)
+    discovery=helper[start:end]
+    # Execute the real helper discovery block, without importing certificates
+    # or deploying a package. Signature/manifest validation remains mandatory.
+    script=tmp_path/'discovery.ps1'
+    script.write_text("$ErrorActionPreference='Stop'\n"+discovery+"\nWrite-Output $packages[0].Name\n")
+    result=subprocess.run([shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=20)
+    assert (result.returncode==0) is accepted, result.stderr
+    if accepted:
+        assert names[0] in result.stdout
+    else:
+        assert 'exactly one MSIX' in result.stderr
+    assert '$signature.SignerCertificate.Thumbprint -ne $certificate.Thumbprint' in helper
+    assert "$identity.Name -ne 'WWRecorder.LocalTest'" in helper
