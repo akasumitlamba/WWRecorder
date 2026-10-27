@@ -5,10 +5,10 @@ These are the current Windows 1.7.0 application sources and runtime assets.
 of the recorder/editor/UI. `distribution.py` and `startup_integration.py`
 handle the permitted Windows distribution differences.
 
-From the repository root, run `python app/main.py` or `Run-WWRecorder.cmd`.
+From the repository root, run `python app/main.py`.
 Keep `icon.ico`, `ffmpeg.exe`, and `icons/` beside the Python modules so the
 existing source asset resolvers continue to work. Frozen packaging preserves
 the same internal resource destinations as before.
 
-See [the folder guide](../docs/FOLDER_GUIDE.md) and
+See [the project guide](../docs/project.md) and
 [distribution contract](../docs/DISTRIBUTION.md).
