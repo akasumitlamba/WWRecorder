@@ -1,0 +1,174 @@
+import json
+import os
+import sys
+from pathlib import Path
+from types import SimpleNamespace
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "app"))
+import pytest
+import distribution
+import dock_widget
+import updater
+from startup_integration import PackagedStartup
+from PyQt6.QtWidgets import QApplication
+
+
+@pytest.fixture(scope="session")
+def app():
+    return QApplication.instance() or QApplication([])
+
+
+def test_settings_import_is_one_time_and_preserves_source_and_unknown_fields(tmp_path):
+    source = tmp_path / "exe.json"
+    target = tmp_path / "package" / "config.json"
+    raw = b'{"hotkey":"<ctrl>+<shift>+r", "output_folder":"D:/captures", "future_setting":23}'
+    source.write_bytes(raw)
+    assert distribution.migrate_legacy_config(target, source)
+    assert source.read_bytes() == target.read_bytes() == raw
+    assert target.with_name("config.imported-exe.json").read_bytes() == raw
+    target.write_text('{"future_setting":24}')
+    assert not distribution.migrate_legacy_config(target, source)
+    assert json.loads(target.read_text())["future_setting"] == 24
+    assert source.read_bytes() == raw
+
+
+@pytest.mark.parametrize("raw", ["broken", "[]", "null"])
+def test_bad_legacy_settings_are_not_imported_or_deleted(tmp_path, raw):
+    source, target = tmp_path / "exe.json", tmp_path / "package.json"
+    source.write_text(raw)
+    with pytest.raises(ValueError):
+        distribution.migrate_legacy_config(target, source)
+    assert source.read_text() == raw
+    assert not target.exists()
+
+
+def test_package_config_is_isolated_from_exe(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "roaming"))
+    monkeypatch.setattr(distribution, "package_family_name", lambda: "test_family")
+    assert distribution.config_directory() == tmp_path / "local/Packages/test_family/LocalState/WWRecorder"
+    monkeypatch.setattr(distribution, "package_family_name", lambda: "")
+    assert distribution.config_directory() == tmp_path / "roaming/WWRecorder"
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "utf-8-sig"])
+def test_imported_settings_are_loaded_without_losing_preferences(monkeypatch, tmp_path, encoding):
+    import main
+    source, target = tmp_path / "exe.json", tmp_path / "package/config.json"
+    preferences = {"output_folder": "D:/Captures/日本語", "default_mic": True,
+                   "start_on_boot": False, "font_size": "Large",
+                   "hotkey": "<ctrl>+<shift>+r"}
+    source.write_text(json.dumps(preferences), encoding=encoding)
+    original = source.read_bytes()
+    assert distribution.migrate_legacy_config(target, source)
+    monkeypatch.setattr(main, "CONFIG_FILE", target)
+    loaded = main.WWRecorderApp._load_config(None)
+    assert all(loaded[key] == value for key, value in preferences.items())
+    assert source.read_bytes() == target.read_bytes() == original
+
+
+def test_packaged_updater_cannot_contact_github(monkeypatch, app):
+    monkeypatch.setattr(updater, "is_packaged", lambda: True)
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **kw: pytest.fail("MSIX queried EXE feed"))
+    worker = updater.UpdateChecker("1.6.3")
+    failures, successes = [], []
+    worker.check_failed.connect(failures.append)
+    worker.check_finished.connect(lambda *args: successes.append(args))
+    worker.run()
+    assert failures and not successes
+
+
+def test_packaged_update_button_opens_store_without_starting_worker(monkeypatch, app):
+    monkeypatch.setattr(dock_widget, "is_packaged", lambda: True)
+    monkeypatch.setattr(dock_widget, "update_url", lambda: distribution.STORE_LIBRARY_URL)
+    opened = []
+    monkeypatch.setattr(dock_widget.webbrowser, "open", opened.append)
+    sidebar = dock_widget.SettingsSidebar({"current_version": "1.6.3"})
+    sidebar._on_check_updates()
+    sidebar.set_update_status(False, "", "")
+    assert sidebar._updater is None
+    assert opened == [distribution.STORE_LIBRARY_URL]
+    assert sidebar._btn_check_update.isEnabled()
+    assert "latest" not in sidebar._lbl_update_status.text().lower()
+    sidebar.close()
+
+
+class Operation:
+    status = 1
+    def __init__(self, value):
+        self.value = value
+        self.cancelled = False
+    def get_results(self):
+        return self.value
+    def cancel(self):
+        self.cancelled = True
+
+
+class Task:
+    def __init__(self, state):
+        self.state = state
+        self.enable_calls = 0
+    def request_enable_async(self):
+        self.enable_calls += 1
+        self.state = 2
+        return Operation(2)
+    def disable(self):
+        self.state = 0
+
+
+def run_startup(monkeypatch, app, task, desired):
+    from winrt.windows import applicationmodel
+    monkeypatch.setattr(applicationmodel, "StartupTask", SimpleNamespace(get_async=lambda _: Operation(task)))
+    controller = PackagedStartup()
+    results = []
+    controller.finished.connect(lambda *args: results.append(args))
+    controller.sync(desired)
+    controller._poll()
+    if controller._operation is not None:
+        controller._poll()
+    return results
+
+
+def test_user_disabled_startup_cannot_be_overridden(monkeypatch, app):
+    task = Task(1)
+    results = run_startup(monkeypatch, app, task, True)
+    assert results[0][0] is False
+    assert "Windows Settings" in results[0][1]
+    assert task.enable_calls == 0
+
+
+def test_startup_read_does_not_reenable_external_disable(monkeypatch, app):
+    task = Task(0)
+    assert run_startup(monkeypatch, app, task, None) == [(False, "")]
+    assert task.enable_calls == 0
+
+
+@pytest.mark.parametrize("state,desired,expected", [(0, True, True), (2, False, False), (4, False, True), (3, True, False)])
+def test_startup_reports_actual_state(monkeypatch, app, state, desired, expected):
+    result = run_startup(monkeypatch, app, Task(state), desired)
+    assert result[0][0] == expected
+    assert bool(result[0][1]) == (state in (3, 4))
+
+
+def test_startup_timeout_cancels_operation(app):
+    controller = PackagedStartup()
+    operation = Operation(None)
+    operation.status = 0
+    controller._operation = operation
+    controller._deadline = 0
+    results = []
+    controller.finished.connect(lambda *args: results.append(args))
+    controller._poll()
+    assert operation.cancelled
+    assert results[0][0] is None and "timed out" in results[0][1]
+
+
+def test_packaged_startup_never_writes_run_registry(monkeypatch, app):
+    import main
+    calls = []
+    monkeypatch.setattr(main, "is_packaged", lambda: True)
+    monkeypatch.setattr(main.winreg, "OpenKey", lambda *a, **kw: pytest.fail("MSIX touched EXE Run key"))
+    fake = SimpleNamespace(config={"start_on_boot": True}, _packaged_startup=SimpleNamespace(sync=calls.append))
+    main.WWRecorderApp._sync_registry(fake)
+    assert calls == [True]

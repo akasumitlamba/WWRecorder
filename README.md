@@ -150,3 +150,12 @@ Do not attach private recordings, screenshots, audio, access tokens, or unreview
 ## License
 
 See [LICENSE](LICENSE) and the [legal notices](https://akasumitlamba.github.io/WWRecorder/legal.html) for application-source, website, and third-party terms. The WWRecorder name, logo, and other marks do not grant permission to imply endorsement or affiliation. Bundled third-party components retain their own licenses.
+
+
+## Current Windows source
+
+The maintained Windows application source is under `app/`. Install `requirements.txt`, then run `python app/main.py`. Tests use `pytest.ini` to resolve app imports: run `python -m pytest`. The historical Linux preview is separate from this Windows source.
+
+See [architecture](docs/AI_CONTEXT.md), [QA and manual checks](docs/QA_AUDIT.md), [project guide](docs/project.md) and [EXE/MSIX build contract](docs/DISTRIBUTION.md). Windows packaging requires PyInstaller, Inno Setup, Windows SDK tools and a trusted FFmpeg executable for the shared bundle. Run `scripts/build-distributions.ps1 -Format Both`.
+
+The current test installers remain on the [existing microphone preview prerelease](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.0-microphone-preview.1). These local-test packages are not a production Store submission.
