@@ -1,0 +1,279 @@
+{
+  "tool": "built-in imagegen",
+  "canvas": 64,
+  "icons": [
+    {
+      "name": "pencil",
+      "subject": "Pencil: diagonal outlined pencil with coral tip"
+    },
+    {
+      "name": "shape_rect",
+      "subject": "Rectangle: simple white rectangular outline"
+    },
+    {
+      "name": "undo",
+      "subject": "Undo: white curved arrow with coral left arrowhead"
+    },
+    {
+      "name": "shape_arrow",
+      "subject": "Arrow: horizontal white shaft and coral right-pointing arrowhead"
+    },
+    {
+      "name": "rotate",
+      "subject": "Rotate 90 degrees clockwise: white quarter-turn circular arrow with coral arrowhead"
+    },
+    {
+      "name": "eraser",
+      "subject": "Eraser: beveled diagonal block, white top and coral erasing face"
+    },
+    {
+      "name": "flip_h",
+      "subject": "Flip horizontal: two white mirrored sideways triangles across coral dashed vertical axis"
+    },
+    {
+      "name": "highlighter",
+      "subject": "Highlighter: diagonal outlined chisel marker, coral nib and short underline"
+    },
+    {
+      "name": "flip_v",
+      "subject": "Flip vertical: two white mirrored up/down triangles across coral dashed horizontal axis"
+    },
+    {
+      "name": "save",
+      "subject": "Save: white floppy disk outline with tiny coral label"
+    },
+    {
+      "name": "shape_circle",
+      "subject": "Circle: simple white circular outline"
+    },
+    {
+      "name": "copyicon",
+      "subject": "Copy: two overlapping white document sheets"
+    },
+    {
+      "name": "text_tool",
+      "subject": "Text: serif white capital T with thin coral insertion caret"
+    },
+    {
+      "name": "save_as",
+      "subject": "Save as: white floppy disk with small coral pencil"
+    },
+    {
+      "name": "open",
+      "subject": "Open: plain white folder outline with tiny coral tab"
+    },
+    {
+      "name": "redo",
+      "subject": "Redo: white curved arrow with coral right arrowhead"
+    },
+    {
+      "name": "actual_size",
+      "subject": "Actual size: white square outline containing clear 1:1"
+    },
+    {
+      "name": "clear_all",
+      "subject": "Clear all: white trash can with coral lid"
+    },
+    {
+      "name": "fit_image",
+      "subject": "Fit image: four outward white corner arrows with coral tips"
+    },
+    {
+      "name": "crop",
+      "subject": "Crop: two overlapping white right-angle crop corners"
+    },
+    {
+      "name": "color",
+      "subject": "Color: white artist palette outline with small coral and white colour dots"
+    },
+    {
+      "name": "bold",
+      "subject": "Bold: bold white capital B"
+    },
+    {
+      "name": "play",
+      "subject": "Play: solid white right-pointing triangle with rounded corners"
+    },
+    {
+      "name": "italic",
+      "subject": "Italic: italic white capital I"
+    },
+    {
+      "name": "ve_prev",
+      "subject": "Previous: solid white left triangle with a white bar on left"
+    },
+    {
+      "name": "pause",
+      "subject": "Pause: two solid white vertical rounded bars"
+    },
+    {
+      "name": "underline",
+      "subject": "Underline: white capital U with coral underline"
+    },
+    {
+      "name": "ve_next",
+      "subject": "Next: solid white right triangle with a white bar on right"
+    },
+    {
+      "name": "ve_fwd_30",
+      "subject": "Forward 30 seconds: white clockwise circular arrow containing clear small 30"
+    },
+    {
+      "name": "apply",
+      "subject": "Apply: simple coral checkmark"
+    },
+    {
+      "name": "ve_vol_up",
+      "subject": "Volume up: white speaker outline and two white curved sound waves"
+    },
+    {
+      "name": "ve_back_30",
+      "subject": "Back 30 seconds: white counterclockwise circular arrow containing clear small 30"
+    },
+    {
+      "name": "ve_vol_down",
+      "subject": "Volume down: white speaker outline and one white curved sound wave"
+    },
+    {
+      "name": "laser",
+      "subject": "Laser: slim white laser pointer with small coral rays at tip"
+    },
+    {
+      "name": "ve_fullscreen_exit",
+      "subject": "Exit fullscreen: four small white arrows facing inward"
+    },
+    {
+      "name": "thickness",
+      "subject": "Stroke width: three horizontal rounded strokes thin, medium, thick; lower thick stroke coral"
+    },
+    {
+      "name": "ve_text",
+      "subject": "Add text: white serif T with small coral plus"
+    },
+    {
+      "name": "ve_vol_mute",
+      "subject": "Mute: white speaker with coral diagonal slash"
+    },
+    {
+      "name": "ve_edit",
+      "subject": "Edit video: diagonal white pencil outline and small coral underline"
+    },
+    {
+      "name": "ve_add",
+      "subject": "Add segment: white filmstrip outline with small coral plus badge"
+    },
+    {
+      "name": "ve_trim",
+      "subject": "Trim: white scissors between two short coral dashed vertical trim bounds"
+    },
+    {
+      "name": "ve_fullscreen",
+      "subject": "Fullscreen: four white right-angle corners facing out"
+    },
+    {
+      "name": "export",
+      "subject": "Export: coral up arrow leaving white open tray"
+    },
+    {
+      "name": "keycast",
+      "subject": "Keycast: compact white keyboard and mouse side by side"
+    },
+    {
+      "name": "ve_screenshot",
+      "subject": "Screenshot frame: white camera outline and coral circular lens"
+    },
+    {
+      "name": "desktop_audiooff",
+      "subject": "System audio off: white speaker with coral X beside it"
+    },
+    {
+      "name": "desktop_audio",
+      "subject": "System audio on: white speaker with two coral sound waves"
+    },
+    {
+      "name": "screenshot",
+      "subject": "Screenshot: four white capture frame corners"
+    },
+    {
+      "name": "mic",
+      "subject": "Microphone on: white upright microphone and stand, small coral sound arcs"
+    },
+    {
+      "name": "micoff",
+      "subject": "Microphone off: white upright microphone and stand with coral diagonal slash"
+    },
+    {
+      "name": "spn_down",
+      "subject": "Menu down: white downward chevron"
+    },
+    {
+      "name": "record",
+      "subject": "Record: coral solid circle inside a white circular outline"
+    },
+    {
+      "name": "spn_up",
+      "subject": "Menu up: white upward chevron"
+    },
+    {
+      "name": "annotate",
+      "subject": "Annotate: diagonal white pencil outline and short coral underline"
+    },
+    {
+      "name": "folder",
+      "subject": "Gallery: recognizable plain flat yellow folder with a pale yellow tab, no arrow badge"
+    },
+    {
+      "name": "settings",
+      "subject": "Settings: precise white gear outline with circular centre"
+    },
+    {
+      "name": "power",
+      "subject": "Power: white open circular ring and coral vertical stem"
+    },
+    {
+      "name": "stop",
+      "subject": "Stop: solid coral square with slightly rounded corners"
+    },
+    {
+      "name": "info",
+      "subject": "Info: white circle containing lowercase i"
+    },
+    {
+      "name": "warning",
+      "subject": "Warning: coral triangle outline containing coral exclamation"
+    },
+    {
+      "name": "search",
+      "subject": "Search: white magnifying glass outline"
+    },
+    {
+      "name": "success",
+      "subject": "Success: white circle outline with green checkmark"
+    },
+    {
+      "name": "rename",
+      "subject": "Rename: white diagonal pencil with a small coral insertion I-beam beside it"
+    },
+    {
+      "name": "close",
+      "subject": "Close or Cancel: simple coral X with rounded stroke ends"
+    },
+    {
+      "name": "dock_grabber",
+      "subject": "Drag handle: compact grid of six white dots in two columns and three rows"
+    },
+    {
+      "name": "reset",
+      "subject": "Reset: white counterclockwise circular arrow with clear arrowhead"
+    },
+    {
+      "name": "share",
+      "subject": "Share: three white circular nodes joined by two diagonal strokes"
+    }
+  ],
+  "cursors": [
+    "cursor_eraser",
+    "cursor_pencil",
+    "cursor_highlighter"
+  ]
+}

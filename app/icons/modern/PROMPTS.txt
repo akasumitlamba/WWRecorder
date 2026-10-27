@@ -1,0 +1,71 @@
+Built-in imagegen. Approved family: flat white rounded strokes, coral accents, transparent background, 80 percent symbol occupancy, 10 percent transparent padding, no frames, labels, glow or shadows. Symbols exported individually from approved annotation/player/capture/cursor design boards. Transparent margins are normalized for consistent runtime sizing; artwork is not redrawn.
+
+pencil: Pencil: diagonal outlined pencil with coral tip
+shape_rect: Rectangle: simple white rectangular outline
+undo: Undo: white curved arrow with coral left arrowhead
+shape_arrow: Arrow: horizontal white shaft and coral right-pointing arrowhead
+rotate: Rotate 90 degrees clockwise: white quarter-turn circular arrow with coral arrowhead
+eraser: Eraser: beveled diagonal block, white top and coral erasing face
+flip_h: Flip horizontal: two white mirrored sideways triangles across coral dashed vertical axis
+highlighter: Highlighter: diagonal outlined chisel marker, coral nib and short underline
+flip_v: Flip vertical: two white mirrored up/down triangles across coral dashed horizontal axis
+save: Save: white floppy disk outline with tiny coral label
+shape_circle: Circle: simple white circular outline
+copyicon: Copy: two overlapping white document sheets
+text_tool: Text: serif white capital T with thin coral insertion caret
+save_as: Save as: white floppy disk with small coral pencil
+open: Open: plain white folder outline with tiny coral tab
+redo: Redo: white curved arrow with coral right arrowhead
+actual_size: Actual size: white square outline containing clear 1:1
+clear_all: Clear all: white trash can with coral lid
+fit_image: Fit image: four outward white corner arrows with coral tips
+crop: Crop: two overlapping white right-angle crop corners
+color: Color: white artist palette outline with small coral and white colour dots
+bold: Bold: bold white capital B
+play: Play: solid white right-pointing triangle with rounded corners
+italic: Italic: italic white capital I
+ve_prev: Previous: solid white left triangle with a white bar on left
+pause: Pause: two solid white vertical rounded bars
+underline: Underline: white capital U with coral underline
+ve_next: Next: solid white right triangle with a white bar on right
+ve_fwd_30: Forward 30 seconds: white clockwise circular arrow containing clear small 30
+apply: Apply: simple coral checkmark
+ve_vol_up: Volume up: white speaker outline and two white curved sound waves
+ve_back_30: Back 30 seconds: white counterclockwise circular arrow containing clear small 30
+ve_vol_down: Volume down: white speaker outline and one white curved sound wave
+laser: Laser: slim white laser pointer with small coral rays at tip
+ve_fullscreen_exit: Exit fullscreen: four small white arrows facing inward
+thickness: Stroke width: three horizontal rounded strokes thin, medium, thick; lower thick stroke coral
+ve_text: Add text: white serif T with small coral plus
+ve_vol_mute: Mute: white speaker with coral diagonal slash
+ve_edit: Edit video: diagonal white pencil outline and small coral underline
+ve_add: Add segment: white filmstrip outline with small coral plus badge
+ve_trim: Trim: white scissors between two short coral dashed vertical trim bounds
+ve_fullscreen: Fullscreen: four white right-angle corners facing out
+export: Export: coral up arrow leaving white open tray
+keycast: Keycast: compact white keyboard and mouse side by side
+ve_screenshot: Screenshot frame: white camera outline and coral circular lens
+desktop_audiooff: System audio off: white speaker with coral X beside it
+desktop_audio: System audio on: white speaker with two coral sound waves
+screenshot: Screenshot: four white capture frame corners
+mic: Microphone on: white upright microphone and stand, small coral sound arcs
+micoff: Microphone off: white upright microphone and stand with coral diagonal slash
+spn_down: Menu down: white downward chevron
+record: Record: coral solid circle inside a white circular outline
+spn_up: Menu up: white upward chevron
+annotate: Annotate: diagonal white pencil outline and short coral underline
+folder: Gallery: recognizable plain flat yellow folder with a pale yellow tab, no arrow badge
+settings: Settings: precise white gear outline with circular centre
+power: Power: white open circular ring and coral vertical stem
+stop: Stop: solid coral square with slightly rounded corners
+info: Info: white circle containing lowercase i
+warning: Warning: coral triangle outline containing coral exclamation
+search: Search: white magnifying glass outline
+success: Success: white circle outline with green checkmark
+rename: Rename: white diagonal pencil with a small coral insertion I-beam beside it
+close: Close or Cancel: simple coral X with rounded stroke ends
+dock_grabber: Drag handle: compact grid of six white dots in two columns and three rows
+reset: Reset: white counterclockwise circular arrow with clear arrowhead
+share: Share: three white circular nodes joined by two diagonal strokes
+
+Cursor glyphs: pencil/highlighter point down-left; eraser diagonal block. Tool positions, size previews, high contrast halos and hotspots are drawn deterministically by the app.
