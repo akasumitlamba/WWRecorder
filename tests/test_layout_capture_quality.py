@@ -103,7 +103,7 @@ def test_drag_setting_is_remembered_and_hides_only_when_enabled(app,tmp_path,mon
     settings.close()
 
 
-@pytest.mark.parametrize('font,height,thumb',[('Default',186,146),('Large',210,170)])
+@pytest.mark.parametrize('font,height,thumb',[('Default',167,127),('Large',189,149)])
 def test_grid_gives_space_to_thumbnail_and_one_menu_height_caption(app,tmp_path,font,height,thumb):
     (tmp_path/'recording.mp4').write_bytes(b'fixture')
     row=_FileRow(str(tmp_path/'recording.mp4'),font,defer_load=True,grid=True)

@@ -1130,7 +1130,7 @@ class WWRecorderApp:
 
         # Close settings panel if open
         if self._settings_sidebar and self._settings_sidebar.isVisible():
-            self._settings_sidebar.close_panel()
+            self._settings_sidebar.close_panel(animate=False)
 
         output_folder = self.config.get("output_folder", DEFAULT_CONFIG["output_folder"])
         fs_mode = self.config.get("font_size", "Default")
@@ -1991,9 +1991,9 @@ class WWRecorderApp:
             self._settings_sidebar.close_panel()
             return
 
-        # Close recent panel if open
+        # Switch panels without two overlapping slide animations.
         if self._recent_panel and self._recent_panel.isVisible():
-            self._recent_panel.close_panel()
+            self._recent_panel.close_panel(animate=False)
 
         self._cancel_pre_record()
 

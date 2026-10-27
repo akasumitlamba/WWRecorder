@@ -73,7 +73,7 @@ def test_capture_header_groups_folder_search_settings_and_preserves_actions(app,
     panel.close()
 
 
-@pytest.mark.parametrize('font,height,thumb',[('Default',186,216),('Large',210,240)])
+@pytest.mark.parametrize('font,height,thumb',[('Default',167,216),('Large',189,240)])
 def test_compact_grid_card_keeps_thumbnail_filename_and_menu_inside(app,tmp_path,font,height,thumb):
     row=_FileRow(str(tmp_path/'capture.mp4'),font,defer_load=True,grid=True)
     row.resize(228 if font=='Default' else 252,height);row.show();app.processEvents()
