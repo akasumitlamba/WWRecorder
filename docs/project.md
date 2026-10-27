@@ -16,3 +16,5 @@ Recording controls keep speaker and microphone toggles separate from the microph
 - `docs/DISTRIBUTION.md`: edition parity and build rules
 
 Install dependencies from requirements.txt and launch `python app/main.py`. Run tests with `python -m pytest`. Windows-specific suites require a Windows host and dependencies; Linux offscreen results are partial verification only.
+
+Current panel refinement: stable dock monitor/location through panel interactions, sequential panel/companion motion, horizontal Settings secondary actions left and Save right, approximately 10% smaller gallery cards, and matching Undo/Redo. Download filenames use normal application names. MSIX keeps its existing local-test identity/signing; naming does not imply Store certification.

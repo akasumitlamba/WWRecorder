@@ -69,3 +69,8 @@ reset: Reset: white counterclockwise circular arrow with clear arrowhead
 share: Share: three white circular nodes joined by two diagonal strokes
 
 Cursor glyphs: pencil/highlighter point down-left; eraser diagonal block. Tool positions, size previews, high contrast halos and hotspots are drawn deterministically by the app.
+
+2026-10-27 matching Undo/Redo replacement (built-in imagegen):
+Undo: one flat backward curved arrow with rounded off-white shaft and left-facing coral arrowhead, transparent square canvas, clean readable at 22 pixels; no lettering, tile, border or shadow.
+Redo: mirror the Undo companion horizontally, keeping the same white/coral colors, proportions, rounded geometry and transparent padding.
+Normalized both to the established 64px canvas with a 52px glyph bound.

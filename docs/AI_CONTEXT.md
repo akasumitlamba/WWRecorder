@@ -29,3 +29,9 @@ Annotation text preview and committed glyphs share metrics and placement. Tool c
 Finalization uses honest indeterminate activity. Hiding its notification does not cancel processing. Playback controls reflow at narrow widths without hiding core transport or file actions.
 
 After behavior changes, update this guide and QA_AUDIT.md. Preserve EXE/MSIX feature parity; see DISTRIBUTION.md.
+
+## Panel and dock motion
+
+The hanging dock owns its home monitor and saved long-axis position. Programmatic panel/hover motion must not change that monitor. Explicit drag/drop can select a monitor and centres the grabber at the nearest edge. Companion controls stay hidden during panel opening/closing, then appear outside its final edge. Detach old transition signals when switching panels; repeated close clicks are ignored and reopening reverses from the current geometry. Restore the hanging dock position exactly after closing.
+
+Horizontal Settings places Quit/Reset/Share left and Save Settings right. Vertical ordering is retained. Horizontal gallery cards use shared construction/reflow metrics of 169x167 Default and 194x189 Large, retaining two-line metadata and the action target. Columns follow viewport capacity. Undo/Redo use a matching padded white/coral pair.

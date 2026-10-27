@@ -372,6 +372,7 @@ class DockWidget(QWidget):
             self._edge = "right"
         self._dock_x = config.get("dock_x", -1)
         self._dock_y = config.get("dock_y", -1)
+        self._dock_screen = None
 
         self._collapse_timer = QTimer(self)
         self._collapse_timer.setSingleShot(True)
@@ -428,11 +429,13 @@ class DockWidget(QWidget):
         super().showEvent(event)
         handle = self.windowHandle()
         if handle and not getattr(self, '_screen_change_connected', False):
-            handle.screenChanged.connect(self._on_screen_changed)
             self._screen_change_connected = True
-            self._on_screen_changed(handle.screen())
+            self._on_screen_changed(self._dock_screen or QApplication.primaryScreen())
 
     def _on_screen_changed(self, screen):
+        # The dock's home monitor changes only on a user drag. A companion
+        # window moving during panel animation is not a monitor selection.
+        self._dock_screen = screen
         old = getattr(self, '_geometry_screen', None)
         if old is not None:
             try:
@@ -446,10 +449,12 @@ class DockWidget(QWidget):
 
     def _on_screen_geometry_changed(self, *_):
         self._stop_animations()
-        self._position_on_edge()
         anchor = getattr(self, "_panel_anchor", None)
         if anchor is not None and anchor.isVisible():
-            self._set_expanded_geo(animate=False)
+            if anchor._transition_state not in ('opening', 'closing'):
+                self._set_expanded_geo(animate=False)
+            return
+        self._position_on_edge()
 
     def _on_first_blink_tick(self):
         # Keep blinking until the dock is discovered. There is deliberately no
@@ -654,13 +659,14 @@ class DockWidget(QWidget):
     # ── Geometry ─────────────────────────────────────────────────────────────
 
     def _screen_geo(self) -> QRect:
-        s = None
-        if not self.isVisible() and self._dock_x != -1 and self._dock_y != -1:
-            s = QApplication.screenAt(QPoint(self._dock_x, self._dock_y))
-        s = s or self.screen()
-        if not s:
-            s = QApplication.primaryScreen()
-        return s.availableGeometry() if s else QRect(0, 0, 1920, 1080)
+        screens = QApplication.screens()
+        screen = self._dock_screen if self._dock_screen in screens else None
+        if screen is None:
+            if self._dock_x != -1 and self._dock_y != -1:
+                screen = QApplication.screenAt(QPoint(self._dock_x, self._dock_y))
+            screen = screen or QApplication.primaryScreen()
+            self._dock_screen = screen
+        return screen.availableGeometry() if screen else QRect(0, 0, 1920, 1080)
 
     @property
     def _horizontal(self):
@@ -690,25 +696,55 @@ class DockWidget(QWidget):
 
     def set_panel_anchor(self, panel):
         previous = getattr(self, '_panel_anchor', None)
+        if previous is panel:
+            if panel is not None and panel._transition_state not in ('opening', 'closing'):
+                self._show_panel_controls()
+            return
         if previous is not None:
-            try: previous.removeEventFilter(self)
-            except RuntimeError: pass
+            try:
+                previous.removeEventFilter(self)
+                previous.opened.disconnect(self._show_panel_controls)
+                previous.opening.disconnect(self._hide_panel_controls)
+                previous.closing.disconnect(self._hide_panel_controls)
+                previous._companion_dock = None
+            except (TypeError, RuntimeError):
+                pass
         self._panel_anchor = panel
         self._collapse_timer.stop()
+        self._stop_animations()
         if panel is not None:
             panel._companion_dock = self
             panel.installEventFilter(self)
-            self.show()
-            self._set_expanded_geo(animate=False)
-            self.raise_()
+            panel.opened.connect(self._show_panel_controls)
+            panel.opening.connect(self._hide_panel_controls)
+            panel.closing.connect(self._hide_panel_controls)
+            if panel._transition_state in ('opening', 'closing'):
+                self.hide()
+            else:
+                self._show_panel_controls()
         else:
             self._position_on_edge()
             self.show()
 
+    def _hide_panel_controls(self):
+        self._collapse_timer.stop()
+        self._stop_animations()
+        self.hide()
+
+    def _show_panel_controls(self):
+        panel = getattr(self, '_panel_anchor', None)
+        if panel is not None and panel.isVisible():
+            # Place at the final panel edge before showing, so no window
+            # follows the panel through off-screen intermediate positions.
+            self._set_expanded_geo(animate=False)
+            self.show()
+            self.raise_()
+
     def eventFilter(self, watched, event):
         if watched is getattr(self, '_panel_anchor', None):
             if event.type() in (QEvent.Type.Move, QEvent.Type.Resize, QEvent.Type.Show):
-                if watched.isVisible(): self._set_expanded_geo(animate=False)
+                if watched.isVisible() and watched._transition_state not in ('opening', 'closing'):
+                    self._set_expanded_geo(animate=False)
         return super().eventFilter(watched, event)
 
     def _stop_animations(self):
@@ -781,7 +817,7 @@ class DockWidget(QWidget):
             self._expand_anim.setDuration(300)
             self._expand_anim.setStartValue(self.geometry())
             self._expand_anim.setEndValue(end_rect)
-            self._expand_anim.setEasingCurve(QEasingCurve.Type.OutBack)
+            self._expand_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
             self._expand_anim.start()
         else:
             self.setGeometry(end_rect)
@@ -872,6 +908,9 @@ class DockWidget(QWidget):
                     self._panel.setVisible(False)
                     self._stop_animations()
                 
+                screen = QApplication.screenAt(event.globalPosition().toPoint())
+                if screen is not None and screen is not self._dock_screen:
+                    self._on_screen_changed(screen)
                 sg = self._screen_geo()
                 new_y = self._drag_start_y + delta.y()
                 self._dock_y = max(sg.top(), min(new_y, sg.bottom() - self.GRABBER_H + 1))
@@ -888,6 +927,10 @@ class DockWidget(QWidget):
                 distances = {"left": abs(gpos.x() - sg.left()), "right": abs(gpos.x() - sg.right()),
                              "top": abs(gpos.y() - sg.top()), "bottom": abs(gpos.y() - sg.bottom())}
                 self._edge = min(distances, key=distances.get)
+                # Snap the grabber's centre to the drop point, not the old
+                # expanded window's offset from that point.
+                self._dock_x = gpos.x() - self.GRABBER_H // 2
+                self._dock_y = gpos.y() - self.GRABBER_H // 2
                 self._position_on_edge()
                 self._save_dock_position()
             self._drag_pos = None
@@ -1049,6 +1092,9 @@ class SidebarPanel(QWidget):
     """
 
     closed = pyqtSignal()
+    opening = pyqtSignal()
+    opened = pyqtSignal()
+    closing = pyqtSignal()
     width_changed = pyqtSignal(int)
     height_changed = pyqtSignal(int)
 
@@ -1066,6 +1112,7 @@ class SidebarPanel(QWidget):
 
         self._edge = edge if edge in ("left", "right", "top", "bottom") else "right"
         self._panel_height = 0
+        self._transition_state = 'closed'
         self._anchor_screen = None
         self._close_on_focus_loss = close_on_focus_loss
         self._font_size_mode = font_size_mode
@@ -1182,8 +1229,8 @@ class SidebarPanel(QWidget):
             margins = layout.contentsMargins()
             self._base_panel_margins = (margins.left(), margins.top(), margins.right(), margins.bottom())
         left, top, right, bottom = self._base_panel_margins
-        # Panels meet the screen edge. Main hides the dock while a panel is open;
-        # no dock-sized blank strip belongs inside or outside this window.
+        # The companion dock is outside the panel. No dock-sized blank strip
+        # belongs inside the content area.
         layout.setContentsMargins(left, top, right, bottom)
 
     def _panel_rect(self, width=0, height=0):
@@ -1284,7 +1331,9 @@ class SidebarPanel(QWidget):
         self._apply_dock_clearance()
         self._apply_panel_constraints()
         end = self._panel_rect(self.width())
-        start = self._hidden_rect(end)
+        start = self.geometry() if self.isVisible() else self._hidden_rect(end)
+        self._transition_state = 'opening'
+        self.opening.emit()
         self.setGeometry(start)
         self.show()
         if self._close_on_focus_loss:
@@ -1295,13 +1344,20 @@ class SidebarPanel(QWidget):
         self._anim.setStartValue(start)
         self._anim.setEndValue(end)
         self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._anim.finished.connect(self._finish_open)
         self._anim.start()
 
+    def _finish_open(self):
+        self._transition_state = 'open'
+        self.opened.emit()
+
     def close_panel(self, animate=True):
-        if not self.isVisible():
+        if not self.isVisible() or (animate and self._transition_state == 'closing'):
             return
         if hasattr(self, '_anim'):
             self._anim.stop()
+        self._transition_state = 'closing'
+        self.closing.emit()
         if not animate:
             self._finish_close()
             return
@@ -1315,6 +1371,7 @@ class SidebarPanel(QWidget):
         self._anim.start()
 
     def _finish_close(self):
+        self._transition_state = 'closed'
         self.hide()
         self.closed.emit()
 
@@ -2224,14 +2281,16 @@ class SettingsSidebar(SidebarPanel):
                 nested.deleteLater()
         actions.setSpacing(10 if self._horizontal_panel else 4)
         actions.setDirection(QBoxLayout.Direction.LeftToRight if self._horizontal_panel else QBoxLayout.Direction.TopToBottom)
-        actions.addWidget(self._btn_save)
         if self._horizontal_panel:
+            actions.addWidget(self._btn_quit)
             actions.addWidget(self._btn_reset)
             actions.addWidget(self._btn_share)
             actions.addStretch(1)
             actions.addWidget(self._credit_link)
-            actions.addWidget(self._btn_quit)
+            actions.addStretch(1)
+            actions.addWidget(self._btn_save)
         else:
+            actions.addWidget(self._btn_save)
             row = QHBoxLayout()
             row.setSpacing(8)
             row.addWidget(self._btn_reset, 1)
@@ -2642,13 +2701,19 @@ class _FileRow(QWidget):
         self._preview_resize_timer.setSingleShot(True)
         self._preview_resize_timer.timeout.connect(self._refresh_preview_size)
         h = 68 if font_size_mode == "Large" else 54
-        self.setFixedHeight((210 if font_size_mode == "Large" else 186) if grid else h)
+        self.setFixedHeight(self.grid_metrics(font_size_mode)[1] if grid else h)
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._build_ui()
         if not defer_load:
             self.load_content()
+
+    @staticmethod
+    def grid_metrics(font_size_mode):
+        # About 90% of the previous 188x186 / 216x210 cards. Retain the
+        # two-line filename/size caption and the existing action target.
+        return (194, 189, 149) if font_size_mode == "Large" else (169, 167, 127)
 
     @property
     def filename(self) -> str:
@@ -2668,8 +2733,9 @@ class _FileRow(QWidget):
         self._thumb.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._thumb.setStyleSheet("background: rgba(255,255,255,0.045); border: 1px solid rgba(255,255,255,0.08); border-radius: 7px;")
         if self._grid_card:
-            self._thumb.setFixedSize(236 if self._font_size_mode == "Large" else 212, 170 if self._font_size_mode == "Large" else 146)
-            self.setMinimumWidth(188 if self._font_size_mode == "Default" else 216)
+            card_width, _, thumbnail_height = self.grid_metrics(self._font_size_mode)
+            self._thumb.setFixedSize(card_width - 12, thumbnail_height)
+            self.setMinimumWidth(card_width)
             self._thumb.setMinimumWidth(0)
             self._thumb.setMaximumWidth(16777215)
             self._thumb.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -3471,7 +3537,8 @@ class RecentFilesSidebar(SidebarPanel):
         if not getattr(self, '_grid_groups', None): return
         width = self._scroll.viewport().width()
         gap = 8
-        columns = max(1, min(6, (width + gap) // ((216 if self._font_size_mode == "Large" else 188) + gap)))
+        card_width, card_height, _ = _FileRow.grid_metrics(self._font_size_mode)
+        columns = max(1, (width + gap) // (card_width + gap))
         for group, grid in self._grid_groups:
             old_columns = grid.columnCount()
             while grid.count(): grid.takeAt(0)
@@ -3482,7 +3549,6 @@ class RecentFilesSidebar(SidebarPanel):
                 grid.addWidget(row, index // columns, index % columns)
             group.setVisible(bool(visible))
             rows = (len(visible) + columns - 1) // columns
-            card_height = 210 if self._font_size_mode == "Large" else 186
             group.setFixedHeight(rows * card_height + max(0, rows - 1) * grid.spacing() + 8)
 
     def resizeEvent(self, event):
