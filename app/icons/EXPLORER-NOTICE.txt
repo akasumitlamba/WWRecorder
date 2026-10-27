@@ -1,0 +1,5 @@
+windows-explorer.svg: Windows Explorer artwork from homarr-labs/dashboard-icons.
+Source: https://github.com/homarr-labs/dashboard-icons/blob/main/svg/windows-explorer.svg
+Repository license: Apache-2.0 (see dashboard-icons-LICENSE.txt in this directory).
+Microsoft product names and artwork remain their owners' marks. No affiliation implied.
+Windows runtime prefers the installed explorer.exe icon. WWRecorder adds an edge-crossing arrow.

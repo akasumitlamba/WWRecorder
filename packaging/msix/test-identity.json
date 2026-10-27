@@ -1,0 +1,8 @@
+{
+  "name": "WWRecorder.LocalTest",
+  "publisher": "CN=WWRecorder Local Testing",
+  "publisher_display_name": "Sumit Kumar Lamba",
+  "display_name": "WWRecorder (MSIX Test)",
+  "store_product_id": "",
+  "channel": "local-test"
+}

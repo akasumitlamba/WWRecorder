@@ -1,0 +1,10 @@
+PyQt6>=6.7,<7
+mss>=10,<11
+numpy>=2,<3
+Pillow>=10,<13
+pywin32>=306
+soundcard>=0.4,<0.5
+pynput>=1.7,<2
+certifi>=2025.1.31
+winrt-Windows.ApplicationModel==3.2.1; sys_platform == "win32"
+winrt-Windows.Foundation==3.2.1; sys_platform == "win32"

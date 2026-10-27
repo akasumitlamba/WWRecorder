@@ -1,0 +1,32 @@
+WWRecorder panel header icons
+Generated with the built-in imagegen tool, 2026-10-26.
+Runtime assets: panel-search.png, panel-settings.png, panel-close.png.
+File Explorer deliberately retains Windows artwork plus its crossing arrow;
+it is not replaced by a generated generic folder.
+Normalized to 64x64 RGBA for use at 20 logical pixels in 32x32 buttons.
+Original generations are preserved privately; runtime PNGs contain no local paths.
+
+Shared prompt:
+Create one production UI icon PNG for WWRecorder dark desktop application.
+Consistent minimal outline icon style, straight-on flat 2D, square canvas,
+centered, occupies central 68 percent with equal transparent padding.
+Stroke width equivalent to 1.7 pixels on a 24 pixel icon. Crisp smooth
+antialiasing, rounded line caps and joins. Truly transparent background.
+No button plate, border around canvas, text, shadows, glow, gradients or
+extraneous elements. Remain unmistakable at 20 pixels in a square outlined
+ dark button.
+
+Search subject:
+A magnifying glass with a round lens at upper left and short diagonal handle
+at lower right. Pale white #E9EDF4.
+
+Settings subject:
+A precise six-tooth settings gear ring with a clear circular hole in the center.
+Pale white #E9EDF4. Symmetrical, mechanically clean.
+Additional edit: preserve outlines and line width; remove stray flecks and
+mottled patches, keep flat smooth white linework on a transparent background.
+
+Close subject:
+A clean diagonal X close icon, two equal crossed strokes, pale white #E9EDF4.
+
+2026-10-26 Settings action icons: panel-reset.png, panel-share.png, panel-power.png. Generated with built-in imagegen, transparent RGBA, normalized to 64px. Prompt: flat crisp centered conventional reset/share/power symbol, rounded strokes, light reset/share and red power, 65 percent canvas occupancy with generous transparent padding, no clipping/shadow/glow/text/background. Originals retained in the generation output directory.
