@@ -2320,9 +2320,9 @@ class _VideoGraphicsView(QGraphicsView):
 
         self._video_item = QGraphicsVideoItem()
         self._scene.addItem(self._video_item)
-        # Qt clears its video surface at EOF. Keep the last decoded frame above
-        # that surface, below captions, without converting every playing frame.
-        self._last_frame = QVideoFrame()
+        # Keep owned CPU pixels: retaining a hardware QVideoFrame beyond its
+        # sink lifetime can crash Windows when another player creates surfaces.
+        self._last_frame_image = QImage()
         self._held_frame = QGraphicsPixmapItem()
         self._held_frame.setZValue(1)
         self._held_frame.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
@@ -2333,16 +2333,18 @@ class _VideoGraphicsView(QGraphicsView):
         self._native_size = QSizeF(1920, 1080)
 
     def clear_held_frame(self, *_):
-        self._last_frame = QVideoFrame()
+        self._last_frame_image = QImage()
         self._held_frame.hide()
         self._held_frame.setPixmap(QPixmap())
 
     def _remember_frame(self, frame):
         if frame.isValid():
-            self._last_frame = QVideoFrame(frame)
+            image = frame.toImage()
+            if not image.isNull():
+                self._last_frame_image = image.copy()
             self._held_frame.hide()
-        elif self._last_frame.isValid():
-            image = self._last_frame.toImage()
+        elif not self._last_frame_image.isNull():
+            image = self._last_frame_image
             if not image.isNull():
                 self._held_frame.setPixmap(QPixmap.fromImage(image))
                 size = self._video_item.size()
@@ -3184,6 +3186,10 @@ class VideoPlayerWindow(QWidget):
         if scrub_timer is not None:
             scrub_timer.stop()
         try:
+            if self._video_view is not None:
+                self._video_view.video_item.videoSink().videoFrameChanged.disconnect(self._video_view._remember_frame)
+                self._video_view.clear_held_frame()
+                self._player.mediaStatusChanged.disconnect(self._hold_frame_at_end)
             self._player.setVideoOutput(None)
         except Exception:
             pass

@@ -219,6 +219,8 @@ def test_video_surface_holds_last_frame_at_eof_and_clears_for_new_source(app):
     image.fill(QColor('#18a340'))
     frame = QVideoFrame(image)
     view._remember_frame(frame)
+    # The cache owns pixels, not a hardware decoder surface or mapped frame.
+    assert view._last_frame_image is not image
     view._remember_frame(QVideoFrame())
     assert view._held_frame.isVisible()
     assert view._held_frame.pixmap().toImage().pixelColor(80, 45).green() > 140
