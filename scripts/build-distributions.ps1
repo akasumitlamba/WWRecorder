@@ -13,15 +13,31 @@ try {
     $pythonExe = (Get-Command python.exe).Source
     $pythonRoot = Split-Path $pythonExe
     $env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
-    $version = (& $pythonExe -c 'import ast; t=ast.parse(open("app/main.py", encoding="utf-8-sig").read()); print(next(ast.literal_eval(n.value) for n in t.body if isinstance(n,ast.Assign) and any(isinstance(x,ast.Name) and x.id=="APP_VERSION" for x in n.targets)))').Trim()
+    $versionMatch = (Get-Content (Join-Path $repoRoot 'app/main.py') | Where-Object { $_ -match 'APP_VERSION\s*=\s*["'']([^"'']+)["'']' } | Select-Object -First 1)
+    if ($versionMatch -match 'APP_VERSION\s*=\s*["'']([^"'']+)["'']') { $version = $matches[1].Trim() } else { throw 'Cannot read app version' }
     if ($LASTEXITCODE) { throw 'Cannot read app version' }
     $artifactVersion = $version
     if ($PackageVersion) { $artifactVersion = $PackageVersion } else { $PackageVersion = "$version.0" }
     $payload = Join-Path $repoRoot 'work\payloads\dual\WWRecorder'
+    # Hidden-import warnings are not failures in PyInstaller. Require the
+    # selected build interpreter to actually have Qt before analysis begins.
+    & $pythonExe -c "from PyQt6 import QtCore, QtGui, QtWidgets, QtMultimedia, QtMultimediaWidgets; import mss, numpy, PIL; print('Build Qt:', QtCore.QT_VERSION_STR)"
+    if ($LASTEXITCODE) { throw 'Build interpreter is missing mandatory runtime dependencies' }
     if (-not $SkipBuild) {
         & $pythonExe -m PyInstaller --clean --noconfirm --distpath work/payloads/dual --workpath work/build/dual packaging/shared/wwrecorder.spec
         if ($LASTEXITCODE) { throw 'PyInstaller build failed' }
     }
+    & $pythonExe scripts/validate_payload.py $payload
+    if ($LASTEXITCODE) { throw 'Frozen runtime validation failed; no installers will be produced' }
+    $smokeReceipt = Join-Path $repoRoot 'work\build\distribution-smoke.json'
+    Remove-Item -LiteralPath $smokeReceipt -ErrorAction SilentlyContinue
+    $smokeExe = Join-Path $payload 'WWRecorder.exe'
+    $smoke = Start-Process -FilePath $smokeExe -ArgumentList @('--distribution-smoke-test', ('"' + $smokeReceipt + '"')) -PassThru
+    if (-not $smoke.WaitForExit(15000)) { $smoke.Kill(); throw 'Frozen application startup timed out' }
+    $smoke.WaitForExit()
+    if ($smoke.ExitCode -ne 0 -or -not (Test-Path $smokeReceipt)) { throw 'Frozen application startup failed' }
+    $smokeResult = Get-Content -LiteralPath $smokeReceipt -Raw | ConvertFrom-Json
+    if (-not $smokeResult.ok) { throw 'Frozen startup probe did not succeed' }
     $badDlls = Get-ChildItem -LiteralPath $payload -Recurse -File | Where-Object { $_.Name -match '^(icuuc|icudt.*|ucrtbase|api-ms-win-.*)\.dll$' }
     if ($badDlls) { throw "Forbidden runtime DLLs in payload: $($badDlls.Name -join ', ')" }
     $identity = Get-Content -LiteralPath $IdentityFile -Raw | ConvertFrom-Json
@@ -31,8 +47,16 @@ try {
     New-Item -ItemType Directory -Path $output -Force | Out-Null
     if ($Format -in @('Both','Msix')) {
         New-Item -ItemType Directory -Path $msixOutput -Force | Out-Null
-        $sdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
-        $sdk = Get-ChildItem -LiteralPath $sdkRoot -Directory | Where-Object { $_.Name -match '^10\.' -and (Test-Path (Join-Path $_.FullName 'x64\makeappx.exe')) } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+        $sdkCandidateRoots = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'),
+            (Join-Path ${env:ProgramFiles} 'Windows Kits\10\bin'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\WindowsKits\10\bin')
+        ) | Where-Object { $_ -and (Test-Path $_) }
+        $sdk = $null
+        foreach ($root in $sdkCandidateRoots) {
+            $sdk = Get-ChildItem -LiteralPath $root -Directory | Where-Object { $_.Name -match '^10\.' -and (Test-Path (Join-Path $_.FullName 'x64\makeappx.exe')) } | Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+            if ($sdk) { break }
+        }
         if (-not $sdk) { throw 'Install Windows SDK with MakeAppx and SignTool first.' }
         $stage = Join-Path $repoRoot ('work\build\msix-' + [guid]::NewGuid().ToString('N'))
         & $pythonExe packaging/msix/stage_msix.py --payload $payload --stage $stage --identity $IdentityFile --version $PackageVersion
@@ -71,7 +95,14 @@ try {
     }
     if ($Format -in @('Both','Exe')) {
         New-Item -ItemType Directory -Path $exeOutput -Force | Out-Null
-        $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+        $isccCandidates = @(
+            (Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'),
+            (Join-Path ${env:ProgramFiles} 'Inno Setup 6\ISCC.exe'),
+            (Join-Path $env:LOCALAPPDATA 'Programs\Inno Setup 6\ISCC.exe'),
+            (Get-Command iscc.exe -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue)
+        ) | Where-Object { $_ -and (Test-Path $_) }
+        $iscc = $isccCandidates | Select-Object -First 1
+        if (-not $iscc) { throw 'Inno Setup 6 ISCC.exe not found' }
         & $iscc "/DDistDir=$payload" "/O$exeOutput" "/FWWRecorder_Setup_$($artifactVersion)_$($identity.channel)" packaging/exe/installer_config.iss
         if ($LASTEXITCODE) { throw 'EXE installer build failed' }
     }

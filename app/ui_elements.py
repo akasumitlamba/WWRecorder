@@ -821,14 +821,14 @@ class PillWidget(QWidget):
 
         self._audio_group, audio_layout = control_group("AudioGroup")
         self._btn_sys = _PillToolButton("desktop_audio.png", "Desktop Audio\nON", checkable=True, icon_off_filename="desktop_audiooff.png")
-        sys_state = self._engine.get_system_audio()
+        sys_state = self._engine.get_system_audio() if hasattr(self._engine, 'get_system_audio') else bool(self._config.get('record_system_audio', True))
         self._btn_sys.setChecked(sys_state)
         self._btn_sys.update_text("Desktop Audio\nON" if sys_state else "Desktop Audio\nOFF")
         self._btn_sys.toggled.connect(self._on_sys_toggled)
         audio_layout.addWidget(self._btn_sys)
 
         self._btn_mic = _PillToolButton("mic.png", "Microphone\nON", checkable=True, icon_off_filename="micoff.png")
-        mic_state = self._engine.get_mic()
+        mic_state = self._engine.get_mic() if hasattr(self._engine, 'get_mic') else bool(self._config.get('record_mic', True))
         self._btn_mic.setChecked(mic_state)
         self._btn_mic.update_text("Microphone\nON" if mic_state else "Microphone\nOFF")
         self._btn_mic.toggled.connect(self._on_mic_toggled)
@@ -1180,23 +1180,25 @@ class PillWidget(QWidget):
         self._stop_worker.save_finished.connect(self._on_save_done)
         self._stop_worker.start()
 
-    def _initiate_discard(self):
+    def _initiate_discard(self, *, confirm: bool = True):
         if self._stopping:
             return
-        if not self._pre_record:
-            confirm = QMessageBox(self)
-            confirm.setIcon(QMessageBox.Icon.Warning)
-            confirm.setWindowTitle("Discard Recording?")
-            confirm.setText("Discard this recording permanently?")
-            confirm.setInformativeText("Choose Stop instead if you want to keep it.")
-            confirm.setStandardButtons(
+        # Never call QMessageBox.exec() from closeEvent / teardown — nested
+        # modal loops on the GUI thread deadlock or freeze Windows shutdown.
+        if confirm and not self._pre_record:
+            box = QMessageBox(self)
+            box.setIcon(QMessageBox.Icon.Warning)
+            box.setWindowTitle("Discard Recording?")
+            box.setText("Discard this recording permanently?")
+            box.setInformativeText("Choose Stop instead if you want to keep it.")
+            box.setStandardButtons(
                 QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel
             )
-            confirm.setDefaultButton(QMessageBox.StandardButton.Cancel)
-            confirm.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-            confirm.show()
-            _exclude_from_capture(int(confirm.winId()))
-            if confirm.exec() != QMessageBox.StandardButton.Discard:
+            box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+            box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+            box.show()
+            _exclude_from_capture(int(box.winId()))
+            if box.exec() != QMessageBox.StandardButton.Discard:
                 return
         self._stopping = True
         self._keycast.stop()
@@ -1216,7 +1218,8 @@ class PillWidget(QWidget):
         threading.Thread(target=self._do_discard, daemon=True).start()
 
     def _do_discard(self):
-        self._engine.discard()
+        if hasattr(self._engine, "discard"):
+            self._engine.discard()
 
     def _on_save_done(self, filepath: str):
         self.save_completed.emit(filepath)
@@ -1226,8 +1229,15 @@ class PillWidget(QWidget):
         if self._preparing and not self._stopping:
             event.ignore()
             return
+        if (not self._stopping and not self._pre_record
+                and getattr(self._engine, 'is_recording', lambda: False)()):
+            # External window close must never silently discard a live take.
+            # Stop/save asynchronously; successful completion closes the pill.
+            event.ignore()
+            self._initiate_stop()
+            return
         if not self._stopping:
-            self._initiate_discard()
+            self._initiate_discard(confirm=False)
         if hasattr(self, '_topmost_timer'):
             self._topmost_timer.stop()
         self._keycast.stop()

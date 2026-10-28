@@ -7,9 +7,9 @@ TARGET_SIZES = (16, 24, 32, 48, 64, 96, 256)
 
 
 def render_icon(source, size):
-    # Transparent gutter keeps resampling away from the canvas boundary and
-    # avoids partly opaque corner pixels in small Windows shell variants.
-    inset = max(1, round(size * 0.04))
+    # Small taskbar frames need the full canvas. The artwork itself has rounded
+    # transparent corners; larger frames retain a narrow resampling gutter.
+    inset = 0 if size <= 32 else max(1, round(size * 0.015))
     artwork = source.convert('RGBA')
     artwork.putalpha(artwork.getchannel('A').point(lambda alpha: 255 if alpha >= 240 else alpha))
     bounds = artwork.getchannel('A').point(lambda alpha: 255 if alpha >= 64 else 0).getbbox()
@@ -17,6 +17,10 @@ def render_icon(source, size):
     content = ImageOps.contain(artwork, (size - inset * 2,) * 2, Image.Resampling.LANCZOS)
     result = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     result.alpha_composite(content, ((size-content.width)//2, (size-content.height)//2))
+    # Lanczos may leave faint colour/alpha in the four outside corners.
+    # These pixels are outside the rounded artwork and must stay transparent.
+    for point in ((0, 0), (size - 1, 0), (0, size - 1), (size - 1, size - 1)):
+        result.putpixel(point, (0, 0, 0, 0))
     return result
 
 

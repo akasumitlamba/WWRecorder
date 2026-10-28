@@ -31,6 +31,8 @@ def _glyph(painter, pixmap, x, y):
 
 @lru_cache(maxsize=96)
 def tool_cursor(tool, color='#FF5264', width=4):
+    if tool == 'arrow':
+        tool = 'crosshair'
     if tool in ('pencil','highlighter'):
         size = 80 if width > 24 else 48
         x,y = size//2-4,size//2+8

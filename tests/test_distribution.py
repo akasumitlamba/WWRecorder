@@ -68,30 +68,63 @@ def test_imported_settings_are_loaded_without_losing_preferences(monkeypatch, tm
     assert source.read_bytes() == target.read_bytes() == original
 
 
-def test_packaged_updater_cannot_contact_github(monkeypatch, app):
+def test_packaged_updater_never_queries_github_and_delegates_store(monkeypatch, app):
+    """Only Microsoft Store can establish availability for packaged installs."""
     monkeypatch.setattr(updater, "is_packaged", lambda: True)
-    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **kw: pytest.fail("MSIX queried EXE feed"))
+    monkeypatch.setattr(updater, "store_url", lambda: distribution.STORE_LIBRARY_URL)
+    payload = {
+        "tag_name": "v1.8.0",
+        "assets": [{
+            "name": "WWRecorder_Setup_1.8.0.exe",
+            "browser_download_url": "https://github.com/akasumitlamba/WWRecorder/releases/download/v1.8.0/WWRecorder_Setup_1.8.0.exe",
+        }],
+    }
+
+    class FakeResp:
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def read(self):
+            return json.dumps(payload).encode()
+
+    monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: pytest.fail("MSIX queried GitHub"))
     worker = updater.UpdateChecker("1.6.3")
+    worker._packaged = True
     failures, successes = [], []
     worker.check_failed.connect(failures.append)
     worker.check_finished.connect(lambda *args: successes.append(args))
     worker.run()
-    assert failures and not successes
+    assert successes and not failures
+    available, version, action, download = successes[0]
+    assert available is False
+    assert version == ""
+    assert download == ""
+    assert action == distribution.STORE_LIBRARY_URL
 
 
-def test_packaged_update_button_opens_store_without_starting_worker(monkeypatch, app):
+def test_packaged_update_button_ignores_exe_version_and_opens_store(monkeypatch, app):
     monkeypatch.setattr(dock_widget, "is_packaged", lambda: True)
-    monkeypatch.setattr(dock_widget, "update_url", lambda: distribution.STORE_LIBRARY_URL)
     opened = []
+    monkeypatch.setattr(dock_widget, "store_url", lambda: distribution.STORE_LIBRARY_URL)
     monkeypatch.setattr(dock_widget.webbrowser, "open", opened.append)
     sidebar = dock_widget.SettingsSidebar({"current_version": "1.6.3"})
-    sidebar._on_check_updates()
-    sidebar.set_update_status(False, "", "")
-    assert sidebar._updater is None
+    sidebar.set_update_status(True, "v1.8.0", distribution.STORE_LIBRARY_URL, "")
+    sidebar._on_update_now()
     assert opened == [distribution.STORE_LIBRARY_URL]
-    assert sidebar._btn_check_update.isEnabled()
-    assert "latest" not in sidebar._lbl_update_status.text().lower()
+    assert "Store" in sidebar._btn_check_update.text()
+    assert "1.8.0" not in sidebar._lbl_update_status.text()
+    assert "manages updates" in sidebar._lbl_update_status.text()
     sidebar.close()
+
+
+def test_packaged_installer_downloader_is_blocked(monkeypatch, app):
+    monkeypatch.setattr(updater, "is_packaged", lambda: True)
+    worker = updater.InstallerDownloader("https://github.com/akasumitlamba/WWRecorder/releases/download/v1/WWRecorder_Setup_1.exe")
+    failures = []
+    worker.download_failed.connect(failures.append)
+    worker.run()
+    assert failures
 
 
 class Operation:
@@ -172,3 +205,16 @@ def test_packaged_startup_never_writes_run_registry(monkeypatch, app):
     fake = SimpleNamespace(config={"start_on_boot": True}, _packaged_startup=SimpleNamespace(sync=calls.append))
     main.WWRecorderApp._sync_registry(fake)
     assert calls == [True]
+
+
+def test_packaged_manual_check_opens_store_without_starting_worker(monkeypatch,app):
+    monkeypatch.setattr(dock_widget, 'is_packaged', lambda: True)
+    monkeypatch.setattr(dock_widget, 'store_url', lambda: distribution.STORE_LIBRARY_URL)
+    opened=[]
+    monkeypatch.setattr(dock_widget.webbrowser, 'open', opened.append)
+    monkeypatch.setattr(dock_widget, 'UpdateChecker', lambda *a: pytest.fail('Store check started GitHub worker'))
+    sidebar=dock_widget.SettingsSidebar({'current_version':'1.7.0'})
+    sidebar._on_check_updates()
+    assert opened == [distribution.STORE_LIBRARY_URL]
+    assert not sidebar._update_status['available']
+    sidebar.close()
