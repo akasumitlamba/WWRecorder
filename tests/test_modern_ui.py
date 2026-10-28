@@ -292,3 +292,21 @@ def test_compact_processing_notice_closes_without_cancelling_work(app):
     assert popup.isHidden() and not popup._activity._timer.isActive()
     popup.show_saving();app.processEvents();assert popup._activity._timer.isActive()
     popup.close()
+
+
+def test_laser_toolbar_keeps_approved_art_when_changing_color(app):
+    from annotation_tool import AnnotationPill
+    from PyQt6.QtGui import QIcon
+    pill = AnnotationPill()
+    button = pill._tool_btns['laser']
+    expected = QIcon(asset_path('laser.png')).pixmap(64, 64).toImage()
+    assert button.icon().pixmap(64, 64).toImage() == expected
+    for color in ('#FFFFFF', '#111111', '#FF3B30'):
+        pill._select_color(QColor(color))
+        assert button.icon().pixmap(64, 64).toImage() == expected
+    pill.close()
+
+
+def test_superseded_root_pngs_are_not_shipped():
+    for path in (ROOT / 'app/icons').glob('*.png'):
+        assert Path(asset_path(path.name)) == path

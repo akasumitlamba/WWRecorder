@@ -133,12 +133,13 @@ def test_scrubbing_flushes_before_release_and_preserves_paused_state(app,monkeyp
     window.close()
 
 
-def test_scrubbing_decodes_a_frame_before_mouse_release(app,tmp_path):
+def test_scrubbing_decodes_a_frame_before_mouse_release(app,tmp_path,monkeypatch):
     import shutil, subprocess, time
     from pathlib import Path
     ffmpeg=shutil.which('ffmpeg') or str(Path(__file__).resolve().parents[1]/'app/ffmpeg.exe')
+    monkeypatch.setattr('video_editor._get_ffmpeg', lambda: ffmpeg)
     video=tmp_path/'scrub.mkv'
-    subprocess.run([ffmpeg,'-v','error','-y','-f','lavfi','-i','testsrc2=size=160x90:rate=10:duration=4','-c:v','libx264','-g','10',str(video)],check=True,timeout=30)
+    subprocess.run([ffmpeg,'-v','error','-y','-f','lavfi','-i','testsrc2=size=1280x720:rate=30:duration=4','-c:v','libx264','-g','120',str(video)],check=True,timeout=30)
     window=VideoPlayerWindow(str(video))
     frames=[]
     window._video_view.video_item.videoSink().videoFrameChanged.connect(lambda frame:frames.append(frame.startTime()))
@@ -152,10 +153,119 @@ def test_scrubbing_decodes_a_frame_before_mouse_release(app,tmp_path):
         window._on_seekbar_pressed()
         frames.clear()
         window._on_seekbar_moved(2200)
-        wait_for(lambda:any(2000000 <= at <= 2400000 for at in frames))
+        wait_for(lambda:window._scrub_preview_position == 2200)
+        assert window._video_view._held_frame.isVisible()
+        # Keep moving: multiple distinct decoded images must arrive before release.
+        observed = set()
+        for position in range(400, 3400, 100):
+            window._on_seekbar_moved(position)
+            QTest.qWait(100)
+            if window._scrub_preview_position is not None:
+                observed.add(window._scrub_preview_position)
+        assert len(observed) >= 3
         assert window._seekbar_dragging
         window._on_seekbar_released()
     finally:
         window._scrub_timer.stop()
         window._player.stop()
         window.close()
+
+@pytest.mark.parametrize('inline', [False, True])
+def test_text_remove_immediately_destroys_preview_and_timeline(app, monkeypatch, inline):
+    from PyQt6 import sip
+    from video_editor import DraggableTextItem
+    window = VideoPlayerWindow('')
+    window._thumbnails_loaded = True
+    monkeypatch.setattr(window._player, 'duration', lambda: 10000)
+    window._toggle_edit_mode()
+    window._add_text_overlay()
+    row = window._text_overlays_container.itemAt(0).widget()
+    overlay = row.item
+    graphics = overlay._gfx_item
+    if inline:
+        graphics._start_editing()
+    # Use the real sidebar removal signal, not just the controller method.
+    row.removed.emit(row)
+    assert not window._text_overlays
+    assert not window._timeline._text_overlays
+    assert window._text_overlays_container.count() == 0
+    assert overlay._gfx_item is None and sip.isdeleted(graphics)
+    assert not any(isinstance(item, DraggableTextItem) for item in window._video_view.gfx_scene.items())
+    assert row.isHidden()
+    window._force_exit_edit_mode()
+    window.close()
+
+
+def test_caption_action_buttons_do_not_resize_with_caption(app):
+    from video_editor import DraggableTextItem, _VideoGraphicsView
+    view = _VideoGraphicsView()
+    model = _TextOverlayItem()
+    graphics = DraggableTextItem(model, view.video_item)
+    view.gfx_scene.addItem(graphics)
+    original = graphics._action_bar.boundingRect()
+    for font_size in (12, 32, 80, 140, 24):
+        model.font_size = font_size
+        graphics.update_style()
+        assert graphics._action_bar.boundingRect() == original
+    view.close()
+
+
+def test_video_surface_holds_last_frame_at_eof_and_clears_for_new_source(app):
+    from PyQt6.QtGui import QImage, QColor
+    from PyQt6.QtMultimedia import QVideoFrame
+    from video_editor import _VideoGraphicsView
+    view = _VideoGraphicsView()
+    image = QImage(160, 90, QImage.Format.Format_RGB32)
+    image.fill(QColor('#18a340'))
+    frame = QVideoFrame(image)
+    view._remember_frame(frame)
+    view._remember_frame(QVideoFrame())
+    assert view._held_frame.isVisible()
+    assert view._held_frame.pixmap().toImage().pixelColor(80, 45).green() > 140
+    view._remember_frame(frame)
+    assert not view._held_frame.isVisible()
+    view._remember_frame(QVideoFrame())
+    view.clear_held_frame()
+    assert not view._held_frame.isVisible()
+    assert view._held_frame.pixmap().isNull()
+    view.close()
+
+
+def test_caption_time_changes_update_preview_without_playback(app, monkeypatch):
+    window = VideoPlayerWindow('')
+    window._thumbnails_loaded = True
+    monkeypatch.setattr(window._player, 'duration', lambda: 10000)
+    monkeypatch.setattr(window._player, 'position', lambda: 2000)
+    window._toggle_edit_mode()
+    window._add_text_overlay()
+    row = window._text_overlays_container.itemAt(0).widget()
+    graphics = row.item._gfx_item
+    assert graphics.isVisible()
+    row.set_start_time(3000)
+    assert not graphics.isVisible()
+    row.set_start_time(1000)
+    assert graphics.isVisible()
+    window._remove_text_overlay(row)
+    window._force_exit_edit_mode()
+    window.close()
+
+
+def test_scrub_cleanup_accepts_partial_initialization(app):
+    window = VideoPlayerWindow('')
+    del window._scrub_process
+    window._cancel_scrub_decoder()
+    assert window._scrub_process is None
+    window.close()
+
+
+def test_scrub_time_label_tracks_pointer_before_decoder_completes(app, monkeypatch):
+    window = VideoPlayerWindow('')
+    monkeypatch.setattr(window._player, 'duration', lambda: 10000)
+    monkeypatch.setattr(window._player, 'position', lambda: 1000)
+    window._seekbar.setRange(0, 10000)
+    window._on_seekbar_pressed()
+    window._seekbar.setValue(7000)
+    window._on_seekbar_moved(7000)
+    assert window._lbl_time.text() == '00:07 / 00:10'
+    window._scrub_timer.stop()
+    window.close()
