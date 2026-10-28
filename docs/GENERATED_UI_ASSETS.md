@@ -48,3 +48,12 @@ WWRecorder icon, Additional options heading, two fully visible native checkbox
 rows, and native Back/Next/Cancel footer. It explicitly requested an external
 'DESIGN PREVIEW — native Windows rendering may differ' caption. Native Windows
 layout/font/accent/checkbox rendering still requires verification.
+
+Desktop feedback follow-up: `clear_brush.png` is an imagegen-created transparent
+hand-brush icon with off-white bristles/handle and red collar, designed for
+22px annotation controls. It replaces the provisional geometric brush. The
+source PNG is retained without redraw; Qt scales it for toolbar display.
+`power.png/.svg` are repo-native red geometry, reproducible using
+`scripts/build_power_icon.py`. Deletion retains its original trash icon.
+Installer branding uses the original PNG icon and native Inno text with red R;
+label colors use supported Pascal scripting properties.

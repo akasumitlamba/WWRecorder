@@ -1034,7 +1034,7 @@ def test_file_row_has_one_combined_image_action_and_drag_preview(app, tmp_path):
 
     menu = row._build_actions_menu()
     assert [action.text() for action in menu.actions()] == [
-        "Open & Edit", "Copy", "Rename", "Delete"
+        "Open in editor", "Copy", "Rename", "Delete"
     ]
     assert hasattr(row, '_btn_menu')
     assert row._btn_menu.text() == ""

@@ -20,7 +20,7 @@ CONTROL_STYLE = '''
     QToolButton:hover, QPushButton:hover { background: #303B4E; border-color: #6A7890; }
     QToolButton:pressed, QPushButton:pressed { background: #151C28; border-color: #FF7382; }
     QToolButton:checked, QPushButton:checked { background: #492333; border-color: #FF7382; }
-    QToolButton:focus, QPushButton:focus { border-color: #FF7382; }
+    QToolButton:focus, QPushButton:focus { border-color: #424B5D; }
     QToolButton:disabled, QPushButton:disabled { background: #191E28; border-color: #303744; }
     QToolButton::menu-indicator { image: none; }
 '''

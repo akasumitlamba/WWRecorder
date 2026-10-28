@@ -575,3 +575,40 @@ def test_cleanup_has_bounded_stop_and_join_even_if_backend_stalls():
     assert time.monotonic() - before < 0.3
     assert "timed out" in session.cleanup_error
     gate.set()
+
+@pytest.mark.parametrize('vk,name,label',[(0x5B,'cmd','Win'),(0x5C,'cmd','Win'),(0xAD,'media_volume_mute','Mute'),(0xAE,'media_volume_down','Vol−'),(0xAF,'media_volume_up','Vol+'),(0x70,'text','F1'),(0x7B,'text','F12'),(0x87,'text','F24')])
+def test_raw_windows_system_key_faces(vk,name,label):
+    face=kc.key_face(key(vk=vk))
+    assert (face.kind,face.text)==(name,label)
+
+
+def test_held_shift_chords_keep_case_and_no_redundant_modifier_labels():
+    history=kc.KeycastHistory()
+    history.press(kc.KeyFace('shift','Shift'),('shift',),0)
+    for index,char in enumerate('SUMIT'):
+        history.press(kc.KeyFace('text',char),('shift',),2+index)
+    assert len(history.keys)==5
+    for entry,char in zip(history.keys,'SUMIT'):
+        assert entry.faces==(kc.KeyFace('shift',''),kc.KeyFace('text',char))
+    history.press(kc.KeyFace('text','s'),(),8)
+    assert history.keys[-1].faces[-1].text=='s'
+
+
+def test_raw_keyboard_filter_captures_system_keys_once_without_suppression(monkeypatch):
+    monkeypatch.setattr(kc.sys,'platform','linux')
+    hooks={}
+    def factory(**callbacks):
+        hooks.update(callbacks)
+        return [FakeListener(),FakeListener()]
+    session=kc.InputSession(factory)
+    try:
+        await_condition(lambda:session.ready)
+        for vk in (0x5B,0xAF,0x7B):
+            assert hooks['keyboard_filter'](0x100,SimpleNamespace(vkCode=vk)) is False
+            assert hooks['keyboard_filter'](0x101,SimpleNamespace(vkCode=vk)) is False
+        assert hooks['keyboard_filter'](0x100,SimpleNamespace(vkCode=0x41)) is True
+        events,error=session.drain()
+        assert error is None
+        assert [event[1].text for event in events]==['Win','Vol+','F12']
+        assert not session.modifiers
+    finally:session.stop()

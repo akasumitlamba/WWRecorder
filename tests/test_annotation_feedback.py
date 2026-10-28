@@ -41,7 +41,7 @@ def test_gauge_shows_diagonal_stroke_with_increasing_width(qt_app, size, compact
         button.set_thickness_label(level)
         qt_app.processEvents()
         image = button.grab().toImage()
-        pixels = [(x, y) for x in range(image.width()) for y in range(image.height())
+        pixels = [(x, y) for x in range(min(image.width(), 34)) for y in range(image.height())
                   if image.pixelColor(x, y).red() > image.pixelColor(x, y).green() + 25
                   and image.pixelColor(x, y).red() > image.pixelColor(x, y).blue() + 25]
         assert pixels

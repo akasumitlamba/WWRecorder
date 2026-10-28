@@ -99,7 +99,7 @@ WizardSelectTasks=Additional options
 SelectTasksDesc=Choose how WWRecorder starts and where shortcuts appear.
 SelectTasksLabel2=Select the options you want, then click Next.
 WelcomeLabel1=Welcome to WWRecorder Setup
-WelcomeLabel2=Install WWRecorder to capture your screen, microphone and computer audio.%n%nClick Next to continue.
+WelcomeLabel2=Install WWRecorder to capture your screen, microphone and computer audio.
 FinishedHeadingLabel=WWRecorder is ready
 FinishedLabelNoIcons=Setup has installed WWRecorder on your computer. Click Finish to close Setup.
 
@@ -171,8 +171,60 @@ Type: dirifempty; Name: "{userappdata}\{#MyAppName}"
 ; ============================================================================
 [Code]
 
+var
+  BrandLogo: TBitmapImage;
+  BrandWW, BrandR, BrandRest: TNewStaticText;
+
+procedure AddInstallerBranding();
+var
+  LeftEdge, TopEdge, TotalWidth: Integer;
+begin
+  { Native controls keep the established app icon and exact red-R spelling. }
+  BrandLogo := TBitmapImage.Create(WizardForm);
+  BrandLogo.Parent := WizardForm.WelcomePage;
+  BrandLogo.PngImage.Assign(WizardForm.WizardSmallBitmapImage.PngImage);
+  BrandLogo.Stretch := True;
+  BrandLogo.AutoSize := False;
+  BrandLogo.Width := ScaleX(64);
+  BrandLogo.Height := ScaleY(64);
+  BrandLogo.Left := (WizardForm.WizardBitmapImage.Width - BrandLogo.Width) div 2;
+  BrandLogo.Top := ScaleY(62);
+  BrandWW := TNewStaticText.Create(WizardForm);
+  BrandR := TNewStaticText.Create(WizardForm);
+  BrandRest := TNewStaticText.Create(WizardForm);
+  BrandWW.Parent := WizardForm.WelcomePage;
+  BrandR.Parent := WizardForm.WelcomePage;
+  BrandRest.Parent := WizardForm.WelcomePage;
+  BrandWW.Caption := 'WW';
+  BrandR.Caption := 'R';
+  BrandRest.Caption := 'ecorder';
+  BrandWW.Font.Name := 'Segoe UI';
+  BrandWW.Font.Size := 16;
+  BrandWW.Font.Style := [fsBold];
+  BrandWW.Font.Color := $F5F2F0;
+  BrandR.Font.Assign(BrandWW.Font);
+  BrandR.Font.Color := $5540FF;
+  BrandRest.Font.Assign(BrandWW.Font);
+  BrandWW.Color := $1D1511;
+  BrandR.Color := $1D1511;
+  BrandRest.Color := $1D1511;
+  BrandWW.AutoSize := True;
+  BrandR.AutoSize := True;
+  BrandRest.AutoSize := True;
+  TotalWidth := BrandWW.Width + BrandR.Width + BrandRest.Width;
+  LeftEdge := (WizardForm.WizardBitmapImage.Width - TotalWidth) div 2;
+  TopEdge := BrandLogo.Top + BrandLogo.Height + ScaleY(16);
+  BrandWW.Left := LeftEdge;
+  BrandWW.Top := TopEdge;
+  BrandR.Left := BrandWW.Left + BrandWW.Width;
+  BrandR.Top := TopEdge;
+  BrandRest.Left := BrandR.Left + BrandR.Width;
+  BrandRest.Top := TopEdge;
+end;
+
 procedure InitializeWizard();
 begin
+  AddInstallerBranding();
   { Keep complete glyph bounds at fractional DPI, with comfortable line spacing. }
   WizardForm.TasksList.MinItemHeight := ScaleY(26);
   WizardForm.TasksList.Offset := ScaleX(8);

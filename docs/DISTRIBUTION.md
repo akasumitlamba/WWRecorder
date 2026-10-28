@@ -8,7 +8,7 @@ Build on Windows with Python dependencies, PyInstaller, FFmpeg, Inno Setup and W
 ./scripts/build-distributions.ps1 -Format Both
 ```
 
-Both installers must derive from the same sanitized PyInstaller payload. Definitions live under `packaging/exe`, `packaging/msix` and `packaging/shared`. Outputs live under `artifacts/windows/<version>/<channel>/<edition>`. Preserve historical artifacts. Current app version is 1.7.0 and local-test package revision is 1.7.0.12.
+Both installers must derive from the same sanitized PyInstaller payload. Definitions live under `packaging/exe`, `packaging/msix` and `packaging/shared`. Outputs live under `artifacts/windows/<version>/<channel>/<edition>`. Preserve historical artifacts. Current app version is 1.7.0 and local-test package revision is 1.7.0.13.
 
 The EXE uses the official GitHub release feed. MSIX must not query that feed or offer an EXE updater; its update path belongs to its distribution channel. Local-test identity and certificates are not production Microsoft Store identities. Never infer a Store identity from an existing EXE listing. Do not commit private signing keys or machine-specific build configuration.
 
