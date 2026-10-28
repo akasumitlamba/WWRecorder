@@ -93,3 +93,11 @@ v1.6 unless a further defect was corrected.
   multi-monitor gestures and native installer acceptance need Windows testing.
   The downloadable MSIX kit uses a local-test certificate/identity, not a Store
   production package. The direct EXE is unsigned.
+
+## Automated validation for the current preview
+
+- Windows: 1,062 tests passed; three desktop-only cases skipped in offscreen CI.
+- Linux portable/public-source suite: 888 passed; 29 Windows-only cases skipped.
+- Required compilation, unattended test bootstrap and report generation passed.
+- Frozen Qt payload/startup gates and both distribution builds passed.
+- Physical hardware and installed-desktop acceptance are separate from these checks.
