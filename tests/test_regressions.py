@@ -1264,7 +1264,10 @@ def test_escape_cancels_sidebar_inline_rename(app, tmp_path):
     row.close()
 
     row._copy_file()
-    assert row._btn_menu.text() == "✓"
+    assert row._btn_menu.text() == ""
+    assert not row._btn_menu.icon().isNull()
+    confirmation = row._btn_menu.icon().pixmap(24, 24).toImage()
+    assert confirmation != row._menu_dots_icon.pixmap(24, 24).toImage()
     assert Path(QApplication.clipboard().mimeData().urls()[0].toLocalFile()) == filepath
     row._restore_menu_dots()
     assert row._btn_menu.text() == ""
@@ -1396,7 +1399,7 @@ def test_player_uses_bottom_right_file_actions_without_a_duplicate_title_row(app
     window.deleteLater()
 
 
-def test_player_speed_label_is_outside_a_filled_speed_selector_and_play_is_red(app, tmp_path, monkeypatch):
+def test_player_speed_selector_is_compact_generated_and_play_is_charcoal(app, tmp_path, monkeypatch):
     video_path = tmp_path / "speed.mkv"
     video_path.touch()
     monkeypatch.setattr(VideoPlayerWindow, "_extract_thumbnails", lambda self: None)
@@ -1405,12 +1408,14 @@ def test_player_speed_label_is_outside_a_filled_speed_selector_and_play_is_red(a
     window.show()
     app.processEvents()
 
-    assert window._lbl_speed.text() == "Speed"
-    assert window._lbl_speed.parentWidget() is not window._speed_control
+    assert not any(label.text() == "Speed" for label in window.findChildren(type(window._lbl_time)))
+    assert window._speed_control.width() <= 84
+    assert window._cmb_speed.count() == 5
+    assert all(not window._cmb_speed.itemIcon(i).isNull() for i in range(5))
     assert window._cmb_speed.parentWidget() is window._speed_control
     assert window._cmb_speed.width() >= window._speed_control.width() - 4
     style = window._btn_play.styleSheet()
-    assert "#B91C1C" in style and "#FF4055" not in style
+    assert "#282F3A" in style and "qlineargradient" not in style
 
     window._close_ready = True
     window.close()
@@ -1713,8 +1718,13 @@ def test_exe_settings_exposes_download_update_and_opt_in_preview_link(app):
     assert sidebar._dev_mode_details.isHidden()
     assert sidebar._lbl_dev_mode_info.wordWrap()
     assert sidebar._btn_dev_releases.sizePolicy().horizontalPolicy() == QSizePolicy.Policy.Expanding
-    sidebar.set_update_status(True, "v1.6.3", "https://github.com/akasumitlamba/WWRecorder/releases/latest")
-    assert sidebar._btn_check_update.text() == "Open download page"
+    sidebar.set_update_status(
+        True,
+        "v1.6.3",
+        "https://github.com/akasumitlamba/WWRecorder/releases/latest",
+        "https://github.com/akasumitlamba/WWRecorder/releases/download/v1.6.3/WWRecorder_Setup_1.6.3.exe",
+    )
+    assert sidebar._btn_check_update.text() == "Download & Install"
     sidebar._chk_developer_mode.setChecked(True)
     assert not sidebar._dev_mode_details.isHidden()
     assert not sidebar._btn_dev_releases.isHidden()

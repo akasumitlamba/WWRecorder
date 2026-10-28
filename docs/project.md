@@ -18,3 +18,9 @@ Recording controls keep speaker and microphone toggles separate from the microph
 Install dependencies from requirements.txt and launch `python app/main.py`. Run tests with `python -m pytest`. Windows-specific suites require a Windows host and dependencies; Linux offscreen results are partial verification only.
 
 Current panel refinement: stable dock monitor/location through panel interactions, sequential panel/companion motion, horizontal Settings secondary actions left and Save right, approximately 10% smaller gallery cards, and matching Undo/Redo. Download filenames use normal application names. MSIX keeps its existing local-test identity/signing; naming does not imply Store certification.
+
+## Current capture and editing behavior
+Live capture uses ultrafast CRF 20, with final recording compression at CRF 25.
+The player offers five playback speeds, frame screenshots and a sectioned editor
+for trim, deletion, captions and multiple source-time mute ranges. The existing
+timeline retains caption lanes and zoom. Both Windows packages share this code.

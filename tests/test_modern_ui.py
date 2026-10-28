@@ -168,3 +168,117 @@ def test_editor_keeps_transport_and_file_actions_available(app,monkeypatch):
     assert all(not w.isVisible() for w in window._playback_only_widgets)
     assert not window._btn_save_as.icon().isNull()
     window._close_ready=True;window.close();app.processEvents()
+
+
+def test_arrow_cursor_is_plain_crosshair(app):
+    assert tool_cursor('arrow').pixmap().toImage() == tool_cursor('crosshair').pixmap().toImage()
+
+
+def test_player_filename_header_and_action_order(app, tmp_path):
+    path = tmp_path / 'My recording.mkv'
+    window = VideoPlayerWindow(str(path))
+    try:
+        assert window.windowTitle() == path.name
+        assert not window.windowIcon().isNull()
+        assert window._btn_screenshot.text() == ''
+        layout = window._player_file_actions.layout()
+        assert [layout.itemAt(i).widget() for i in range(layout.count())] == [
+            window._btn_screenshot, window._btn_edit, window._btn_fullscreen]
+    finally:
+        window.close()
+
+
+def test_speed_indicators_distinguish_all_rates(app):
+    window = VideoPlayerWindow('')
+    images = []
+    window.setWindowState(Qt.WindowState.WindowNoState)
+    window.show()
+    app.processEvents()
+    try:
+        for index in range(window._cmb_speed.count()):
+            window._cmb_speed.setCurrentIndex(index)
+            app.processEvents()
+            window._cmb_speed.repaint()
+            images.append(window._cmb_speed.grab().toImage().copy())
+        for index, image in enumerate(images):
+            if not all(image != other for other in images[index + 1:]):
+                target = Path(os.environ.get('WWR_E2E_REPORT_DIR', str(ROOT/'work')))
+                target.mkdir(parents=True, exist_ok=True)
+                for number, captured in enumerate(images):
+                    captured.save(str(target/f'speed-state-{number}.png'))
+                pytest.fail('Speed labels rendered identically; diagnostic images saved in report directory')
+    finally:
+        window.close()
+        app.processEvents()
+
+
+def test_editor_heading_uses_red_vertical_separator(app):
+    window = VideoPlayerWindow('Capture.mkv')
+    window._thumbnails_loaded = True
+    window._toggle_edit_mode()
+    assert '> | </span>' in window._edit_heading.text()
+    assert '> / </span>' not in window._edit_heading.text()
+    assert window.windowTitle() == 'Capture.mkv  |  Edit mode'
+    window._force_exit_edit_mode()
+    window.close()
+
+
+@pytest.mark.parametrize('width', [1100, 1280, 1440])
+def test_flat_player_controls_and_centred_play_button(app, width):
+    window = VideoPlayerWindow('')
+    window.setWindowState(Qt.WindowState.WindowNoState)
+    window.resize(width, 700)
+    window.show()
+    app.processEvents()
+    window._refresh_controls_geometry()
+    app.processEvents()
+    controls = window._controls_widget
+    center = window._btn_play.mapTo(controls, window._btn_play.rect().center())
+    assert abs(center.x() - controls.rect().center().x()) <= 2
+    for button in (window._btn_vol, window._btn_screenshot, window._btn_edit,
+                   window._btn_back_30, window._btn_fwd_30, window._btn_fullscreen):
+        button.clearFocus()
+        assert 'background: transparent' in button.styleSheet()
+        # Render the actual widget: unhovered corners should blend with its surface.
+        image = button.grab().toImage()
+        color = image.pixelColor(1, 1)
+        assert max(color.red(), color.green(), color.blue()) < 35
+    assert 'background: transparent; border: none' in window._speed_control.styleSheet()
+    window.close()
+    app.processEvents()
+
+
+@pytest.mark.parametrize('playing', [False, True])
+def test_play_pause_visible_art_is_optically_centred(app, playing):
+    from PyQt6.QtMultimedia import QMediaPlayer
+    window = VideoPlayerWindow('')
+    window._on_state_changed(QMediaPlayer.PlaybackState.PlayingState if playing
+                             else QMediaPlayer.PlaybackState.PausedState)
+    button = window._btn_play
+    button.clearFocus()
+    image = button.grab().toImage()
+    points = [(x + .5, y + .5) for y in range(image.height()) for x in range(image.width())
+              if min(image.pixelColor(x, y).red(), image.pixelColor(x, y).green(),
+                     image.pixelColor(x, y).blue()) > 170
+              and 8 < x < image.width() - 8 and 8 < y < image.height() - 8]
+    assert points
+    assert abs(sum(x for x, y in points) / len(points) - image.width() / 2) < 1
+    assert abs(sum(y for x, y in points) / len(points) - image.height() / 2) < 1
+    assert button.toolTip() == ('Pause preview' if playing else 'Play preview')
+    window.close()
+    app.processEvents()
+
+
+@pytest.mark.parametrize('index,rate,label', [(0,.25,'0.25×'),(1,.5,'0.5×'),(2,1,'1×'),(3,1.5,'1.5×'),(4,2,'2×')])
+def test_generated_speed_family_sets_actual_playback_rate(app,index,rate,label):
+    window = VideoPlayerWindow('')
+    window._cmb_speed.setCurrentIndex(index)
+    assert window._cmb_speed.currentText() == label
+    assert window._player.playbackRate() == rate
+    assert window._cmb_speed.accessibleName() == 'Playback speed'
+    assert window._speed_control.width() <= 84
+    symbol = window._cmb_speed.itemIcon(index).pixmap(16,16).toImage()
+    assert not symbol.isNull()
+    assert symbol == window._cmb_speed.itemIcon(0).pixmap(16,16).toImage()
+    window.close()
+    app.processEvents()

@@ -112,8 +112,8 @@ def test_unplated_assets_have_transparent_edges_and_real_sizes(tmp_path):
 import pytest
 
 @pytest.mark.parametrize('names,accepted', [
-    (['WWRecorder_1.7.0.10_x64.msix'], True),
-    (['WWRecorder_1.7.0.10_x64_local-test.msix'], True),
+    (['WWRecorder_1.7.0.11_x64.msix'], True),
+    (['WWRecorder_1.7.0.11_x64_local-test.msix'], True),
     ([], False),
     (['first.msix','second.msix'], False),
 ])
@@ -132,7 +132,7 @@ def test_msix_install_helper_discovers_normal_names_and_rejects_ambiguity(tmp_pa
     # or deploying a package. Signature/manifest validation remains mandatory.
     script=tmp_path/'discovery.ps1'
     script.write_text("$ErrorActionPreference='Stop'\n"+discovery+"\nWrite-Output $packages[0].Name\n")
-    result=subprocess.run([shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=20)
+    result=subprocess.run([shell,'-NoProfile','-ExecutionPolicy','Bypass','-File',str(script)],capture_output=True,text=True,timeout=20)
     assert (result.returncode==0) is accepted, result.stderr
     if accepted:
         assert names[0] in result.stdout

@@ -28,6 +28,9 @@ CONTROL_STYLE = '''
 
 def asset_path(filename):
     base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    # Recording keeps the original recognizable camera, not a record dot.
+    if filename == 'record.png':
+        return os.path.join(base, 'icons', filename)
     stem, extension = os.path.splitext(filename)
     name = ALIASES.get(stem, stem)
     modern = os.path.join(base, 'icons', 'modern', name + extension)

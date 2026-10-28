@@ -474,9 +474,12 @@ def get_tool_cursor(tool: str, color: QColor, thickness: str = 'normal') -> QCur
     if tool in ('pencil', 'highlighter'):
         width = THICKNESS_LEVELS.get(tool, {}).get(thickness, 4)
         return tool_cursor(tool, QColor(color).name(), width)
-    if tool in ('eraser', 'text', 'crop'):
+    if tool == 'eraser':
+        return tool_cursor('crosshair')
+    if tool in ('text', 'crop'):
+
         return tool_cursor(tool)
-    return tool_cursor('arrow' if tool == 'arrow' else 'crosshair')
+    return tool_cursor('crosshair')
 
 # ── Shared paint helper ──────────────────────────────────────────────────────
 
@@ -691,8 +694,8 @@ class _ToastWidget(QWidget):
         # its QSS background. Paint an opaque backing before the child labels.
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor("#55555A"), 1.0))
-        painter.setBrush(QColor("#1C1C1E"))
+        painter.setPen(QPen(QColor("#424B5D"), 1.0))
+        painter.setBrush(QColor("#151923"))
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 12.0, 12.0)
 
     def show_message(self, text: str, icon_path: str):
@@ -1117,58 +1120,58 @@ class AnnotationCanvas(QWidget):
         nearest_y = y1 + t * dy
         return math.hypot(px - nearest_x, py - nearest_y)
 
-    def _hit_test(self, pos: QPoint, item: dict) -> bool:
+    def _hit_test(self, pos, item: dict) -> bool:
         t = item['type']
-        px, py = pos.x(), pos.y()
-        threshold = 12 # pixels
+        px, py = float(pos.x()), float(pos.y())
+        base_threshold = 12.0 # pixels
+        widths = THICKNESS_LEVELS.get(t, {})
+        stroke_width = float(item.get('width', widths.get(item.get('thickness', 'normal'), 4)))
+        th = max(base_threshold, stroke_width / 2.0 + 4.0)
 
         if t in ('pencil', 'highlighter'):
             points = item['points']
-            # PERF-011: Bounding box pre-check to skip expensive segment iteration
             if points:
                 xs = [p[0] for p in points]
                 ys = [p[1] for p in points]
-                if px < min(xs) - threshold or px > max(xs) + threshold:
+                if px < min(xs) - th or px > max(xs) + th:
                     return False
-                if py < min(ys) - threshold or py > max(ys) + threshold:
+                if py < min(ys) - th or py > max(ys) + th:
                     return False
             if len(points) == 1:
-                return math.hypot(px - points[0][0], py - points[0][1]) < threshold
+                return math.hypot(px - points[0][0], py - points[0][1]) < th
             for i in range(len(points) - 1):
                 x1, y1 = points[i][:2]
                 x2, y2 = points[i+1][:2]
-                if self._dist_to_segment(px, py, x1, y1, x2, y2) < threshold:
+                if self._dist_to_segment(px, py, x1, y1, x2, y2) < th:
                     return True
             return False
 
         elif t == 'rect':
             sx, sy = item['start']
             ex, ey = item['end']
-            rect = QRect(int(min(sx, ex)), int(min(sy, ey)), int(abs(ex - sx)), int(abs(ey - sy)))
-            if rect.adjusted(-threshold, -threshold, threshold, threshold).contains(pos):
-                return True
-            return False
+            rect = QRectF(float(min(sx, ex)), float(min(sy, ey)), float(abs(ex - sx)), float(abs(ey - sy)))
+            return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
 
         elif t == 'circle':
             sx, sy = item['start']
             ex, ey = item['end']
-            rx, ry = abs(ex - sx) / 2, abs(ey - sy) / 2
-            cx, cy = (sx + ex) / 2, (sy + ey) / 2
+            rx, ry = abs(ex - sx) / 2.0, abs(ey - sy) / 2.0
+            cx, cy = (sx + ex) / 2.0, (sy + ey) / 2.0
             if rx == 0 or ry == 0: return False
-            val = ((px - cx)**2) / ((rx + threshold)**2) + ((py - cy)**2) / ((ry + threshold)**2)
+            val = ((px - cx)**2) / ((rx + th)**2) + ((py - cy)**2) / ((ry + th)**2)
             return val <= 1.0
 
         elif t == 'arrow':
             sx, sy = item['start']
             ex, ey = item['end']
-            return self._dist_to_segment(px, py, sx, sy, ex, ey) < threshold
+            return self._dist_to_segment(px, py, sx, sy, ex, ey) < th
 
         elif t == 'text':
             if 'start' in item and 'end' in item:
                 sx, sy = item['start']
                 ex, ey = item['end']
-                rect = QRectF(min(sx, ex), min(sy, ey), abs(ex - sx), abs(ey - sy))
-                return rect.adjusted(-threshold, -threshold, threshold, threshold).contains(QPointF(pos))
+                rect = QRectF(float(min(sx, ex)), float(min(sy, ey)), float(abs(ex - sx)), float(abs(ey - sy)))
+                return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
             
             tx, ty = item.get('pos', (0,0))
             fs = item.get('font_size', 16)
@@ -1180,8 +1183,8 @@ class AnnotationCanvas(QWidget):
             lines = item['text'].split('\n')
             max_w = max((fm.horizontalAdvance(ln) for ln in lines), default=0)
             total_h = fm.height() * len(lines)
-            rect = QRect(int(tx), int(ty) - fm.ascent(), max_w, total_h)
-            return rect.adjusted(-threshold, -threshold, threshold, threshold).contains(pos)
+            rect = QRectF(float(tx), float(ty) - float(fm.ascent()), float(max_w), float(total_h))
+            return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
 
         return False
 
@@ -2087,19 +2090,22 @@ class _DrawingArea(QWidget):
         # No selection: do nothing. Clear All is a separate explicit action.
 
     def _on_esc_pressed(self):
-        if self._text_input_active:
-            self._cancel_text()
-        elif self._tool == 'crop':
-            self._crop_rect = None
-            self._crop_drag = None
-            self.set_tool('pencil')
-            self.update()
-        elif self._selected_shape_idx is not None:
-            self._deselect_shape()
-        else:
-            w = self.window()
-            if w and hasattr(w, 'close'):
-                w.close()
+        try:
+            if self._text_input_active:
+                self._cancel_text()
+            elif self._tool == 'crop':
+                self._crop_rect = None
+                self._crop_drag = None
+                self.set_tool('pencil')
+                self.update()
+            elif self._selected_shape_idx is not None:
+                self._deselect_shape()
+            else:
+                w = self.window()
+                if w and hasattr(w, 'close'):
+                    w.close()
+        except RuntimeError:
+            pass
 
     def _on_enter_pressed(self):
         if self._text_input_active:
@@ -2399,60 +2405,60 @@ class _DrawingArea(QWidget):
         nearest_y = y1 + t * dy
         return math.hypot(px - nearest_x, py - nearest_y)
 
-    def _hit_test(self, pos: QPoint, item: dict) -> bool:
+    def _hit_test(self, pos, item: dict) -> bool:
         t = item['type']
-        px, py = pos.x(), pos.y()
+        px, py = float(pos.x()), float(pos.y())
         # Item coordinates are image-local; retain a roughly 12-screen-pixel
-        # interaction radius at every fit and zoom scale.
-        threshold = 12.0 / max(self._scale, 0.001)
+        # interaction radius at every fit and zoom scale, scaled with stroke thickness.
+        base_threshold = 12.0 / max(self._scale, 0.001)
+        widths = THICKNESS_LEVELS.get(t, {})
+        stroke_width = float(item.get('width', widths.get(item.get('thickness', 'normal'), 4)))
+        th = max(base_threshold, stroke_width / 2.0 + 4.0 / max(self._scale, 0.001))
 
         if t in ('pencil', 'highlighter'):
             points = item['points']
-            # PERF-011: Bounding box pre-check to skip expensive segment iteration
             if points:
                 xs = [p[0] for p in points]
                 ys = [p[1] for p in points]
-                if px < min(xs) - threshold or px > max(xs) + threshold:
+                if px < min(xs) - th or px > max(xs) + th:
                     return False
-                if py < min(ys) - threshold or py > max(ys) + threshold:
+                if py < min(ys) - th or py > max(ys) + th:
                     return False
             if len(points) == 1:
-                return math.hypot(px - points[0][0], py - points[0][1]) < threshold
+                return math.hypot(px - points[0][0], py - points[0][1]) < th
             for i in range(len(points) - 1):
                 x1, y1 = points[i][0], points[i][1]
                 x2, y2 = points[i+1][0], points[i+1][1]
-                if self._dist_to_segment(px, py, x1, y1, x2, y2) < threshold:
+                if self._dist_to_segment(px, py, x1, y1, x2, y2) < th:
                     return True
             return False
 
         elif t == 'rect':
             sx, sy = item['start']
             ex, ey = item['end']
-            rect = QRect(int(min(sx, ex)), int(min(sy, ey)), int(abs(ex - sx)), int(abs(ey - sy)))
-            if rect.adjusted(-threshold, -threshold, threshold, threshold).contains(pos):
-                return True
-            return False
+            rect = QRectF(float(min(sx, ex)), float(min(sy, ey)), float(abs(ex - sx)), float(abs(ey - sy)))
+            return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
 
         elif t == 'circle':
             sx, sy = item['start']
             ex, ey = item['end']
-            rx, ry = abs(ex - sx) / 2, abs(ey - sy) / 2
-            cx, cy = (sx + ex) / 2, (sy + ey) / 2
+            rx, ry = abs(ex - sx) / 2.0, abs(ey - sy) / 2.0
+            cx, cy = (sx + ex) / 2.0, (sy + ey) / 2.0
             if rx == 0 or ry == 0: return False
-            val = ((px - cx)**2) / ((rx + threshold)**2) + ((py - cy)**2) / ((ry + threshold)**2)
+            val = ((px - cx)**2) / ((rx + th)**2) + ((py - cy)**2) / ((ry + th)**2)
             return val <= 1.0
 
         elif t == 'arrow':
             sx, sy = item['start']
             ex, ey = item['end']
-            return self._dist_to_segment(px, py, sx, sy, ex, ey) < threshold
+            return self._dist_to_segment(px, py, sx, sy, ex, ey) < th
 
         elif t == 'text':
             if 'start' in item and 'end' in item:
                 sx, sy = item['start']
                 ex, ey = item['end']
-                rect = QRectF(min(sx, ex), min(sy, ey), abs(ex - sx), abs(ey - sy))
-                return rect.adjusted(-threshold, -threshold, threshold, threshold).contains(QPointF(pos))
+                rect = QRectF(float(min(sx, ex)), float(min(sy, ey)), float(abs(ex - sx)), float(abs(ey - sy)))
+                return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
 
             tx, ty = item.get('pos', (0,0))
             fs = item.get('font_size', 16)
@@ -2464,8 +2470,8 @@ class _DrawingArea(QWidget):
             lines = item['text'].split('\n')
             max_w = max((fm.horizontalAdvance(ln) for ln in lines), default=0)
             total_h = fm.height() * len(lines)
-            rect = QRect(int(tx), int(ty) - fm.ascent(), max_w, total_h)
-            return rect.adjusted(-threshold, -threshold, threshold, threshold).contains(pos)
+            rect = QRectF(float(tx), float(ty) - float(fm.ascent()), float(max_w), float(total_h))
+            return rect.adjusted(-th, -th, th, th).contains(QPointF(pos))
 
         return False
 
@@ -4718,8 +4724,8 @@ class AnnotateWindow(QWidget):
             from PyQt6.QtCore import QUrl
             mime.setUrls([QUrl.fromLocalFile(self._filepath)])
         QApplication.clipboard().setMimeData(mime)
-        self._btn_copy.setIcon(QIcon())
-        self._btn_copy.setText("✔")
+        self._btn_copy.setIcon(QIcon(_asset('apply.png')))
+        self._btn_copy.setText("")
         QTimer.singleShot(1500, self._restore_copy_btn)
     def _restore_copy_btn(self):
         try:
@@ -4805,7 +4811,10 @@ class AnnotateWindow(QWidget):
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:
             if hasattr(self, '_canvas'):
-                self._canvas._on_esc_pressed()
+                try:
+                    self._canvas._on_esc_pressed()
+                except RuntimeError:
+                    pass
                 event.accept()
                 return
         super().keyPressEvent(event)
