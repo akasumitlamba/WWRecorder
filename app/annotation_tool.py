@@ -5166,14 +5166,12 @@ class AnnotationPill(QWidget):
             ('circle', 'shape_circle.png', 'Circle — draw ellipse / circle', '○'),
             ('rect', 'shape_rect.png', 'Rectangle — draw box', '□'),
             ('arrow', 'shape_arrow.png', 'Arrow — point & indicate', '↗'),
-            ('laser', '', 'Laser pointer — transient highlight trail', ''),
+            ('laser', 'laser.png', 'Laser pointer — transient highlight trail', ''),
         ]
         self._tool_btns = {}
         for tool_id, icon, tip, fallback in tools:
             btn = _AnnotationToolBtn(icon, tip, fallback, size=control_size,
                                      icon_size=icon_size, checkable=True)
-            if tool_id == 'laser':
-                btn.setIcon(QIcon(_laser_dot_pixmap(icon_size, QColor(self._active_color))))
             btn.clicked.connect(lambda checked, t=tool_id: self._select_tool(t))
             layout.addWidget(btn, 0, Qt.AlignmentFlag.AlignCenter)
             self._tool_btns[tool_id] = btn
@@ -5358,11 +5356,6 @@ class AnnotationPill(QWidget):
             dot.set_selected(dot._hex.upper() == hx)
         if hasattr(self, 'btn_thickness'):
             self.btn_thickness.set_preview(self._active_tool, QColor(self._active_color))
-        laser_button = getattr(self, '_tool_btns', {}).get('laser')
-        if laser_button is not None:
-            laser_button.setIcon(QIcon(_laser_dot_pixmap(
-                laser_button.iconSize().width(), QColor(self._active_color)
-            )))
         self.color_changed.emit(hx)
         
     def _watch_toolbar_screen(self, screen):

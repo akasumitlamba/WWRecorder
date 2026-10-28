@@ -101,7 +101,8 @@ def test_settings_action_icon_padding(app):
     from pathlib import Path
     from PIL import Image
     for name in ('reset','share','power'):
-        im=Image.open(Path(__file__).resolve().parents[1]/'app/icons'/f'panel-{name}.png').convert('RGBA')
+        from icon_theme import asset_path
+        im=Image.open(asset_path(f'panel-{name}.png')).convert('RGBA')
         assert im.size==(64,64)
         # All sides must retain a transparent guard band when Qt scales them.
         for x,y in [(0,0),(63,0),(0,63),(63,63)]: assert im.getpixel((x,y))[3]==0
@@ -138,3 +139,17 @@ def test_saved_edge_reaches_coordinator_without_overwriting_live_mic(app,tmp_pat
     assert owner.config['dock_edge']=='bottom' and dock._edge=='bottom'
     assert changes==['bottom'] and owner.config['microphone_id']=='live-usb'
     dock.close()
+
+@pytest.mark.parametrize('edge', ['left', 'right', 'top', 'bottom'])
+@pytest.mark.parametrize('kind', ['gallery', 'settings'])
+def test_header_brand_and_label_are_compact_only_on_vertical(app, tmp_path, edge, kind):
+    from PyQt6.QtWidgets import QLabel
+    panel = (SettingsSidebar({}, edge=edge) if kind == 'settings'
+             else RecentFilesSidebar(str(tmp_path), edge=edge))
+    labels = panel._heading_container.findChildren(QLabel)
+    title = next(label for label in labels if label.text() in ('Gallery', 'Settings'))
+    height = 24 if edge in ('top', 'bottom') else 18
+    assert f'{height}px' in title.styleSheet()
+    brand = next(label for label in labels if not label.pixmap().isNull())
+    assert brand.pixmap().height() == height
+    panel.close()

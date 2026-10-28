@@ -1339,6 +1339,8 @@ def test_player_close_does_not_stop_media_backend_synchronously(app):
     window._close_ready = True
     window._edit_mode = False
     window._close_poll_timer = Timer()
+    window._scrub_timer = Timer()
+    window._scrub_process = None
     window._thumb_extractor = None
     window._zoom_extractor = None
     window._export_worker = None
