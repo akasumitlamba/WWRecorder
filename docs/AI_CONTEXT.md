@@ -83,6 +83,34 @@ position, 3s deadline, bounded cancellation), avoiding repeated Qt seek decoder
 interruption. Release seeks the actual player exactly and restores prior play
 state. A cached decoded frame remains visible when Qt clears its EOF surface;
 source changes clear it. Portable functional regressions cover these paths.
-Package revision 1.7.0.14 validation/build pending; do not claim publication yet.
+Package revision 1.7.0.14 passed Windows validation and the shared EXE/MSIX build. Public asset verification is recorded separately.
 Release notes must be cumulative against stable v1.6, reconciled with shipped
 source and merged changes, rather than a list of latest package increments.
+
+## Final preview consistency verification — revision 1.7.0.14
+
+Windows: 1062 passed, zero failures, three desktop-only skips. Sanitized public
+source on Linux: 888 passed, zero failures, 29 Windows-only skips. Required
+compilation, unattended bootstrap/report generation, frozen Qt payload/startup
+validation and shared EXE/MSIX packaging passed. Physical/installed acceptance
+remains separate.
+
+The Windows gate caught both a partial-initialization cleanup assumption and a
+hardware video-surface lifetime crash in repeated EOF/seek/close cases. Cleanup
+now tolerates missing preview state; EOF retains an owned QImage pixel copy,
+never a decoder-owned hardware QVideoFrame. The frame callback is disconnected
+and pixels cleared before video-output teardown. Native decoder cases passed
+after the repair. Scrub time labels follow the pointer while decoding.
+
+Scrub state: press pauses and records prior playing state; one asynchronous
+FFmpeg process finishes a preview while movement replaces the pending target.
+Release cancels/reaps with a 100ms bound, performs the exact native seek and
+resumes only if previously playing. Each extraction has a three-second deadline.
+Source changes cancel requests and clear old image/position state.
+
+Caption removal blocks row signals, removes the model before focus callbacks,
+hides/disconnects/destroys the graphics item and removes row/timeline state in
+one GUI operation. Paused timing edits update visibility immediately. Action
+chrome has fixed screen dimensions; geometry never changes inside paint.
+Cumulative release notes are maintained in RELEASE_NOTES_1_7.md against the
+published v1.6 baseline, including merged feature and reliability work.
