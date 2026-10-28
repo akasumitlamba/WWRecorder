@@ -65,7 +65,7 @@ def test_capture_grid_search_and_processing_keep_all_actions(app,tmp_path,edge,m
         grid=panel._grid_groups[0][1]
         assert grid.getItemPosition(0)[0]==grid.getItemPosition(1)[0]
         assert rows[0]._thumb.width()>150
-    expected=['Open & Edit','Copy','Rename','Delete']
+    expected=['Open in editor','Copy','Rename','Delete']
     assert [a.text() for a in rows[0]._build_actions_menu().actions() if not a.isSeparator()]==expected
     panel._filter_files('capture_3')
     assert sum(not row.isHidden() for row in rows)==1

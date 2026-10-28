@@ -98,3 +98,81 @@ def test_horizontal_drag_updates_x_without_losing_horizontal_shape(app):
     dock.mouseMoveEvent(move)
     assert dock._dock_x == 260 and dock.width() == 48 and dock.height() == 12
     dock.close()
+
+
+def test_unrelated_config_refresh_cannot_restore_stale_dock_coordinates(app,monkeypatch):
+    monkeypatch.setattr(DockWidget,'_screen_geo',lambda self:QRect(0,0,1920,1040))
+    dock=DockWidget(object(),{'dock_edge':'right','dock_x':960,'dock_y':480})
+    original=dock.geometry()
+    stale={'dock_edge':'right','dock_x':1872,'dock_y':992,'font_size':'Large'}
+    dock.update_config(stale)
+    dock._set_collapsed_geo(animate=False)
+    assert dock.geometry()==original
+    assert stale['dock_y']==480 and stale['dock_x']==960
+    dock.close()
+
+@pytest.mark.parametrize('interruption',['hide','move_without_button','panel','ungrab','deactivate'])
+@pytest.mark.parametrize('already_dragging',[False,True])
+def test_interrupted_press_does_not_turn_next_mouse_motion_into_a_drag(app,monkeypatch,interruption,already_dragging):
+    monkeypatch.setattr(DockWidget,'_screen_geo',lambda self:QRect(0,0,1920,1040))
+    dock=DockWidget(object(),{'dock_edge':'right','dock_x':960,'dock_y':480})
+    dock.show();app.processEvents();dock._set_collapsed_geo(animate=False)
+    original=(dock._dock_x,dock._dock_y,dock._edge)
+    pos=dock.geometry().center()
+    press=QMouseEvent(QEvent.Type.MouseButtonPress,QPointF(5,20),QPointF(pos),Qt.MouseButton.LeftButton,Qt.MouseButton.LeftButton,Qt.KeyboardModifier.NoModifier)
+    dock.mousePressEvent(press)
+    if already_dragging:
+        move=QMouseEvent(QEvent.Type.MouseMove,QPointF(5,20),QPointF(pos.x(),pos.y()+80),Qt.MouseButton.NoButton,Qt.MouseButton.LeftButton,Qt.KeyboardModifier.NoModifier)
+        dock.mouseMoveEvent(move)
+        assert dock._is_dragging
+    panel=None
+    if interruption in ('ungrab','deactivate'):
+        QApplication.sendEvent(dock,QEvent(QEvent.Type.UngrabMouse if interruption=='ungrab' else QEvent.Type.WindowDeactivate))
+    elif interruption=='hide':
+        dock.hide();dock.show();app.processEvents()
+    elif interruption=='move_without_button':
+        move=QMouseEvent(QEvent.Type.MouseMove,QPointF(5,20),QPointF(pos),Qt.MouseButton.NoButton,Qt.MouseButton.NoButton,Qt.KeyboardModifier.NoModifier)
+        dock.mouseMoveEvent(move)
+    else:
+        panel=SettingsSidebar({'close_on_focus_loss':False},edge='right');panel.show();dock.set_panel_anchor(panel)
+    move=QMouseEvent(QEvent.Type.MouseMove,QPointF(5,20),QPointF(1910,1025),Qt.MouseButton.NoButton,Qt.MouseButton.LeftButton,Qt.KeyboardModifier.NoModifier)
+    dock.mouseMoveEvent(move)
+    release=QMouseEvent(QEvent.Type.MouseButtonRelease,QPointF(5,20),QPointF(1910,1025),Qt.MouseButton.LeftButton,Qt.MouseButton.NoButton,Qt.KeyboardModifier.NoModifier)
+    dock.mouseReleaseEvent(release)
+    assert (dock._dock_x,dock._dock_y,dock._edge)==original
+    if panel:panel.close();dock.set_panel_anchor(None)
+    dock.close()
+
+
+def test_transient_work_area_clamp_does_not_overwrite_home(app,monkeypatch):
+    screen=QRect(0,0,1920,1040)
+    monkeypatch.setattr(DockWidget,'_screen_geo',lambda self:QRect(screen))
+    config={'dock_edge':'right','dock_x':960,'dock_y':480}
+    dock=DockWidget(object(),config)
+    original=dock.geometry()
+    screen.setHeight(400)
+    dock._on_screen_geometry_changed()
+    assert screen.contains(dock.geometry())
+    assert dock._dock_y==480 and config['dock_y']==480
+    screen.setHeight(1040)
+    dock._on_screen_geometry_changed()
+    assert dock.geometry()==original
+    dock.close()
+
+
+def test_completed_drop_is_not_cancelled_by_reentrant_mouse_ungrab(app,monkeypatch):
+    monkeypatch.setattr(DockWidget,'_screen_geo',lambda self:QRect(0,0,1920,1040))
+    config={'dock_edge':'right','dock_x':960,'dock_y':480}
+    dock=DockWidget(object(),config)
+    dock._drag_start_x,dock._drag_start_y=960,480
+    dock._drag_pos=QPointF(1910,500).toPoint();dock._is_dragging=True
+    original=dock._position_on_edge
+    def reposition():
+        QApplication.sendEvent(dock,QEvent(QEvent.Type.UngrabMouse))
+        original()
+    monkeypatch.setattr(dock,'_position_on_edge',reposition)
+    release=QMouseEvent(QEvent.Type.MouseButtonRelease,QPointF(5,20),QPointF(1910,700),Qt.MouseButton.LeftButton,Qt.MouseButton.NoButton,Qt.KeyboardModifier.NoModifier)
+    dock.mouseReleaseEvent(release)
+    assert config['dock_y']==676 and dock._dock_y==676
+    assert dock._drag_pos is None and not dock._is_dragging
+    dock.close()

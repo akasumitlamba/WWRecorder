@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 import unicodedata
+from types import SimpleNamespace
 
 from PyQt6.QtCore import QObject, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
@@ -70,6 +71,18 @@ class KeyFace:
     text: str
 
 
+VK_NAMES = {
+    0x5B: 'cmd', 0x5C: 'cmd', 0x10: 'shift', 0xA0: 'shift', 0xA1: 'shift',
+    0x11: 'ctrl', 0xA2: 'ctrl', 0xA3: 'ctrl', 0x12: 'alt', 0xA4: 'alt', 0xA5: 'alt',
+    0xAD: 'media_volume_mute', 0xAE: 'media_volume_down', 0xAF: 'media_volume_up',
+    0xB0: 'media_next', 0xB1: 'media_previous', 0xB2: 'media_stop', 0xB3: 'media_play_pause',
+    **{0x70+i: f'f{i+1}' for i in range(24)},
+}
+
+def normalized_key_name(key):
+    return getattr(key, 'name', '') or VK_NAMES.get(getattr(key, 'vk', None), '')
+
+
 def modifier_name(name):
     if name == "alt_gr":
         return "alt_gr"
@@ -83,7 +96,7 @@ def key_face(key, translated=None):
     """Keep actual Unicode case/symbols; never canonicalize as a hotkey."""
     if key is None:
         return None
-    name = getattr(key, "name", "") or ""
+    name = normalized_key_name(key)
     modifier = modifier_name(name)
     if modifier:
         return KeyFace(modifier, SPECIAL_LABELS[modifier])
@@ -203,7 +216,7 @@ class KeycastHistory:
             return
         modifier_only = face.kind in (*MODIFIERS, "alt_gr")
         mods = tuple(
-            KeyFace(m, SPECIAL_LABELS[m])
+            KeyFace(m, "")
             for m in (*MODIFIERS, "alt_gr")
             if m in modifiers and m != face.kind
         )
@@ -211,7 +224,6 @@ class KeycastHistory:
         if (
             self.keys
             and self.keys[-1].modifier_only
-            and now - self.keys[-1].at < 1
             and all(previous.kind in modifiers for previous in self.keys[-1].faces)
         ):
             self.keys.pop()
@@ -358,6 +370,8 @@ def key_metrics(height):
 
 
 def face_width(face, height):
+    if face.kind in (*MODIFIERS, "alt_gr") and not face.text:
+        return height * 0.75
     text = key_metrics(height).horizontalAdvance(face.text)
     glyph = height * 0.50 if face.kind in GLYPH_KEYS else 0
     return max(
@@ -439,15 +453,21 @@ class KeycastOverlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         now = self.clock()
-        for entry, face, rect in key_layout(
-            list(self.history.keys), self.width(), self.height()
-        ):
+        layout = key_layout(list(self.history.keys), self.width(), self.height())
+        painted = set()
+        for entry, face, rect in layout:
             p.save()
-            p.setClipRect(rect)
             p.setOpacity(opacity(entry.at, now, KEY_HOLD, KEY_FADE))
             p.setPen(QPen(QColor("#667084"), 1))
             p.setBrush(QColor(20, 25, 35, 235))
-            p.drawRoundedRect(rect, 5, 5)
+            if id(entry) not in painted:
+                group = QRectF(rect)
+                for other, _, other_rect in layout:
+                    if other is entry:
+                        group = group.united(other_rect)
+                p.drawRoundedRect(group, 5, 5)
+                painted.add(id(entry))
+            p.setClipRect(rect)
             p.setPen(QColor("#F7F7FA"))
             font = QFont("Segoe UI")
             font.setPixelSize(max(9, round(rect.height() * 0.40)))
@@ -589,7 +609,8 @@ class InputSession:
                 from pynput import keyboard, mouse
 
                 factory = lambda **kw: (
-                    keyboard.Listener(on_press=kw["press"], on_release=kw["release"]),
+                    keyboard.Listener(on_press=kw["press"], on_release=kw["release"],
+                                      win32_event_filter=kw["keyboard_filter"]),
                     mouse.Listener(
                         on_click=kw["click"],
                         on_scroll=kw["scroll"],
@@ -602,7 +623,7 @@ class InputSession:
             def press(key, *_):
                 if self.closed.is_set():
                     return
-                name = getattr(key, "name", "") or ""
+                name = normalized_key_name(key)
                 mod = modifier_name(name)
                 if mod:
                     self.modifiers[name] = mod
@@ -618,7 +639,7 @@ class InputSession:
                 self._put(("key", face, mods, time.monotonic()))
 
             def release(key, *_):
-                self.modifiers.pop(getattr(key, "name", ""), None)
+                self.modifiers.pop(normalized_key_name(key), None)
 
             def click(x, y, button, pressed, *_):
                 if pressed:
@@ -654,6 +675,18 @@ class InputSession:
                         )
                     )
 
+            def keyboard_filter(message, data):
+                # Handle named system/media/F keys directly from the Windows hook.
+                # Returning False skips pynput conversion, never suppresses OS input.
+                if data.vkCode in VK_NAMES and message in (0x100, 0x101, 0x104, 0x105):
+                    key = SimpleNamespace(vk=data.vkCode, name=VK_NAMES[data.vkCode])
+                    if message in (0x100, 0x104):
+                        press(key)
+                    else:
+                        release(key)
+                    return False
+                return True
+
             def wheel_filter(message, data):
                 if message in (0x020A, 0x020E):
                     kind = raw_wheel_direction(message, data.mouseData)
@@ -672,6 +705,7 @@ class InputSession:
                     click=click,
                     scroll=scroll,
                     wheel_filter=wheel_filter,
+                    keyboard_filter=keyboard_filter,
                 )
             )
             for listener in listeners:

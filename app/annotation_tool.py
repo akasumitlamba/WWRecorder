@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QBoxLayout, QSizePolicy, QMessageBox,
     QFrame, QToolTip, QGraphicsDropShadowEffect, QStackedWidget,
-    QMenu, QComboBox, QFileDialog, QGridLayout, QPlainTextEdit
+    QMenu, QComboBox, QFileDialog, QGridLayout, QPlainTextEdit, QScrollArea
 )
 from tool_cursors import shape_cursor
 
@@ -483,6 +483,16 @@ def get_tool_cursor(tool: str, color: QColor, thickness: str = 'normal') -> QCur
 
 # ── Shared paint helper ──────────────────────────────────────────────────────
 
+def _paint_laser_path(p, path, color, width, opacity):
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    for extra, alpha in ((6, 0.025), (4, 0.045), (2, 0.10), (0, 0.95)):
+        tint = QColor(color)
+        tint.setAlphaF(max(0.0, min(1.0, opacity * alpha)))
+        p.setPen(QPen(tint, max(2.0, width * 0.8) + extra,
+                      Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        p.drawPath(path)
+
+
 def draw_annotation_item(p: QPainter, item: dict):
     """Draw a single annotation item using the given QPainter."""
     # History-action metadata is never paintable content.
@@ -497,17 +507,14 @@ def draw_annotation_item(p: QPainter, item: dict):
             c.setAlphaF(item.get('opacity', 0.4))
         elif t == 'laser':
             c.setAlphaF(item.get('opacity', 1.0))
+            c = c.lighter(125)
         p.setBrush(Qt.BrushStyle.NoBrush)
         points = item['points']
         if len(points) == 1 and t == 'laser':
-            glow = QColor(color)
-            glow.setAlphaF(0.28 * item.get('opacity', 1.0))
-            p.setPen(QPen(glow, item['width'] + 8.0, Qt.PenStyle.SolidLine,
-                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            p.drawPoint(QPointF(float(points[0][0]), float(points[0][1])))
-            p.setPen(QPen(c, item['width'], Qt.PenStyle.SolidLine,
-                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            p.drawPoint(QPointF(float(points[0][0]), float(points[0][1])))
+            path = QPainterPath()
+            path.moveTo(float(points[0][0]), float(points[0][1]))
+            path.lineTo(float(points[0][0])+0.01, float(points[0][1]))
+            _paint_laser_path(p, path, color, item['width'], item.get('opacity', 1.0))
         elif len(points) > 1:
             path = QPainterPath()
             path.moveTo(float(points[0][0]), float(points[0][1]))
@@ -528,14 +535,11 @@ def draw_annotation_item(p: QPainter, item: dict):
                         path.quadTo(x1, y1, mid_x, mid_y)
                 path.lineTo(float(points[-1][0]), float(points[-1][1]))
             if t == 'laser':
-                glow = QColor(color)
-                glow.setAlphaF(0.28 * item.get('opacity', 1.0))
-                p.setPen(QPen(glow, item['width'] + 8.0, Qt.PenStyle.SolidLine,
+                _paint_laser_path(p, path, color, item['width'], item.get('opacity', 1.0))
+            else:
+                p.setPen(QPen(c, item['width'], Qt.PenStyle.SolidLine,
                               Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
                 p.drawPath(path)
-            p.setPen(QPen(c, item['width'], Qt.PenStyle.SolidLine,
-                          Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            p.drawPath(path)
 
     elif t == 'text':
         p.save()
@@ -3802,7 +3806,24 @@ class _AnnotationToolBtn(QToolButton):
 
         icon_path = _asset(icon_name)
         if os.path.isfile(icon_path):
-            self.setIcon(QIcon(icon_path))
+            if icon_name == 'clear_brush.png':
+                self.setIconSize(QSize(min(size - 4, 28), min(size - 4, 28)))
+                # Fit generated artwork by its alpha bounds, not its export canvas.
+                # The source artwork remains intact; only toolbar display is fitted.
+                from PyQt6.QtGui import QBitmap, QRegion
+                image = QImage(icon_path)
+                bounds = QRegion(QBitmap.fromImage(image.createAlphaMask())).boundingRect()
+                if not bounds.isEmpty():
+                    image = image.copy(bounds)
+                glyph = QPixmap.fromImage(image).scaled(56, 56, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+                fitted = QPixmap(64, 64)
+                fitted.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(fitted)
+                painter.drawPixmap((64-glyph.width())//2, (64-glyph.height())//2, glyph)
+                painter.end()
+                self.setIcon(QIcon(fitted))
+            else:
+                self.setIcon(QIcon(icon_path))
         elif fallback_text:
             self.setText(fallback_text)
             self.setStyleSheet(self.styleSheet() + f"font-size: {icon_size - 2}px;")
@@ -4386,11 +4407,20 @@ class AnnotateWindow(QWidget):
         self._btn_redo.clicked.connect(self._redo)
         r_layout.addWidget(self._btn_redo)
 
-        btn_clear = _AnnotationToolBtn('clear_all.png', 'Clear All', '🗑', size=34, icon_size=18)
+        btn_clear = _AnnotationToolBtn('clear_brush.png', 'Clear All', '🧹', size=34, icon_size=18)
         btn_clear.clicked.connect(self._clear)
         r_layout.addWidget(btn_clear)
 
-        root.addWidget(toolbar)
+        toolbar.setMinimumWidth(toolbar.sizeHint().width())
+        top_scroll = QScrollArea()
+        top_scroll.setWidget(toolbar)
+        top_scroll.setWidgetResizable(True)
+        top_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        top_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        top_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        top_scroll.setFixedHeight(72)
+        self._editor_top_scroll = top_scroll
+        root.addWidget(top_scroll)
 
         # ── Drawing Area ─────────────────────────────────────────────────────
         self._canvas = _DrawingArea(self._filepath)
@@ -4561,7 +4591,16 @@ class AnnotateWindow(QWidget):
         self._btn_save_as.clicked.connect(self._save_as)
         bbar.addWidget(self._btn_save_as, 0, 6)
 
-        root.addWidget(bottom)
+        bottom.setMinimumWidth(bottom.sizeHint().width())
+        bottom_scroll = QScrollArea()
+        bottom_scroll.setWidget(bottom)
+        bottom_scroll.setWidgetResizable(True)
+        bottom_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        bottom_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        bottom_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        bottom_scroll.setFixedHeight(64)
+        root.addWidget(bottom_scroll)
+        self._editor_bottom_scroll = bottom_scroll
         self._editor_bottom = bottom
         self._editor_bottom_layout = bbar
         self._editor_bottom_widgets = (btn_open, self._btn_actual_pixels, self._btn_fit,
@@ -4571,7 +4610,13 @@ class AnnotateWindow(QWidget):
     def _resize_editor_controls(self):
         if not hasattr(self, '_editor_bottom_widgets'):
             return
-        compact = self.width() < 1100
+        compact = False  # Keep tool/action groups on a single row at every window size.
+        if hasattr(self, '_editor_top_scroll'):
+            need_scroll = self._editor_toolbar.minimumWidth() > self.width()
+            self._editor_top_scroll.setFixedHeight(72 if need_scroll else 56)
+        if hasattr(self, '_editor_bottom_scroll'):
+            need_scroll = self._editor_bottom.minimumWidth() > self.width()
+            self._editor_bottom_scroll.setFixedHeight(64 if need_scroll else 48)
         top = self._editor_top_layout
         left, colors, right = self._editor_top_groups
         for widget in (left, colors, right):
@@ -5160,7 +5205,7 @@ class AnnotationPill(QWidget):
         layout.addWidget(self._btn_redo, 0, Qt.AlignmentFlag.AlignCenter)
 
         self._btn_clear = _AnnotationToolBtn(
-            'clear_all.png', 'Clear all annotations', '🗑', size=control_size, icon_size=icon_size)
+            'clear_brush.png', 'Clear all annotations', '🧹', size=control_size, icon_size=icon_size)
         self._btn_clear.clicked.connect(self.clear_requested.emit)
         self._sized_buttons.append(self._btn_clear)
         layout.addWidget(self._btn_clear, 0, Qt.AlignmentFlag.AlignCenter)
