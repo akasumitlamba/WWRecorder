@@ -94,6 +94,11 @@ if ($InstallDeps) {
     if ($LASTEXITCODE -ne 0) { Fail-Preflight "Dependency installation failed. Check network access and the console output." }
 }
 
+# Public source omits executable dependencies. Prepare the wheel's bundled tool
+# only when app/ffmpeg.exe is missing; never overwrite an existing source runtime.
+& $Python (Join-Path $RepoRoot 'scripts/prepare_test_runtime.py')
+if ($LASTEXITCODE -ne 0) { Fail-Preflight "Test FFmpeg setup failed. Check dependency installation and console output." }
+
 # Prove pytest import before launching the suite (clear failure, not silent skip-all)
 & $Python -c "import pytest; print('pytest', pytest.__version__)"
 if ($LASTEXITCODE -ne 0) {

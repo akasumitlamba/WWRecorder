@@ -105,3 +105,6 @@ Use Python runner `--e2e-only` for only the E2E catalogue. Default is the full s
 Linux reports explicitly skip Windows API/import cases; rerun the same launcher
 on Windows for the complete supported suite. Source tests do not certify physical
 microphone fidelity or an installed package merely by running source widgets.
+
+The Windows bootstrap prepares missing source FFmpeg automatically from the
+imageio-ffmpeg development wheel, preserving any existing app/ffmpeg.exe.
