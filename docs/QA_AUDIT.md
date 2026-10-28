@@ -16,3 +16,7 @@ Resolved defects include missing frozen Qt detection, media-safe live recording
 close, eraser zoom hit-testing, updater origin validation, popup/worker lifecycle,
 selective-audio retiming, control alignment, and shell icon corner transparency.
 No automated source suite alone certifies physical device or installed-package behavior.
+
+The Windows one-click bootstrap was executed successfully: fresh virtual
+environment, noninteractive dependency setup and HTML/JSON/JUnit output. Full
+Windows source tests remain 992 passed / 3 headless desktop skips.
