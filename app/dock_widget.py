@@ -649,13 +649,18 @@ class DockWidget(QWidget):
     def update_config(self, config: dict):
         previous_edge = self._edge
         self._config = config
-        self._edge = self._config.get("dock_edge", "right")
-        if self._edge not in ("left", "right", "top", "bottom"):
-            self._edge = "right"
-        self._dock_x = config.get("dock_x", self._dock_x)
-        self._dock_y = config.get("dock_y", self._dock_y)
+        requested_edge = config.get('dock_edge', previous_edge)
+        self._edge = requested_edge if requested_edge in ('left', 'right', 'top', 'bottom') else previous_edge
+        # Runtime home coordinates belong to completed dock drags, not cached
+        # settings snapshots. Only an explicit edge setting may reposition it.
         if self._edge != previous_edge:
+            self._cancel_drag()
+            if self._horizontal:
+                self._dock_x = -1
+            else:
+                self._dock_y = -1
             self._position_on_edge()
+        config.update(dock_edge=self._edge, dock_x=self._dock_x, dock_y=self._dock_y)
         hk_ss = self._config.get("hotkey_screenshot", "<ctrl>+<alt>+c").replace("<", "").replace(">", "").title()
         hk_rec = self._config.get("hotkey", "<shift>+<backspace>").replace("<", "").replace(">", "").title()
         if hasattr(self, '_btn_screenshot'):
@@ -697,11 +702,16 @@ class DockWidget(QWidget):
             self._dock_y = sg.center().y() - self.GRABBER_H // 2
         if self._dock_x == -1:
             self._dock_x = sg.center().x() - self.GRABBER_H // 2
-        self._dock_y = max(sg.top(), min(self._dock_y, sg.bottom() - self.GRABBER_H + 1))
-        self._dock_x = max(sg.left(), min(self._dock_x, sg.right() - self.GRABBER_H + 1))
         self._set_collapsed_geo(animate=False)
 
+    def _clamped_home(self, screen):
+        # Presentation may be clamped to a transient work area, but the home
+        # anchor survives taskbar/resolution changes and is restored afterward.
+        return (max(screen.left(), min(self._dock_x, screen.right() - self.GRABBER_H + 1)),
+                max(screen.top(), min(self._dock_y, screen.bottom() - self.GRABBER_H + 1)))
+
     def set_panel_anchor(self, panel):
+        self._cancel_drag()
         previous = getattr(self, '_panel_anchor', None)
         if previous is panel:
             if panel is not None and panel._transition_state not in ('opening', 'closing'):
@@ -763,12 +773,13 @@ class DockWidget(QWidget):
     def _set_collapsed_geo(self, animate=True):
         self._stop_animations()
         sg = self._screen_geo()
+        home_x, home_y = self._clamped_home(sg)
         if self._horizontal:
             y = sg.top() if self._edge == "top" else sg.bottom() - self.GRABBER_W + 1
-            end_rect = QRect(self._dock_x, y, self.GRABBER_H, self.GRABBER_W)
+            end_rect = QRect(home_x, y, self.GRABBER_H, self.GRABBER_W)
         else:
             x = sg.left() if self._edge == "left" else sg.right() - self.GRABBER_W + 1
-            end_rect = QRect(x, self._dock_y, self.GRABBER_W, self.GRABBER_H)
+            end_rect = QRect(x, home_y, self.GRABBER_W, self.GRABBER_H)
         
         self._expanded = False
         
@@ -896,6 +907,28 @@ class DockWidget(QWidget):
             self._collapse_timer.start()
         super().leaveEvent(event)
 
+    def _cancel_drag(self):
+        was_dragging = getattr(self, '_is_dragging', False)
+        self._drag_pos = None
+        self._is_dragging = False
+        if was_dragging and hasattr(self, '_drag_start_x'):
+            self._dock_x, self._dock_y = self._drag_start_x, self._drag_start_y
+            home_screen = getattr(self, '_drag_start_screen', self._dock_screen)
+            if home_screen is not self._dock_screen:
+                self._on_screen_changed(home_screen)
+            elif self.isVisible() and getattr(self, '_panel_anchor', None) is None:
+                self._set_collapsed_geo(animate=False)
+
+    def hideEvent(self, event):
+        self._cancel_drag()
+        super().hideEvent(event)
+
+    def event(self, event):
+        if event.type() in (QEvent.Type.UngrabMouse, QEvent.Type.WindowDeactivate):
+            if getattr(self, '_drag_pos', None) is not None:
+                self._cancel_drag()
+        return super().event(event)
+
     def mousePressEvent(self, event):
         anchor = getattr(self, "_panel_anchor", None)
         if anchor is not None and anchor.isVisible(): return
@@ -903,9 +936,14 @@ class DockWidget(QWidget):
             self._drag_pos = event.globalPosition().toPoint()
             self._drag_start_y = self._dock_y
             self._drag_start_x = self._dock_x
+            self._drag_start_screen = self._dock_screen
             self._is_dragging = False
 
     def mouseMoveEvent(self, event):
+        anchor = getattr(self, '_panel_anchor', None)
+        if not (event.buttons() & Qt.MouseButton.LeftButton) or (anchor is not None and anchor.isVisible()):
+            self._cancel_drag()
+            return
         if self._drag_pos and (event.buttons() & Qt.MouseButton.LeftButton):
             delta = event.globalPosition().toPoint() - self._drag_pos
             if abs(delta.y()) > 8 or abs(delta.x()) > 8 or self._is_dragging:
@@ -918,6 +956,8 @@ class DockWidget(QWidget):
                 screen = QApplication.screenAt(event.globalPosition().toPoint())
                 if screen is not None and screen is not self._dock_screen:
                     self._on_screen_changed(screen)
+                    if not self._is_dragging or self._drag_pos is None:
+                        return
                 sg = self._screen_geo()
                 new_y = self._drag_start_y + delta.y()
                 self._dock_y = max(sg.top(), min(new_y, sg.bottom() - self.GRABBER_H + 1))
@@ -938,6 +978,11 @@ class DockWidget(QWidget):
                 # expanded window's offset from that point.
                 self._dock_x = gpos.x() - self.GRABBER_H // 2
                 self._dock_y = gpos.y() - self.GRABBER_H // 2
+                self._dock_x, self._dock_y = self._clamped_home(sg)
+                # Commit the gesture before geometry/signals can synchronously
+                # deliver UngrabMouse/Hide and cancel an already completed drop.
+                self._drag_pos = None
+                self._is_dragging = False
                 self._position_on_edge()
                 self._save_dock_position()
             self._drag_pos = None
@@ -1066,7 +1111,7 @@ class DockWidget(QWidget):
             self._btn_record.setToolTip(f"Stop and save recording (shortcut {hk}: Pause / Resume)")
             stop_ico = _asset("stop.png")
             if os.path.isfile(stop_ico):
-                self._btn_record.setIcon(QIcon(stop_ico))
+                self._btn_record.set_dynamic_icon("stop.png", "■", self._btn_record.toolTip())
             self._btn_record.setStyleSheet("""
                 QToolButton { background: transparent; border: 2px solid #DC2626; border-radius: 12px; }
                 QToolButton:hover { background: rgba(220,38,38,0.14); border-color: #EF4444; }
@@ -1076,7 +1121,7 @@ class DockWidget(QWidget):
             self._btn_record.setToolTip(f"Record ({hk})")
             rec_ico = _asset("record.png")
             if os.path.isfile(rec_ico):
-                self._btn_record.setIcon(QIcon(rec_ico))
+                self._btn_record.set_dynamic_icon("record.png", "●", self._btn_record.toolTip())
             from icon_theme import CONTROL_STYLE
             self._btn_record.setStyleSheet(CONTROL_STYLE)
             self._pulse_timer.stop()
@@ -1330,7 +1375,7 @@ class SidebarPanel(QWidget):
         divider.setStyleSheet("background: #343B48; border: none;")
         heading_layout.addWidget(divider)
         title = QLabel("Settings" if isinstance(self, SettingsSidebar) else "Gallery")
-        title.setStyleSheet("color: #A8AFBA; font: 13px 'Segoe UI'; background: transparent;")
+        title.setStyleSheet("color: #A8AFBA; font: 24px 'Segoe UI'; background: transparent;")
         heading_layout.addWidget(title)
         heading_layout.addStretch()
 
@@ -1533,17 +1578,17 @@ class _SegmentedToggle(QWidget):
         self._font_size_mode = font_size_mode
         self._buttons = {}
         
-        self.setFixedSize(120, 24)
+        self.setFixedSize(144, 32)
         
         # Outer container for the pill shape
         self.container = QFrame(self)
         self.container.setObjectName("container")
-        self.container.setFixedSize(120, 24)
+        self.container.setFixedSize(144, 32)
         self.container.setStyleSheet("""
             #container {
                 background: #1C1C1E;
                 border: 1px solid #3C3C3E;
-                border-radius: 12px;
+                border-radius: 6px;
             }
         """)
         
@@ -1582,10 +1627,10 @@ class _SegmentedToggle(QWidget):
             b = self._buttons[opt]
             
             # Explicitly set each corner to match container pill shape
-            tl = 11 if i == 0 else 0
-            bl = 11 if i == 0 else 0
-            tr = 11 if i == len(opts)-1 else 0
-            br = 11 if i == len(opts)-1 else 0
+            tl = 5 if i == 0 else 0
+            bl = 5 if i == 0 else 0
+            tr = 5 if i == len(opts)-1 else 0
+            br = 5 if i == len(opts)-1 else 0
             
             rad_style = f"border-top-left-radius: {tl}px; border-bottom-left-radius: {bl}px; border-top-right-radius: {tr}px; border-bottom-right-radius: {br}px;"
             
@@ -1919,10 +1964,10 @@ class SettingsSidebar(SidebarPanel):
         self._cmb_dock_position.setCurrentIndex(max(0, current))
         self._cmb_dock_position.setToolTip("Choose where the dock appears after saving settings.")
         arrow_path = _asset("spn_down.png").replace("\\", "/")
-        self._cmb_dock_position.setMinimumWidth(104)
+        self._cmb_dock_position.setFixedSize(144, 32)
         self._cmb_dock_position.setStyleSheet(f"""
             QComboBox {{ color: #F7F7FA; background: #202633; border: 1px solid #424B5D;
-                border-radius: 6px; padding: 4px 28px 4px 10px; min-height: 20px; }}
+                border-radius: 6px; padding: 4px 28px 4px 10px; min-height: 22px; }}
             QComboBox:hover {{ background: #293142; border-color: #6A758B; }}
             QComboBox:focus {{ border-color: #FF5264; }}
             QComboBox::drop-down {{ subcontrol-origin: border; subcontrol-position: top right;
@@ -1933,6 +1978,7 @@ class SettingsSidebar(SidebarPanel):
                 selection-background-color: #343E50; selection-color: white; }}
             QComboBox QAbstractItemView::item {{ min-height: 28px; padding: 0 8px; }}
         """)
+        self._cmb_dock_position.setFixedSize(144, 32)
         position_label.setBuddy(self._cmb_dock_position)
         position_row.addWidget(position_label, 1)
         position_row.addWidget(self._cmb_dock_position)
@@ -2185,7 +2231,7 @@ class SettingsSidebar(SidebarPanel):
         for card in self._settings_cards:
             card.setMinimumHeight(0)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-            card._card_layout.setContentsMargins(14, 12, 14, 12)
+            card._card_layout.setContentsMargins(14, 12 if self._horizontal_panel else 11, 14, 12 if self._horizontal_panel else 11)
             card._card_layout.setSpacing(10)
             for index in range(card._card_layout.count()):
                 item = card._card_layout.itemAt(index)
@@ -2240,7 +2286,7 @@ class SettingsSidebar(SidebarPanel):
         for card in self._settings_cards:
             card.setMinimumHeight(0)
             card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
-            card._card_layout.setContentsMargins(14, 12, 14, 12)
+            card._card_layout.setContentsMargins(14, 12 if self._horizontal_panel else 11, 14, 12 if self._horizontal_panel else 11)
             card._card_layout.setSpacing(10)
             card._card_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
             card._card_layout.invalidate()
@@ -2333,7 +2379,6 @@ class SettingsSidebar(SidebarPanel):
             actions.addWidget(self._btn_share)
             actions.addStretch(1)
             actions.addWidget(self._credit_link)
-            actions.addStretch(1)
             actions.addWidget(self._btn_save)
         else:
             actions.addWidget(self._btn_save)
@@ -3123,7 +3168,7 @@ class _FileRow(QWidget):
 
         ext = Path(self._filepath).suffix.lower()
         if ext in ('.png', '.jpg', '.jpeg'):
-            open_edit_action = QAction("Open & Edit", menu)
+            open_edit_action = QAction("Open in editor", menu)
             open_edit_action.triggered.connect(self._edit_file)
             menu.addAction(open_edit_action)
         elif ext in ('.mkv', '.mp4', '.webm', '.avi'):
@@ -3343,7 +3388,7 @@ class RecentFilesSidebar(SidebarPanel):
         "Turn Export Audio off to save a silent video.",
         "Settings-> Adjust audio capture defaults.",
         "Use annotator to add Text and doodle on screen.",
-        "Open & Edit images-> Copy edits without saving.",
+        "Open in editor images-> Copy edits without saving.",
         "Hold CTRL or ALT key to draw straight lines.",
     )
 

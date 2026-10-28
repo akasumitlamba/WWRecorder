@@ -155,8 +155,8 @@ class _SuccessNotification(QWidget):
         container.setFixedWidth(370)
 
         main_layout = QHBoxLayout(container)
-        main_layout.setContentsMargins(16, 14, 14, 14)
-        main_layout.setSpacing(12)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(9)
 
         # Thumbnail — larger for better preview
         self._thumb_lbl = QLabel()
@@ -185,6 +185,12 @@ class _SuccessNotification(QWidget):
         lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 14px; font-weight: 600; font-family: 'Segoe UI';")
         header.addWidget(lbl_title, 1)
 
+        btn_minimize = QPushButton('−')
+        btn_minimize.setFixedSize(24, 24)
+        btn_minimize.setToolTip('Hide saved capture notification')
+        btn_minimize.setStyleSheet('QPushButton {color:#B9C1CE;background:transparent;border:0;} QPushButton:hover {background:#343E50;}')
+        btn_minimize.clicked.connect(self.hide)
+        header.addWidget(btn_minimize)
         btn_close = QPushButton()
         from icon_theme import asset_path
         btn_close.setIcon(QIcon(asset_path("close.png")))
@@ -200,15 +206,15 @@ class _SuccessNotification(QWidget):
         header.addWidget(btn_close)
         right.addLayout(header)
 
-        saved = QLabel('Saved to your capture folder')
+        saved = QLabel('●')
         saved.setStyleSheet("color:#53D3A0;font:11px 'Segoe UI';border:none;background:transparent;")
-        right.addWidget(saved)
+        header.insertWidget(0, saved)
 
         # Subtitle (filename) — allows 2 lines
         self._lbl_sub = QLabel(subtitle)
         self._lbl_sub.setStyleSheet("background: transparent; border: none; color: #B9C1CE; font-size: 11px; font-family: 'Segoe UI';")
         self._lbl_sub.setWordWrap(True)
-        self._lbl_sub.setMaximumHeight(34)  # ~2 lines
+        self._lbl_sub.setMaximumHeight(30)
         right.addWidget(self._lbl_sub)
 
         # Rename inline editor (hidden by default)

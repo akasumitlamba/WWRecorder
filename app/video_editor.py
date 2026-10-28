@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Optional
@@ -61,7 +62,7 @@ QPushButton { background: transparent; color: #EEF1F6; border: 1px solid transpa
               border-radius: 6px; padding: 0; }
 QPushButton:hover { background: rgba(255,255,255,0.07); }
 QPushButton:pressed { background: rgba(255,255,255,0.12); }
-QPushButton:focus { border-color: #9AA4B2; }
+QPushButton:focus { border-color: transparent; }
 QPushButton:checked { color: #FF5264; }
 QPushButton:disabled { background: transparent; }
 """
@@ -940,6 +941,18 @@ class _ThumbnailExtractor(QThread):
 #  Frame Timeline Widget
 # ─────────────────────────────────────────────────────────────────────────────
 
+class _TrimRangePreview(QPushButton):
+    """Read-only range summary; checked state represents edits, never input."""
+    def nextCheckState(self):
+        pass
+
+    def mousePressEvent(self, event):
+        event.ignore()
+
+    def mouseReleaseEvent(self, event):
+        event.ignore()
+
+
 class FrameTimelineWidget(QWidget):
     """
     Zoomable, scrollable timeline with frame thumbnails, trim pins, delete regions,
@@ -955,6 +968,7 @@ class FrameTimelineWidget(QWidget):
     zoom_changed        = pyqtSignal(float)      # Emits current zoom level
     frames_needed       = pyqtSignal(float, float)  # start_sec, end_sec
     overlay_time_changed = pyqtSignal(int, str, int)  # idx, 'start'/'end', ms
+    mute_time_changed = pyqtSignal()
     overlay_selected    = pyqtSignal(int)
     lanes_changed       = pyqtSignal()            # emitted when lane count changes
 
@@ -1046,8 +1060,9 @@ class FrameTimelineWidget(QWidget):
         self.update()
 
     def set_trim_enabled(self, enabled: bool):
+        was_enabled = self._trim_enabled
         self._trim_enabled = enabled
-        if enabled:
+        if enabled and not was_enabled:
             self._trim_start_ms = 0
             self._trim_end_ms   = self._duration_ms
         self.update()
@@ -1215,6 +1230,13 @@ class FrameTimelineWidget(QWidget):
                     if sx <= x <= ex:
                         return f'ov_lane_{i}'
             return None
+        fr = self._filmstrip_rect()
+        if fr.bottom() - 20 <= y <= fr.bottom():
+            for i, region in enumerate(self._mute_regions):
+                sx, ex = self._ms_to_x(region.start_ms), self._ms_to_x(region.end_ms)
+                if abs(x - ex) < threshold: return f'mute_end_{i}'
+                if abs(x - sx) < threshold: return f'mute_start_{i}'
+                if sx <= x <= ex: return f'mute_lane_{i}'
         # In filmstrip / ruler area — trim/delete handles
         if self._trim_enabled:
             if abs(x - self._ms_to_x(self._trim_start_ms)) < threshold:
@@ -1291,6 +1313,9 @@ class FrameTimelineWidget(QWidget):
         handle = self._handle_at(event.pos())
         if handle:
             self._dragging = handle
+            if str(handle).startswith('mute_lane_'):
+                idx = int(str(handle).split('_')[-1])
+                self._drag_lane_offset_ms = self._x_to_ms(event.pos().x()) - self._mute_regions[idx].start_ms
             if str(handle).startswith('ov_'):
                 idx = int(str(handle).split('_')[-1])
                 self.overlay_selected.emit(idx)
@@ -1340,7 +1365,7 @@ class FrameTimelineWidget(QWidget):
             if handle != self._hover_handle:
                 self._hover_handle = handle
                 if handle:
-                    if handle.startswith('ov_lane_'):
+                    if handle.startswith(('ov_lane_', 'mute_lane_')):
                         self.setCursor(Qt.CursorShape.OpenHandCursor)
                     else:
                         self.setCursor(Qt.CursorShape.SizeHorCursor)
@@ -1358,7 +1383,7 @@ class FrameTimelineWidget(QWidget):
         handle = self._handle_at(event.pos())
         self._hover_handle = handle
         if handle:
-            if handle.startswith('ov_lane_'):
+            if handle.startswith(('ov_lane_', 'mute_lane_')):
                 self.setCursor(Qt.CursorShape.OpenHandCursor)
             else:
                 self.setCursor(Qt.CursorShape.SizeHorCursor)
@@ -1385,15 +1410,37 @@ class FrameTimelineWidget(QWidget):
         if hasattr(self, '_last_drag_x'):
             self._apply_drag(self._last_drag_x)
 
+    def _snap_targets(self):
+        targets = {0, self._duration_ms, self._position_ms}
+        handle = str(self._dragging)
+        if self._trim_enabled:
+            if handle != 'trim_start': targets.add(self._trim_start_ms)
+            if handle != 'trim_end': targets.add(self._trim_end_ms)
+        for prefix, regions in (('del', self._delete_regions), ('mute', self._mute_regions), ('ov', self._text_overlays)):
+            for index, region in enumerate(regions):
+                if handle in (f'{prefix}_start_{index}', f'{prefix}_end_{index}', f'{prefix}_lane_{index}'):
+                    continue
+                targets.update((region.start_ms, region.end_ms))
+        return sorted(targets)
+
+    def _snap_time(self, ms, *, duration=0):
+        # Alt temporarily bypasses snapping. Zoom reduces time covered by 8px.
+        if QApplication.keyboardModifiers() & Qt.KeyboardModifier.AltModifier:
+            return ms
+        candidates = [(abs(self._ms_to_x(ms + edge) - self._ms_to_x(target)), target - edge)
+                      for target in self._snap_targets() for edge in ((0, duration) if duration else (0,))]
+        if candidates:
+            distance, value = min(candidates)
+            if distance <= 8:
+                return value
+        return ms
+
     def _apply_drag(self, x: float):
         ms = self._x_to_ms(x)
         ms = max(0, min(self._duration_ms, ms))
 
-        # Snap to playhead
-        if self._dragging != 'seek':
-            pos_x = self._ms_to_x(self._position_ms)
-            if abs(x - pos_x) < 15:
-                ms = self._position_ms
+        if self._dragging != 'seek' and not str(self._dragging).startswith(('ov_lane_', 'mute_lane_')):
+            ms = self._snap_time(ms)
 
         if self._dragging == 'seek':
             self._position_ms = ms
@@ -1424,16 +1471,24 @@ class FrameTimelineWidget(QWidget):
                     max_end = min(max_end, r.start_ms)
             reg.end_ms = min(max_end, max(ms, reg.start_ms + 100))
             self.preview_seek.emit(reg.end_ms)
+        elif str(self._dragging).startswith('mute_'):
+            kind, index = str(self._dragging).rsplit('_', 1)
+            reg = self._mute_regions[int(index)]
+            if kind == 'mute_start':
+                reg.start_ms = max(0, min(ms, reg.end_ms - 100))
+            elif kind == 'mute_end':
+                reg.end_ms = min(self._duration_ms, max(ms, reg.start_ms + 100))
+            else:
+                duration = reg.end_ms - reg.start_ms
+                start = self._snap_time(ms - self._drag_lane_offset_ms, duration=duration)
+                reg.start_ms = max(0, min(self._duration_ms - duration, start))
+                reg.end_ms = reg.start_ms + duration
+            self.mute_time_changed.emit()
         elif str(self._dragging).startswith('ov_start_'):
             idx = int(self._dragging.split('_')[2])
             ov = self._text_overlays[idx]
             
-            # Snap to other overlays
             snap_ms = ms
-            for i, other_ov in enumerate(self._text_overlays):
-                if i != idx:
-                    if abs(ms - other_ov.start_ms) < 200: snap_ms = other_ov.start_ms
-                    if abs(ms - other_ov.end_ms) < 200: snap_ms = other_ov.end_ms
             
             ov.start_ms = max(0, min(snap_ms, ov.end_ms - 100))
             self._drag_ghost_x = self._ms_to_x(ov.start_ms)
@@ -1444,12 +1499,7 @@ class FrameTimelineWidget(QWidget):
             idx = int(self._dragging.split('_')[2])
             ov = self._text_overlays[idx]
             
-            # Snap to other overlays
             snap_ms = ms
-            for i, other_ov in enumerate(self._text_overlays):
-                if i != idx:
-                    if abs(ms - other_ov.start_ms) < 200: snap_ms = other_ov.start_ms
-                    if abs(ms - other_ov.end_ms) < 200: snap_ms = other_ov.end_ms
 
             ov.end_ms = min(self._duration_ms, max(snap_ms, ov.start_ms + 100))
             self._drag_ghost_x = self._ms_to_x(ov.end_ms)
@@ -1462,14 +1512,7 @@ class FrameTimelineWidget(QWidget):
             duration = ov.end_ms - ov.start_ms
             new_start_ms = ms - self._drag_lane_offset_ms
             
-            # Snap to other overlays
-            snap_ms = new_start_ms
-            for i, other_ov in enumerate(self._text_overlays):
-                if i != idx:
-                    if abs(new_start_ms - other_ov.start_ms) < 200: snap_ms = other_ov.start_ms
-                    if abs(new_start_ms - other_ov.end_ms) < 200: snap_ms = other_ov.end_ms
-                    if abs((new_start_ms + duration) - other_ov.start_ms) < 200: snap_ms = other_ov.start_ms - duration
-                    if abs((new_start_ms + duration) - other_ov.end_ms) < 200: snap_ms = other_ov.end_ms - duration
+            snap_ms = self._snap_time(new_start_ms, duration=duration)
 
             new_start_ms = max(0, min(self._duration_ms - duration, snap_ms))
             ov.start_ms = new_start_ms
@@ -3178,7 +3221,7 @@ class VideoPlayerWindow(QWidget):
         self._top_bar.setStyleSheet("""
             QWidget#FullscreenChrome { background: rgba(12, 15, 21, 0.94); }
             QPushButton { background: transparent; border: none; padding: 6px 12px; }
-            QPushButton:hover, QPushButton:focus { background: #343A46; }
+            QPushButton:hover { background: #343A46; }
         """)
         top_layout = QHBoxLayout(self._top_bar)
         top_layout.setContentsMargins(8, 2, 8, 2)
@@ -3289,12 +3332,20 @@ class VideoPlayerWindow(QWidget):
         self._seekbar.sliderPressed.connect(self._on_seekbar_pressed)
         self._seekbar.sliderReleased.connect(self._on_seekbar_released)
         self._seekbar_dragging = False
+        self._scrub_pending = None
+        self._scrub_inflight_at = None
+        self._scrub_resume = False
+        self._scrub_timer = QTimer(self)
+        self._scrub_timer.setInterval(33)
+        self._scrub_timer.timeout.connect(self._flush_scrub_preview)
+        self._video_view.video_item.videoSink().videoFrameChanged.connect(self._on_scrub_frame)
         ctrl_layout.addWidget(self._seekbar)
 
         # Frame timeline (edit mode only — hidden by default)
         self._timeline = FrameTimelineWidget()
         self._timeline.position_changed.connect(self._on_timeline_seek)
         self._timeline.preview_seek.connect(self._on_timeline_preview)
+        self._timeline.mute_time_changed.connect(self._sync_mute_fields)
         self._timeline.setVisible(False)
         self._timeline.overlay_time_changed.connect(self._on_text_timeline_drag)
         self._timeline.overlay_selected.connect(self._select_text_overlay)
@@ -3460,6 +3511,7 @@ class VideoPlayerWindow(QWidget):
         self._sld_volume.setStyleSheet(_VOLUME_SLIDER_STYLE)
         self._sld_volume.valueChanged.connect(self._on_volume_changed)
         right_zone.addWidget(self._sld_volume)
+        self._update_volume_icon()
 
         # File actions are bottom-right beside the other playback controls.
         actions = QWidget()
@@ -3518,7 +3570,7 @@ class VideoPlayerWindow(QWidget):
                           border-radius: 21px; color: #FFFFFF; padding: 0; }
             QPushButton:hover { background: #36404E; }
             QPushButton:pressed { background: #1D2430; }
-            QPushButton:focus { border-color: #B3BFCE; }
+            QPushButton:focus { border-color: transparent; }
         """)
 
     def _make_nav_btn(self, icon_name: str, size: int) -> QPushButton:
@@ -3650,8 +3702,13 @@ class VideoPlayerWindow(QWidget):
         # ═══════════ CLIP ═══════════
         self._edit_layout.addWidget(self._panel_section_header("ve_trim.png", "Clip"))
 
-        self._chk_trim = self._make_tool_btn("ve_trim.png", "Trim", CARD_BG, BORDER)
-        self._chk_trim.clicked.connect(self._on_trim_toggled)
+        self._chk_trim = _TrimRangePreview("Trim")
+        self._chk_trim.setCheckable(True)
+        self._chk_trim.setMinimumHeight(36)
+        self._chk_trim.setStyleSheet("color:#F0F2F5; background:#25151B; border:1px solid #813442; border-radius:6px; text-align:left; padding:0 12px;")
+        self._chk_trim.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self._chk_trim.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._chk_trim.setCursor(Qt.CursorShape.ArrowCursor)
         self._edit_layout.addWidget(self._chk_trim)
         self._trim_fields = []
         for title in ('Start time', 'End time'):
@@ -3871,6 +3928,13 @@ class VideoPlayerWindow(QWidget):
             if item.widget():
                 item.widget().deleteLater()
         self._timeline.set_mute_regions([])
+
+    def _sync_mute_fields(self):
+        for i, region in enumerate(self._mute_regions):
+            row = self._mute_regions_container.itemAt(i).widget()
+            row.set_start_time(region.start_ms)
+            row.set_end_time(region.end_ms)
+        self._apply_preview_mute(self._player.position())
 
     def _refresh_mute_regions(self):
         self._timeline.set_mute_regions(self._mute_regions)
@@ -4115,6 +4179,8 @@ class VideoPlayerWindow(QWidget):
         """Handle drag is being moved — seek player for frame preview only."""
         self._seek_to_position(ms, preview=True)
         self._sync_trim_fields()
+        start, end = self._timeline.get_trim()
+        self._chk_trim.setChecked(start > 0 or end < self._player.duration())
         # Update button text in real-time as handles are dragged
         if self._chk_trim.isChecked():
             s, e = self._timeline.get_trim()
@@ -4128,13 +4194,39 @@ class VideoPlayerWindow(QWidget):
 
     def _on_seekbar_pressed(self):
         self._seekbar_dragging = True
+        self._scrub_resume = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
+        self._player.pause()
+        self._scrub_inflight_at = None
+        self._scrub_timer.start()
+
+    def _on_scrub_frame(self, frame):
+        if frame.isValid():
+            self._scrub_inflight_at = None
+
+    def _flush_scrub_preview(self, force=False):
+        # Let the decoder finish one preview instead of continuously cancelling
+        # it with newer seeks. Always retain the latest pointer position.
+        if not force and self._scrub_inflight_at is not None and time.monotonic() - self._scrub_inflight_at < 0.2:
+            return
+        if self._scrub_pending is not None:
+            position, self._scrub_pending = self._scrub_pending, None
+            self._scrub_inflight_at = time.monotonic()
+            self._seek_to_position(position, preview=True)
 
     def _on_seekbar_moved(self, position: int):
-        self._seek_to_position(position)
+        if self._seekbar_dragging:
+            self._scrub_pending = position
+        else:
+            self._seek_to_position(position)
 
     def _on_seekbar_released(self):
+        self._scrub_timer.stop()
         self._seekbar_dragging = False
-        self._seek_to_position(self._seekbar.value())
+        self._scrub_pending = self._seekbar.value()
+        self._flush_scrub_preview(force=True)
+        if self._scrub_resume:
+            self._player.play()
+        self._scrub_resume = False
 
     def _on_duration_changed(self, duration: int):
         self._timeline.setEnabled(duration > 0)
@@ -4202,19 +4294,36 @@ class VideoPlayerWindow(QWidget):
         self._player.setPlaybackRate(rate)
         self._cmb_speed.setToolTip(f'Playback speed: {rate:g}×')
 
+    def _update_volume_icon(self):
+        value = self._sld_volume.value()
+        muted = self._preview_user_muted or value == 0 or (self._edit_mode and self._mute_on_export)
+        count = 0 if muted else (1 if value <= 33 else 2 if value <= 66 else 3)
+        pm = QPixmap(64, 64)
+        pm.fill(Qt.GlobalColor.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor('#EEF1F6'), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        path = QPainterPath()
+        path.moveTo(8, 25); path.lineTo(17, 25); path.lineTo(27, 17)
+        path.lineTo(27, 47); path.lineTo(17, 39); path.lineTo(8, 39); path.closeSubpath()
+        p.drawPath(path)
+        for i in range(count):
+            radius = 10 + i * 9
+            p.drawArc(QRectF(27-radius, 32-radius, radius*2, radius*2), -48*16, 96*16)
+        if muted:
+            p.drawLine(39, 26, 51, 38); p.drawLine(39, 38, 51, 26)
+        p.end()
+        self._btn_vol.setIcon(QIcon(pm))
+        self._btn_vol.setToolTip('Unmute preview' if muted else 'Mute preview')
+
     def _on_volume_changed(self, value: int):
         self._audio_output.setVolume(value / 100.0)
-        icon_name = "ve_vol_mute.png" if value == 0 else ("ve_vol_down.png" if value < 50 else "ve_vol_up.png")
-        self._btn_vol.setIcon(QIcon(_asset(icon_name)))
-        self._btn_vol.setToolTip("Unmute preview" if value == 0 else "Mute preview")
+        self._update_volume_icon()
 
     def _toggle_mute(self):
-        """Toggle playback mute — does NOT affect export mute setting."""
-        muted = not self._preview_user_muted
-        self._preview_user_muted = muted
+        self._preview_user_muted = not self._preview_user_muted
         self._apply_preview_mute(self._player.position())
-        self._btn_vol.setIcon(QIcon(_asset("ve_vol_mute.png" if muted else "ve_vol_up.png")))
-        self._btn_vol.setToolTip("Unmute preview" if muted else "Mute preview")
+        self._update_volume_icon()
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.ShortcutOverride and self._is_typing_active():
@@ -4426,7 +4535,7 @@ class VideoPlayerWindow(QWidget):
         self._edit_heading.setText(escape(Path(self._filepath).name) + ' <span style="color:#FF4055"> | </span> <b>Edit mode</b>')
         self._edit_mode = not self._edit_mode
         self.setWindowTitle(Path(self._filepath).name + ("  |  Edit mode" if self._edit_mode else ""))
-        self._edit_heading.setVisible(self._edit_mode)
+        self._edit_heading.hide()
         self._editor_panel.setVisible(self._edit_mode)
         self._btn_edit.setChecked(self._edit_mode)
 
@@ -4447,6 +4556,8 @@ class VideoPlayerWindow(QWidget):
 
         if self._edit_mode:
             self._player.pause()
+            self._timeline.set_trim_enabled(True)
+            self._sync_trim_fields()
             self._btn_edit.setText(" Editing")
             if not self._thumbnails_loaded:
                 self._extract_thumbnails()
@@ -4497,6 +4608,7 @@ class VideoPlayerWindow(QWidget):
             field.setValue(value / 1000)
             field.blockSignals(False)
         self._trim_duration_label.setText('Kept duration: ' + _format_time(max(0, end - start)))
+        self._chk_trim.setText(f'Trim  ·  {_format_time(start)} → {_format_time(end)}')
 
     def _reset_trim_range(self):
         self._timeline._trim_start_ms = 0
@@ -4573,8 +4685,7 @@ class VideoPlayerWindow(QWidget):
         # Also mute/unmute playback preview to reflect the setting immediately
         self._apply_preview_mute(self._player.position())
         icon_name = "ve_vol_mute.png" if self._mute_on_export else "ve_vol_up.png"
-        self._btn_vol.setIcon(QIcon(_asset(icon_name)))
-        self._btn_vol.setToolTip("Unmute preview" if self._mute_on_export else "Mute preview")
+        self._update_volume_icon()
 
 
 

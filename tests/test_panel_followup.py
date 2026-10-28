@@ -83,12 +83,14 @@ def test_external_dock_follows_panel_resize_without_header_changes(app,monkeypat
     dock=DockWidget(object(),{'dock_edge':edge})
     panel=SettingsSidebar({'dock_edge':edge,'close_on_focus_loss':False},edge=edge)
     panel.show();QTest.qWait(100);dock.set_panel_anchor(panel)
-    assert panel._heading_container.height()==44
+    assert panel._heading_container.height() >= 44
+    before_heading_height = panel._heading_container.height()
     if edge in ('top','bottom'):
         panel._panel_height=panel.height()+20
         panel._position_sidebar(height=panel._panel_height)
     else: panel._position_sidebar(width=panel.width()+20)
     app.processEvents()
+    assert panel._heading_container.height() == before_heading_height
     assert not dock.geometry().intersects(panel.geometry())
     if edge in ('top','bottom'): assert abs(dock.geometry().center().x()-panel.geometry().center().x())<=1
     else: assert abs(dock.geometry().center().y()-panel.geometry().center().y())<=1

@@ -5,7 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import pytest
 from PyQt6.QtCore import Qt,QRect,QPointF
-from PyQt6.QtWidgets import QApplication,QWidget
+from PyQt6.QtWidgets import QApplication,QWidget,QPushButton,QLabel
 from PyQt6.QtGui import QColor,QPixmap
 ROOT=Path(__file__).resolve().parents[1]
 
@@ -140,3 +140,32 @@ def test_installer_artwork_and_copy_are_wired_into_native_wizard():
     image=Image.open(ROOT/'packaging/exe/assets/welcome.png')
     assert image.width < image.height
     assert image.width >= 164 and image.height >= 314
+
+
+def test_installer_welcome_has_native_branding_and_single_next_instruction():
+    script=(ROOT/'packaging/exe/installer_config.iss').read_text(encoding='utf-8')
+    assert 'AddInstallerBranding();' in script
+    assert 'BrandLogo.PngImage.Assign(WizardForm.WizardSmallBitmapImage.PngImage)' in script
+    assert "BrandWW.Caption := 'WW'" in script
+    assert "BrandR.Caption := 'R'" in script
+    assert "BrandRest.Caption := 'ecorder'" in script
+    assert 'BrandR.Font.Color := $5540FF' in script
+    assert 'BrandR.Color := $1D1511' in script
+    assert '.Transparent :=' not in script
+    welcome=next(line for line in script.splitlines() if line.startswith('WelcomeLabel2='))
+    assert 'Click Next' not in welcome
+
+
+def test_saved_notice_is_compact_and_keeps_actions_thumbnail_and_hide(app,tmp_path):
+    cls=success_class();image=QPixmap(160,90);image.fill(QColor('#267DA4'))
+    notice=cls(str(tmp_path/'capture.png'),'Screenshot saved','capture.png',image)
+    notice._play_sound=lambda:None
+    notice.show_notification();app.processEvents()
+    assert notice.height()<=115
+    buttons=notice.findChildren(QPushButton)
+    assert {'Open','Rename'} <= {button.text() for button in buttons}
+    hide=next(button for button in buttons if button.toolTip()=='Hide saved capture notification')
+    hide.click();assert notice.isHidden()
+    assert not notice._thumb_lbl.pixmap().isNull()
+    assert not any('Saved to your' in label.text() for label in notice.findChildren(QLabel))
+    notice._auto_timer.stop();notice.close()

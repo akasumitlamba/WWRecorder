@@ -73,7 +73,7 @@ def test_processing_is_indeterminate_and_stops_animation_when_hidden(app):
     before=popup._activity._angle
     QTest.qWait(100)
     assert popup._activity._angle!=before and popup._activity._timer.isActive()
-    assert popup._status_lbl.text()=='Finishing your recording'
+    assert popup._status_lbl.text()=='Processing recording'
     assert '%' not in popup._status_lbl.text() and 'Gallery' in popup._message.text()
     assert not hasattr(popup,'_movie')
     popup._btn_hide.click();app.processEvents()
@@ -212,12 +212,11 @@ def test_speed_indicators_distinguish_all_rates(app):
         app.processEvents()
 
 
-def test_editor_heading_uses_red_vertical_separator(app):
+def test_editor_heading_only_in_native_window_title(app):
     window = VideoPlayerWindow('Capture.mkv')
     window._thumbnails_loaded = True
     window._toggle_edit_mode()
-    assert '> | </span>' in window._edit_heading.text()
-    assert '> / </span>' not in window._edit_heading.text()
+    assert window._edit_heading.isHidden()
     assert window.windowTitle() == 'Capture.mkv  |  Edit mode'
     window._force_exit_edit_mode()
     window.close()
@@ -282,3 +281,14 @@ def test_generated_speed_family_sets_actual_playback_rate(app,index,rate,label):
     assert symbol == window._cmb_speed.itemIcon(0).pixmap(16,16).toImage()
     window.close()
     app.processEvents()
+
+
+def test_compact_processing_notice_closes_without_cancelling_work(app):
+    popup=ProcessingNotice();popup.show_saving();app.processEvents()
+    assert popup.height()<100
+    assert popup._stages.isHidden() and popup._message.isHidden()
+    assert popup._btn_hide.isVisible() and popup._btn_close.isVisible()
+    popup._btn_close.click();app.processEvents()
+    assert popup.isHidden() and not popup._activity._timer.isActive()
+    popup.show_saving();app.processEvents();assert popup._activity._timer.isActive()
+    popup.close()
