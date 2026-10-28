@@ -120,7 +120,9 @@
     },
     {
       "name": "apply",
-      "subject": "Apply: simple coral checkmark"
+      "subject": "Geometric confirmation check, two straight 45-degree strokes with rounded ends",
+      "source": "apply.svg",
+      "tool": "native SVG"
     },
     {
       "name": "ve_vol_up",

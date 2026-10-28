@@ -50,8 +50,8 @@ from ui_elements import SelectionOverlay, PillWidget, SettingsWindow, CaptureBor
 from dock_widget import (
     DockWidget, SettingsSidebar, RecentFilesSidebar, _ACTIVE_UPDATE_THREADS,
 )
-from updater import UpdateChecker
-from distribution import is_packaged, config_directory, migrate_legacy_config
+from updater import UpdateChecker, InstallerDownloader, launch_inno_installer
+from distribution import is_packaged, config_directory, migrate_legacy_config, store_url
 from startup_integration import PackagedStartup, desktop_startup_state
 from display_geometry import build_capture_plan, compose_frozen_desktop, qt_screen_transforms
 from user_messages import friendly_error
@@ -147,29 +147,30 @@ class _SuccessNotification(QWidget):
         container.setObjectName("notifContainer")
         container.setStyleSheet("""
             QWidget#notifContainer {
-                background: #1C1C1E;
-                border: 1px solid #3A3A3C;
+                background: #151923;
+                border: 1px solid #424B5D;
                 border-radius: 12px;
             }
         """)
         container.setFixedWidth(370)
 
         main_layout = QHBoxLayout(container)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setContentsMargins(16, 14, 14, 14)
+        main_layout.setSpacing(12)
 
         # Thumbnail — larger for better preview
         self._thumb_lbl = QLabel()
-        self._thumb_lbl.setFixedSize(80, 80)
-        self._thumb_lbl.setStyleSheet("background: #000; border-radius: 8px; border: 1px solid #333;")
+        self._thumb_lbl.setFixedSize(80, 64)
+        self._thumb_lbl.setStyleSheet("background: #0D121B; border-radius: 8px; border: 1px solid #424B5D;")
         if icon_pixmap and not icon_pixmap.isNull():
-            scaled = icon_pixmap.scaled(80, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled = icon_pixmap.scaled(80, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self._thumb_lbl.setPixmap(scaled)
             self._thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         else:
-            self._thumb_lbl.setText("\u2714")
+            from icon_theme import asset_path
+            self._thumb_lbl.setPixmap(QIcon(asset_path('apply.png')).pixmap(28,28))
             self._thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            self._thumb_lbl.setStyleSheet("background: rgba(34, 197, 94, 0.15); border-radius: 8px; color: #22C55E; font-size: 28px; font-weight: bold;")
+            self._thumb_lbl.setStyleSheet("background: rgba(34, 197, 94, 0.15); border-radius: 8px; color: #53D3A0; font-size: 28px; font-weight: bold;")
         main_layout.addWidget(self._thumb_lbl, 0, Qt.AlignmentFlag.AlignTop)
 
         right = QVBoxLayout()
@@ -181,11 +182,15 @@ class _SuccessNotification(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(0)
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 13px; font-weight: 700; font-family: 'Segoe UI';")
+        lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 14px; font-weight: 600; font-family: 'Segoe UI';")
         header.addWidget(lbl_title, 1)
 
-        btn_close = QPushButton("\u00d7")
-        btn_close.setFixedSize(22, 22)
+        btn_close = QPushButton()
+        from icon_theme import asset_path
+        btn_close.setIcon(QIcon(asset_path("close.png")))
+        btn_close.setIconSize(QSize(16,16))
+        btn_close.setToolTip("Dismiss saved capture notification")
+        btn_close.setFixedSize(26, 26)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.setStyleSheet("""
             QPushButton { background: transparent; color: #8E8E93; border: none; font-size: 16px; font-weight: bold; }
@@ -195,9 +200,13 @@ class _SuccessNotification(QWidget):
         header.addWidget(btn_close)
         right.addLayout(header)
 
+        saved = QLabel('Saved to your capture folder')
+        saved.setStyleSheet("color:#53D3A0;font:11px 'Segoe UI';border:none;background:transparent;")
+        right.addWidget(saved)
+
         # Subtitle (filename) — allows 2 lines
         self._lbl_sub = QLabel(subtitle)
-        self._lbl_sub.setStyleSheet("background: transparent; border: none; color: rgba(255,255,255,0.55); font-size: 11px; font-family: 'Segoe UI';")
+        self._lbl_sub.setStyleSheet("background: transparent; border: none; color: #B9C1CE; font-size: 11px; font-family: 'Segoe UI';")
         self._lbl_sub.setWordWrap(True)
         self._lbl_sub.setMaximumHeight(34)  # ~2 lines
         right.addWidget(self._lbl_sub)
@@ -208,7 +217,7 @@ class _SuccessNotification(QWidget):
         self._rename_edit.setFixedHeight(28)
         self._rename_edit.setStyleSheet("""
             QLineEdit {
-                background: #2C2C2E; border: 1px solid #DC2626; border-radius: 5px;
+                background: #242C3A; border: 1px solid #DC2626; border-radius: 5px;
                 padding: 0 8px; color: #FFFFFF; font-size: 11px; font-family: 'Segoe UI';
                 selection-background-color: #DC2626;
             }
@@ -230,10 +239,10 @@ class _SuccessNotification(QWidget):
         self._btn_rename.setFixedHeight(26)
         self._btn_rename.setStyleSheet("""
             QPushButton {
-                background: #2C2C2E; color: rgba(255,255,255,0.8); border: 1px solid #3C3C3E;
+                background: #242C3A; color: rgba(255,255,255,0.8); border: 1px solid #424B5D;
                 border-radius: 5px; font-size: 11px; font-weight: 600; padding: 0 14px; font-family: 'Segoe UI';
             }
-            QPushButton:hover { background: #3C3C3E; color: #FFFFFF; }
+            QPushButton:hover { background: #343E50; color: #FFFFFF; }
         """)
         self._btn_rename.clicked.connect(self._toggle_rename)
         btn_row.addWidget(self._btn_rename)
@@ -243,10 +252,10 @@ class _SuccessNotification(QWidget):
         btn_open.setFixedHeight(26)
         btn_open.setStyleSheet("""
             QPushButton {
-                background: #DC2626; color: #FFFFFF; border: none; border-radius: 5px;
+                background: #C93246; color: #FFFFFF; border: none; border-radius: 5px;
                 font-size: 11px; font-weight: 600; padding: 0 14px; font-family: 'Segoe UI';
             }
-            QPushButton:hover { background: #EF4444; }
+            QPushButton:hover { background: #DF4055; }
         """)
         btn_open.clicked.connect(self._on_open)
         btn_row.addWidget(btn_open)
@@ -273,21 +282,23 @@ class _SuccessNotification(QWidget):
     def set_thumbnail(self, pixmap: QPixmap) -> None:
         if pixmap and not pixmap.isNull():
             self._thumb_lbl.setPixmap(pixmap.scaled(
-                80, 80, Qt.AspectRatioMode.KeepAspectRatio,
+                80, 64, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             ))
             self._thumb_lbl.setText("")
             self._thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._thumb_lbl.setStyleSheet(
-                "background: #000; border-radius: 8px; border: 1px solid #333;"
+                "background: #0D121B; border-radius: 8px; border: 1px solid #424B5D;"
             )
 
     def show_notification(self, anchor: QPoint | None = None):
         screen_obj = _screen_for_anchor(anchor)
         screen = screen_obj.availableGeometry() if screen_obj else QRect(0, 0, 1920, 1080)
+        self.setFixedWidth(min(370, max(1, screen.width()-32)))
+        self.findChild(QWidget, 'notifContainer').setFixedWidth(self.width())
         self.adjustSize()
-        x = screen.right() - self.width() - 16
-        y = screen.bottom() - self.height() - 16
+        x = max(screen.left(), screen.right() - self.width() - 16)
+        y = max(screen.top(), screen.bottom() - self.height() - 16)
         self.move(x, y)
         self.show()
 
@@ -313,7 +324,10 @@ class _SuccessNotification(QWidget):
             pass
 
     def _dismiss(self):
+        if getattr(self, '_dismissing', False):
+            return
         self._dismissing = True
+        if hasattr(self, '_fade_in'): self._fade_in.stop()
         self._auto_timer.stop()
         # Fade out then close
         self._fade_out = QPropertyAnimation(self._opacity_effect, b"opacity")
@@ -756,13 +770,13 @@ class WWRecorderApp:
             else:
                 self._read_desktop_startup()
 
-        # Silent update check on boot
-        self._updater = None
-        if not is_packaged():
-            self._updater = UpdateChecker(APP_VERSION)
-            self._updater.check_finished.connect(self._on_update_check_finished)
-            self._updater.check_failed.connect(self._on_update_check_failed)
-            self._updater.start()
+        # Silent GitHub version check on boot (EXE and MSIX). EXE may later
+        # download+launch Inno; MSIX only prompts the Store when newer.
+        self._updater = UpdateChecker(APP_VERSION)
+        self._installer_downloader = None
+        self._updater.check_finished.connect(self._on_update_check_finished)
+        self._updater.check_failed.connect(self._on_update_check_failed)
+        self._updater.start()
 
     # ── Config ────────────────────────────────────────────────────────────────
 
@@ -900,8 +914,16 @@ class WWRecorderApp:
     def _on_tray_message_clicked(self) -> None:
         # Check if this was an update notification
         if self._last_tray_type == 'update' and self._update_status["available"]:
-            import webbrowser
-            webbrowser.open(self._update_status["url"])
+            if is_packaged():
+                import webbrowser
+                webbrowser.open(self._update_status.get("url") or store_url())
+            else:
+                download = self._update_status.get("download_url") or ""
+                if download:
+                    self._on_update_install_requested(download, self._update_status.get("version", ""))
+                else:
+                    import webbrowser
+                    webbrowser.open(self._update_status.get("url") or "")
             return
 
         if hasattr(self, "_last_saved_filepath") and self._last_saved_filepath:
@@ -929,6 +951,8 @@ class WWRecorderApp:
 
     def _on_dock_position_changed(self):
         self.config.update({"dock_edge": self.dock._edge, "dock_x": self.dock._dock_x, "dock_y": self.dock._dock_y})
+        if getattr(self.dock, "_dock_discovered", False) and "dock_discovered" in getattr(self.dock, "_config", {}):
+            self.config["dock_discovered"] = True
         if self._settings_sidebar:
             for key in ("dock_edge", "dock_x", "dock_y"):
                 self._settings_sidebar._config[key] = self.config[key]
@@ -1080,7 +1104,7 @@ class WWRecorderApp:
             # Show custom in-app success notification
             self._show_success_notification(
                 saved_path,
-                "Screenshot Saved \u2714",
+                "Screenshot Saved",
                 Path(saved_path).name,
                 self._load_thumbnail_pixmap(saved_path),
             )
@@ -1547,7 +1571,7 @@ class WWRecorderApp:
             # Show custom in-app success notification
             self._show_success_notification(
                 filepath,
-                "Recording Saved \u2714",
+                "Recording Saved",
                 f"{os.path.basename(filepath)}  ({size_mb:.1f} MB)",
                 QPixmap(),
             )
@@ -1799,28 +1823,42 @@ class WWRecorderApp:
     # ── Update Checker ────────────────────────────────────────────────────────
 
     def _on_update_check_finished(self, available: bool, version: str, url: str, download_url: str):
-        self._update_status = {"available": available, "version": version, "url": url, "download_url": download_url}
-        
-        # Best Practice: Avoid auto-updating if user has explicitly ignored this version
-        # (Useful if they manually downgraded because of a bug in the new version)
+        if is_packaged():
+            available, version, url, download_url = False, "", store_url(), ""
+        self._update_status = {
+            "available": available,
+            "version": version,
+            "url": url,
+            "download_url": download_url or "",
+        }
+
+        # Avoid nagging when the user ignored this exact version tag.
         if available and version == self.config.get("ignored_update_version"):
-            # Still set status for settings sidebar if it's open, but don't notify or auto-download
             if self._settings_sidebar and self._settings_sidebar.isVisible():
-                self._settings_sidebar.set_update_status(available, version, url)
+                self._settings_sidebar.set_update_status(available, version, url, download_url)
             return
 
         if available:
-            self._last_tray_type = 'update'
-            self.tray.showMessage(
-                "Update Available!",
-                f"WWRecorder {version} is now available.\nClick to open the EXE download page.",
-                self.tray.icon(),
-                10000
-            )
-        
-        # If settings is open, tell it!
+            self._last_tray_type = "update"
+            if is_packaged():
+                body = (
+                    f"WWRecorder {version} is available.\n"
+                    "Click to open Microsoft Store (Store delivers the update)."
+                )
+            elif download_url:
+                body = (
+                    f"WWRecorder {version} is available.\n"
+                    "Click to download and launch the official installer."
+                )
+            else:
+                body = (
+                    f"WWRecorder {version} is available.\n"
+                    "Click to open the official release page."
+                )
+            self.tray.showMessage("Update Available!", body, self.tray.icon(), 10000)
+
         if self._settings_sidebar and self._settings_sidebar.isVisible():
-            self._settings_sidebar.set_update_status(available, version, url)
+            self._settings_sidebar.set_update_status(available, version, url, download_url)
 
     def _on_update_check_failed(self, message: str):
         if self._settings_sidebar and self._settings_sidebar.isVisible():
@@ -1828,8 +1866,107 @@ class WWRecorderApp:
 
     def _on_manual_update_check_finished(self, available: bool, version: str, url: str, download_url: str = ""):
         self._has_manually_checked_updates = True
+        self._update_status = {
+            "available": available,
+            "version": version,
+            "url": url,
+            "download_url": download_url or "",
+        }
 
-    # _on_tray_message_clicked is defined above at line ~322
+    def _update_capture_is_busy(self) -> bool:
+        """True when applying an update would risk capture/media ownership."""
+        if self._update_downloading:
+            return True
+        if getattr(self, "_recording_prepare_in_progress", False):
+            return True
+        if self._processing_filename:
+            return True
+        if self.engine and (self.engine.is_recording() or self.engine.is_prewarming()):
+            return True
+        return False
+
+    def _on_update_install_requested(self, download_url: str, version: str):
+        """EXE path: media-safe silent download → Inno launch → quit."""
+        if is_packaged():
+            self.tray.showMessage(
+                APP_NAME,
+                "This Microsoft Store installation updates through the Store only.",
+                self.tray.icon(),
+                6000,
+            )
+            return
+        if self._update_capture_is_busy():
+            self.tray.showMessage(
+                APP_NAME,
+                "Finish, save, or discard your recording before installing an update. "
+                "Nothing was downloaded.",
+                self.tray.icon(),
+                8000,
+            )
+            if self._settings_sidebar and self._settings_sidebar.isVisible():
+                self._settings_sidebar.set_update_error(
+                    "Finish, save, or discard your recording before installing an update. "
+                    "Nothing was downloaded."
+                )
+            return
+        if self._installer_downloader and self._installer_downloader.isRunning():
+            return
+        self._update_downloading = True
+        self._installer_downloader = InstallerDownloader(download_url, version)
+        self._installer_downloader.progress.connect(self._on_installer_download_progress)
+        self._installer_downloader.download_finished.connect(self._on_installer_download_finished)
+        self._installer_downloader.download_failed.connect(self._on_installer_download_failed)
+        self._installer_downloader.start()
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
+            self._settings_sidebar.set_update_progress(0, "Downloading the official installer…")
+
+    def _on_installer_download_progress(self, percent: int):
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
+            self._settings_sidebar.set_update_progress(percent)
+
+    def _on_installer_download_finished(self, path: str):
+        self._update_downloading = False
+        if self._update_capture_is_busy():
+            self.tray.showMessage(
+                APP_NAME,
+                "The installer downloaded, but a recording is now active. "
+                "Quit WWRecorder when idle and run the installer from your temp updates folder.",
+                self.tray.icon(),
+                10000,
+            )
+            if self._settings_sidebar and self._settings_sidebar.isVisible():
+                self._settings_sidebar.set_update_error(
+                    "Installer downloaded, but capture became busy. Launch it after you finish recording."
+                )
+            return
+        try:
+            launch_inno_installer(path)
+        except Exception as exc:
+            self.tray.showMessage(
+                APP_NAME,
+                f"Could not start the installer ({exc}). Your recordings were not changed.",
+                self.tray.icon(),
+                8000,
+            )
+            if self._settings_sidebar and self._settings_sidebar.isVisible():
+                self._settings_sidebar.set_update_error(
+                    f"Could not start the installer ({exc}). Your recordings were not changed."
+                )
+            return
+        self.tray.showMessage(
+            APP_NAME,
+            "Installer started. WWRecorder will close so files can be updated.",
+            self.tray.icon(),
+            4000,
+        )
+        # Quit so Inno can replace binaries (installer mutex / file locks).
+        QTimer.singleShot(400, self._quit)
+
+    def _on_installer_download_failed(self, message: str):
+        self._update_downloading = False
+        self.tray.showMessage(APP_NAME, message, self.tray.icon(), 8000)
+        if self._settings_sidebar and self._settings_sidebar.isVisible():
+            self._settings_sidebar.set_update_error(message)
 
     def _cancel_pre_record(self) -> None:
         is_pre_record = bool(self.pill and getattr(self.pill, '_pre_record', False))
@@ -2011,6 +2148,7 @@ class WWRecorderApp:
         self._settings_sidebar.files_requested.connect(self._on_files_requested)
         self._settings_sidebar.quit_requested.connect(self._quit)
         self._settings_sidebar.manual_update_check_finished.connect(self._on_manual_update_check_finished)
+        self._settings_sidebar.update_install_requested.connect(self._on_update_install_requested)
         self._settings_sidebar.font_size_changed.connect(self._on_font_size_changed)
         self._settings_sidebar.dock_position_changed.connect(self._on_dock_edge_selected)
         self._settings_sidebar.closed.connect(lambda: QTimer.singleShot(0, self._restore_dock_after_panel))  # Keep reference for potential reuse
@@ -2034,7 +2172,10 @@ class WWRecorderApp:
         # If a background check already found an update, reflect it in the UI immediately
         if self._update_status["available"]:
             self._settings_sidebar.set_update_status(
-                True, self._update_status["version"], self._update_status["url"]
+                True,
+                self._update_status["version"],
+                self._update_status["url"],
+                self._update_status.get("download_url", ""),
             )
         elif self._has_manually_checked_updates:
             self._settings_sidebar.set_update_status(False, "", "")
@@ -2133,6 +2274,7 @@ class WWRecorderApp:
         update_workers = [
             worker for worker in (
                 getattr(self, '_updater', None), getattr(self, '_downloader', None),
+                getattr(self, '_installer_downloader', None),
                 *_ACTIVE_UPDATE_THREADS,
             ) if worker and worker.isRunning()
         ]
@@ -2241,7 +2383,10 @@ if __name__ == "__main__":
             sys.exit(0)
 
     try:
-        if len(sys.argv) == 3 and sys.argv[1] in ("--recording-smoke-test", "--recording-qa-test"):
+        if len(sys.argv) == 3 and sys.argv[1] == "--distribution-smoke-test":
+            from distribution_smoke import run
+            sys.exit(run(sys.argv[2]))
+        elif len(sys.argv) == 3 and sys.argv[1] in ("--recording-smoke-test", "--recording-qa-test"):
             from recording_smoke import run
             sys.exit(run(sys.argv[2], thorough=sys.argv[1] == "--recording-qa-test"))
         else:

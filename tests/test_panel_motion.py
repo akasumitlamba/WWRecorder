@@ -75,7 +75,10 @@ def test_switching_panel_ignores_old_transition_signals(app,monkeypatch,edge):
     first.show();dock.set_panel_anchor(first)
     first.close_panel(animate=False)
     second.open_panel();dock.set_panel_anchor(second)
-    QTest.qWait(380)
+    for _ in range(60):
+        if second._transition_state == 'open' and dock.isVisible():
+            break
+        QTest.qWait(10)
     assert dock.isVisible()
     first.closing.emit();first.opened.emit()
     assert dock.isVisible() and dock._panel_anchor is second

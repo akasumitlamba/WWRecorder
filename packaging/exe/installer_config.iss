@@ -66,8 +66,13 @@ SolidCompression=yes
 LZMAUseSeparateProcess=yes
 
 ; ── Wizard appearance ─────────────────────────────────────────────────────────
-WizardStyle=modern
-WizardSizePercent=120
+WizardStyle=modern dark windows11
+WizardSizePercent=110
+WizardSmallImageFile={#RepoRoot}packaging\shared\icon-source.png
+WizardImageFile={#RepoRoot}packaging\exe\assets\welcome.png
+WizardImageStretch=yes
+WizardImageBackColor=$1D1511
+WizardImageBackColorDynamicDark=$1D1511
 DisableWelcomePage=no
 ShowLanguageDialog=auto
 
@@ -89,11 +94,20 @@ VersionInfoProductVersion={#MyAppVersion}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 
+[Messages]
+WizardSelectTasks=Additional options
+SelectTasksDesc=Choose how WWRecorder starts and where shortcuts appear.
+SelectTasksLabel2=Select the options you want, then click Next.
+WelcomeLabel1=Welcome to WWRecorder Setup
+WelcomeLabel2=Install WWRecorder to capture your screen, microphone and computer audio.%n%nClick Next to continue.
+FinishedHeadingLabel=WWRecorder is ready
+FinishedLabelNoIcons=Setup has installed WWRecorder on your computer. Click Finish to close Setup.
+
 [Tasks]
 ; Desktop shortcut
 Name: "desktopicon";     Description: "{cm:CreateDesktopIcon}";          GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 ; Auto-start with Windows
-Name: "autostart";       Description: "Launch {#MyAppName} when Windows starts"; GroupDescription: "System Integration:"
+Name: "autostart";       Description: "Launch {#MyAppName} when Windows starts"; GroupDescription: "Startup:"
 
 
 [Files]
@@ -156,6 +170,18 @@ Type: dirifempty; Name: "{userappdata}\{#MyAppName}"
 ;  Pascal Script — helper functions
 ; ============================================================================
 [Code]
+
+procedure InitializeWizard();
+begin
+  { Keep complete glyph bounds at fractional DPI, with comfortable line spacing. }
+  WizardForm.TasksList.MinItemHeight := ScaleY(26);
+  WizardForm.TasksList.Offset := ScaleX(8);
+  WizardForm.ComponentsList.MinItemHeight := ScaleY(26);
+  WizardForm.ComponentsList.Offset := ScaleX(8);
+  WizardForm.RunList.MinItemHeight := ScaleY(26);
+  WizardForm.RunList.Offset := ScaleX(8);
+  WizardForm.ReadyLabel.Caption := 'Ready to install WWRecorder';
+end;
 
 // ── Check whether the app is currently running ─────────────────────────────
 function IsAppRunning(): Boolean;

@@ -27,7 +27,7 @@ from PyQt6.QtWidgets import (
     QMenu, QComboBox, QFileDialog, QGridLayout, QLineEdit,
     QSpinBox, QDoubleSpinBox, QScrollArea, QStackedWidget, QProgressBar,
     QStackedLayout, QGraphicsView, QGraphicsScene, QGraphicsTextItem,
-    QGraphicsObject, QScrollBar, QPlainTextEdit,
+    QGraphicsObject, QScrollBar, QPlainTextEdit, QStyleOptionButton,
 )
 from PyQt6.QtCore import (
     Qt, QRect, QRectF, QPoint, QSize, QTimer, QPointF,
@@ -53,6 +53,18 @@ def _exclude_from_capture(hwnd: int) -> None:
             _user32.SetWindowDisplayAffinity(ctypes.c_void_p(hwnd), WDA_EXCLUDEFROMCAPTURE)
         except Exception:
             pass
+
+
+# Quiet transport controls; the stable dark control surface supplies contrast.
+_PLAYER_ICON_STYLE = """
+QPushButton { background: transparent; color: #EEF1F6; border: 1px solid transparent;
+              border-radius: 6px; padding: 0; }
+QPushButton:hover { background: rgba(255,255,255,0.07); }
+QPushButton:pressed { background: rgba(255,255,255,0.12); }
+QPushButton:focus { border-color: #9AA4B2; }
+QPushButton:checked { color: #FF5264; }
+QPushButton:disabled { background: transparent; }
+"""
 
 
 def _asset(filename: str) -> str:
@@ -380,13 +392,8 @@ class _Toast(QLabel):
     def __init__(self, parent):
         super().__init__(parent)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.setStyleSheet("""
-            QLabel {
-                background: rgba(34, 197, 94, 0.9); color: #FFFFFF;
-                border-radius: 8px; font-size: 12px; font-weight: 700;
-                font-family: 'Segoe UI'; padding: 8px 18px;
-            }
-        """)
+        from notice_theme import toast_style
+        self.setStyleSheet(toast_style())
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.hide()
         self._timer = QTimer(self)
@@ -395,13 +402,8 @@ class _Toast(QLabel):
 
     def show_message(self, text: str, duration_ms: int = 2000, color: str = "rgba(34, 197, 94, 0.9)"):
         self.setText(text)
-        self.setStyleSheet(f"""
-            QLabel {{
-                background: {color}; color: #FFFFFF;
-                border-radius: 8px; font-size: 12px; font-weight: 700;
-                font-family: 'Segoe UI'; padding: 8px 18px;
-            }}
-        """)
+        from notice_theme import toast_style
+        self.setStyleSheet(toast_style(color))
         self.adjustSize()
         if self.parent():
             pw = self.parent().width()
@@ -987,6 +989,7 @@ class FrameTimelineWidget(QWidget):
         self._trim_enabled  = False
 
         self._delete_regions: List['_DeleteRegionItem'] = []
+        self._mute_regions = []
 
         # Text overlay lanes
         self._text_overlays: list = []
@@ -1051,6 +1054,10 @@ class FrameTimelineWidget(QWidget):
 
     def get_trim(self):
         return self._trim_start_ms, self._trim_end_ms
+
+    def set_mute_regions(self, regions):
+        self._mute_regions = regions
+        self.update()
 
     def set_delete_regions(self, regions: List['_DeleteRegionItem']):
         self._delete_regions = regions
@@ -1696,6 +1703,18 @@ class FrameTimelineWidget(QWidget):
                 p.setBrush(CLR_RED)
                 p.drawRoundedRect(pin_rect, 3, 3)
 
+        # Muted audio retains the video frames and uses a separate yellow band.
+        p.save()
+        p.setClipRect(fr)
+        for region in self._mute_regions:
+            sx, ex = self._ms_to_x(region.start_ms), self._ms_to_x(region.end_ms)
+            band = QRectF(sx, fr.y() + fr.height() - 20, max(1, ex - sx), 20)
+            p.fillRect(band, QColor(245, 190, 55, 210))
+            p.fillRect(QRectF(sx + 2, band.y() + 1, 18, 18), QColor("#24262D"))
+            p.drawPixmap(QRectF(sx + 3, band.y() + 2, 16, 16).toRect(),
+                         QPixmap(_asset('ve_vol_mute.png')))
+        p.restore()
+
         # ── Scrollbar ──
         if self._zoom > 1.0:
             sb  = self._sb_rect()
@@ -1821,6 +1840,49 @@ class FrameTimelineWidget(QWidget):
 #  Overlay Data Models
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _audio_edit_filter(mute_filters, cuts, duration):
+    """Trim/concat retained audio; silence is applied before source-time cuts."""
+    if not cuts:
+        return ','.join(mute_filters)
+    keep = []
+    cursor = 0.0
+    for start, end in cuts:
+        start, end = max(0, start), min(duration, end)
+        if end <= cursor:
+            continue
+        if start > cursor:
+            keep.append((cursor, min(start, duration)))
+        cursor = max(cursor, end)
+    if cursor < duration:
+        keep.append((cursor, duration))
+    keep = [(a, b) for a, b in keep if b > a]
+    prefix = ','.join(mute_filters)
+    if len(keep) <= 1:
+        start, end = keep[0] if keep else (0, 0)
+        return (prefix + ',' if prefix else '') + f'atrim=start={start:.6f}:end={end:.6f},asetpts=PTS-STARTPTS'
+    graph = [(prefix + ',' if prefix else '') + f"asplit={len(keep)}" + ''.join(f'[source{i}]' for i in range(len(keep)))]
+    for i, (start, end) in enumerate(keep):
+        graph.append(f'[source{i}]atrim=start={start:.6f}:end={end:.6f},asetpts=PTS-STARTPTS[kept{i}]')
+    graph.append(''.join(f'[kept{i}]' for i in range(len(keep))) + f'concat=n={len(keep)}:v=0:a=1')
+    return ';'.join(graph)
+
+
+def _mute_audio_filters(regions, trim_start_ms, trim_end_ms):
+    """Mute before cut retiming, on the same trimmed source clock as captions."""
+    intervals = sorted((max(trim_start_ms, r.start_ms), min(trim_end_ms, r.end_ms))
+                       for r in regions if r.end_ms > trim_start_ms and r.start_ms < trim_end_ms)
+    merged = []
+    for start, end in intervals:
+        if end <= start:
+            continue
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
+        else:
+            merged.append((start, end))
+    return [f"volume=0:enable='gte(t,{(start-trim_start_ms)/1000:.3f})*lt(t,{(end-trim_start_ms)/1000:.3f})'"
+            for start, end in merged]
+
+
 class _DeleteRegionItem:
     def __init__(self, start_ms=0, end_ms=2000):
         self.start_ms = start_ms
@@ -1930,6 +1992,23 @@ class _DeleteRegionRow(QWidget):
         self.changed.emit()
 
 # ─────────────────────────────────────────────────────────────────────────────
+
+class _MuteRegionRow(_DeleteRegionRow):
+    """Bound editable mute times to the source, including the final 100 ms."""
+    def _on_time_changed(self, which, value):
+        duration = max(0, self._duration_ms)
+        if which == 'start':
+            self.item.start_ms = max(0, min(int(round(value * 1000)), max(0, duration - 100)))
+            self.item.end_ms = min(duration, max(self.item.end_ms, self.item.start_ms + 100))
+        else:
+            self.item.end_ms = min(duration, max(min(100, duration), int(round(value * 1000))))
+            self.item.start_ms = max(0, min(self.item.start_ms, self.item.end_ms - 100))
+        for field, ms in ((self._spn_start, self.item.start_ms), (self._spn_end, self.item.end_ms)):
+            field.blockSignals(True)
+            field.setValue(ms / 1000)
+            field.blockSignals(False)
+        self.changed.emit()
+
 
 class _TextOverlayItem:
     def __init__(self):
@@ -2864,6 +2943,63 @@ class TextOverlayTimeline(QWidget):
 #  VideoPlayerWindow
 # ─────────────────────────────────────────────────────────────────────────────
 
+class _PlaybackSpeedCombo(QComboBox):
+    """Explicit compact content geometry; native combo chrome varies across Windows styles."""
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        if self.underMouse():
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(255, 255, 255, 18))
+            painter.drawRoundedRect(self.rect(), 5, 5)
+        if self.hasFocus():
+            painter.setPen(QPen(QColor('#9AA4B2'), 1))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawRoundedRect(QRectF(self.rect()).adjusted(.5, .5, -.5, -.5), 5, 5)
+        symbol = self.itemIcon(self.currentIndex()).pixmap(16, 16)
+        painter.drawPixmap(QPointF(3, (self.height() - symbol.height()) / 2), symbol)
+        font = QFont(self.font())
+        font.setPixelSize(12)
+        font.setWeight(QFont.Weight.DemiBold)
+        painter.setFont(font)
+        painter.setPen(QColor('#F0F2F5'))
+        painter.drawText(QRect(24, 0, self.width() - 38, self.height()),
+                         Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.currentText())
+        painter.setPen(QPen(QColor('#CFD6E1'), 1.3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        cx, cy = self.width() - 8, self.height() / 2
+        painter.drawLine(QPointF(cx - 3, cy - 1), QPointF(cx, cy + 2))
+        painter.drawLine(QPointF(cx, cy + 2), QPointF(cx + 3, cy - 1))
+
+
+class _CenteredPlaybackButton(QPushButton):
+    """Centre visible artwork, independently of Qt's icon/text spacing and PNG padding."""
+    def paintEvent(self, event):
+        option = QStyleOptionButton()
+        self.initStyleOption(option)
+        option.icon = QIcon()
+        painter = QPainter(self)
+        self.style().drawControl(QStyle.ControlElement.CE_PushButton, option, painter, self)
+        ratio = self.devicePixelRatioF()
+        size = self.iconSize()
+        mode = QIcon.Mode.Normal if self.isEnabled() else QIcon.Mode.Disabled
+        pixmap = self.icon().pixmap(QSize(round(size.width() * ratio), round(size.height() * ratio)), mode)
+        if pixmap.isNull():
+            return
+        image = pixmap.toImage()
+        total = moment_x = moment_y = 0
+        for y in range(image.height()):
+            for x in range(image.width()):
+                alpha = image.pixelColor(x, y).alpha()
+                total += alpha
+                moment_x += alpha * (x + .5)
+                moment_y += alpha * (y + .5)
+        if total:
+            pixmap.setDevicePixelRatio(ratio)
+            painter.drawPixmap(QPointF(self.width() / 2 - moment_x / total / ratio,
+                                       self.height() / 2 - moment_y / total / ratio), pixmap)
+
+
 class VideoPlayerWindow(QWidget):
     closed = pyqtSignal(object)
 
@@ -2877,6 +3013,11 @@ class VideoPlayerWindow(QWidget):
         self._edit_mode = False
         self._text_overlays: List[_TextOverlayItem] = []
         self._delete_regions: List[_DeleteRegionItem] = []
+        self._mute_regions = []
+        self._preview_user_muted = False
+        self._audio_mute_timer = QTimer(self)
+        self._audio_mute_timer.setInterval(20)
+        self._audio_mute_timer.timeout.connect(lambda: self._apply_preview_mute(self._player.position()))
         self._mute_on_export = False
         self._export_worker: Optional[_ExportWorker] = None
         self._ss_worker: Optional[_ScreenshotWorker] = None
@@ -2884,7 +3025,7 @@ class VideoPlayerWindow(QWidget):
         self._zoom_extractor: Optional[_ThumbnailExtractor] = None
         self._selected_overlay_idx = -1
 
-        self.setWindowTitle(f"WWR: Player — {Path(filepath).name}")
+        self.setWindowTitle(f"{Path(filepath).name}")
         from distribution import application_icon_path
         icon_path = application_icon_path()
         if os.path.exists(icon_path):
@@ -2940,7 +3081,7 @@ class VideoPlayerWindow(QWidget):
 
         if not self._close_ready and self._edit_mode:
             has_changes = (self._chk_trim.isChecked() or self._mute_on_export
-                           or len(self._text_overlays) > 0 or len(self._delete_regions) > 0)
+                           or len(self._text_overlays) > 0 or len(self._delete_regions) > 0 or bool(self._mute_regions))
             if has_changes:
                 reply = QMessageBox.question(
                     self, "Discard Changes?",
@@ -3055,7 +3196,7 @@ class VideoPlayerWindow(QWidget):
             top_layout.addWidget(button)
         self._top_bar.hide()
 
-        self._btn_screenshot = QPushButton(" Screenshot")
+        self._btn_screenshot = QPushButton()
         self._btn_screenshot.setIcon(QIcon(_asset("ve_screenshot.png")))
         self._btn_screenshot.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_screenshot.setStyleSheet("""
@@ -3080,10 +3221,20 @@ class VideoPlayerWindow(QWidget):
         for button in (self._btn_edit, self._btn_screenshot):
             button.setMinimumHeight(36)
             button.setIconSize(QSize(22, 22))
-            button.setStyleSheet(CONTROL_STYLE + "QPushButton {padding:0 10px;font:600 12px 'Segoe UI';}")
+            button.setStyleSheet(_PLAYER_ICON_STYLE + "QPushButton {padding:0 8px;font:600 12px 'Segoe UI';}")
         self._btn_edit.setToolTip("Edit video — trim, remove sections, or add text")
+        self._btn_screenshot.setFixedSize(36, 36)
         self._btn_screenshot.setToolTip("Save the current video frame as an image")
         self._btn_edit.clicked.connect(self._toggle_edit_mode)
+
+        from html import escape
+        self._edit_heading = QLabel()
+        self._edit_heading.setTextFormat(Qt.TextFormat.RichText)
+        self._edit_heading.setText(escape(Path(self._filepath).name) + ' <span style="color:#FF4055"> | </span> <b>Edit mode</b>')
+        self._edit_heading.setContentsMargins(12, 4, 12, 4)
+        self._edit_heading.setStyleSheet('color:#F0F2F5; background:#11151D; font-size:13px;')
+        self._edit_heading.hide()
+        main_layout.addWidget(self._edit_heading)
 
         # ── Content Area ─────────────────────────────────────────────────────
         content_area = QHBoxLayout()
@@ -3171,36 +3322,33 @@ class VideoPlayerWindow(QWidget):
         self._lbl_time.setFixedWidth(120)
         left_zone.addWidget(self._lbl_time)
 
-        self._lbl_speed = QLabel("Speed")
-        self._lbl_speed.setStyleSheet(
-            "color: #9AA4B2; font-size: 10px; font-weight: 700; "
-            "border: none; background: transparent;"
-        )
-        left_zone.addWidget(self._lbl_speed)
-
         self._speed_control = QWidget()
         self._speed_control.setObjectName("SpeedControl")
-        self._speed_control.setFixedSize(64, 30)
+        self._speed_control.setFixedSize(84, 30)
         self._speed_control.setStyleSheet("""
-            QWidget#SpeedControl { background: #181D27; border: 1px solid #343B48; border-radius: 8px; }
+            QWidget#SpeedControl { background: transparent; border: none; }
         """)
         speed_layout = QHBoxLayout(self._speed_control)
         speed_layout.setContentsMargins(2, 0, 2, 0)
         speed_layout.setSpacing(0)
 
-        self._cmb_speed = QComboBox()
-        self._cmb_speed.addItems(["0.25x", "0.5x", "1x", "1.5x", "2x"])
-        self._cmb_speed.setCurrentText("1x")
-        self._cmb_speed.setFixedWidth(60)
+        self._cmb_speed = _PlaybackSpeedCombo()
+        for rate in (.25, .5, 1, 1.5, 2):
+            self._cmb_speed.addItem(QIcon(self._speed_symbol()), f'{rate:g}×', rate)
+        self._cmb_speed.setIconSize(QSize(16, 16))
+        self._cmb_speed.setAccessibleName('Playback speed')
+        self._cmb_speed.setToolTip('Playback speed')
+        self._cmb_speed.setCurrentText("1×")
+        self._cmb_speed.setFixedWidth(80)
         self._cmb_speed.setFixedHeight(26)
         self._cmb_speed.setCursor(Qt.CursorShape.PointingHandCursor)
         self._cmb_speed.setStyleSheet("""
             QComboBox {
                 background: transparent; color: #F8FAFC; border: none;
-                padding: 1px 2px 1px 5px; font-size: 11px; font-weight: 700;
+                padding: 1px 2px; font-size: 12px; font-weight: 600;
             }
             QComboBox:hover { background: rgba(255,255,255,0.07); border-radius: 6px; }
-            QComboBox::drop-down { border: none; width: 18px; }
+            QComboBox::drop-down { border: none; width: 12px; }
             QComboBox QAbstractItemView {
                 background: #181D27; color: #FFFFFF; border: 1px solid #343B48;
                 selection-background-color: #FF4055;
@@ -3234,7 +3382,7 @@ class VideoPlayerWindow(QWidget):
         center_zone.addSpacing(4)
 
         # Play/Pause — glassmorphic accent button
-        self._btn_play = QPushButton()
+        self._btn_play = _CenteredPlaybackButton()
         self._btn_play.setFixedSize(42, 42)
         self._btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_play.setToolTip("Play preview")
@@ -3282,8 +3430,8 @@ class VideoPlayerWindow(QWidget):
         self._btn_fullscreen.clicked.connect(self._toggle_fullscreen)
 
         self._playback_only_widgets = [
-            self._btn_prev, self._btn_back_30, self._btn_fwd_30,
-            self._btn_next, self._lbl_speed, self._speed_control, self._btn_fullscreen
+            self._btn_prev,
+            self._btn_next, self._speed_control, self._btn_fullscreen
         ]
 
         self._btn_vol = QPushButton()
@@ -3300,8 +3448,8 @@ class VideoPlayerWindow(QWidget):
             QPushButton:hover { color: #FFFFFF; }
         """)
         from icon_theme import CONTROL_STYLE
-        self._btn_vol.setStyleSheet(CONTROL_STYLE)
-        self._btn_fullscreen.setStyleSheet(CONTROL_STYLE)
+        self._btn_vol.setStyleSheet(_PLAYER_ICON_STYLE)
+        self._btn_fullscreen.setStyleSheet(_PLAYER_ICON_STYLE)
         self._btn_vol.clicked.connect(self._toggle_mute)
         right_zone.addWidget(self._btn_vol)
 
@@ -3314,24 +3462,33 @@ class VideoPlayerWindow(QWidget):
         right_zone.addWidget(self._sld_volume)
 
         # File actions are bottom-right beside the other playback controls.
-        right_zone.addWidget(self._btn_fullscreen)
         actions = QWidget()
         action_layout = QHBoxLayout(actions)
         action_layout.setContentsMargins(0, 0, 0, 0)
         action_layout.setSpacing(8)
         action_layout.addWidget(self._btn_screenshot)
         action_layout.addWidget(self._btn_edit)
+        action_layout.addWidget(self._btn_fullscreen)
         self._player_file_actions = actions
 
         right_widget = QWidget()
         right_widget.setLayout(right_zone)
         right_widget.setStyleSheet("border: none; background: transparent;")
         self._player_audio = right_widget
+        self._player_right = QWidget()
+        right_layout = QHBoxLayout(self._player_right)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(12)
+        right_layout.addStretch()
+        right_layout.addWidget(self._player_audio)
+        right_layout.addWidget(self._player_file_actions)
 
         self._btn_row_widget = QWidget()
         self._btn_row_widget.setLayout(btn_row)
         self._btn_row_widget.setStyleSheet("border: none; background: transparent;")
         ctrl_layout.addWidget(self._btn_row_widget)
+        ctrl_layout.removeWidget(self._timeline)
+        ctrl_layout.addWidget(self._timeline)
         self._reflow_player_controls()
         # NOTE: controls_widget is NOT added to main_layout.
         # It's positioned absolutely in resizeEvent — this is the key fix.
@@ -3356,20 +3513,12 @@ class VideoPlayerWindow(QWidget):
             widget.installEventFilter(self)
 
     def _update_play_button_style(self, is_playing: bool):
-        padding_style = "padding: 0px;" if is_playing else "padding-left: 2px; padding-top: 0px; padding-bottom: 0px; padding-right: 0px;"
-        self._btn_play.setStyleSheet(f"""
-            QPushButton {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #EF4444, stop:1 #B91C1C);
-                border: 1px solid rgba(255,255,255,0.15);
-                border-radius: 21px; color: white;
-                {padding_style}
-            }}
-            QPushButton:hover {{
-                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                    stop:0 #F05252, stop:1 #DC2626);
-            }}
-            QPushButton:pressed {{ background: #991B1B; }}
+        self._btn_play.setStyleSheet("""
+            QPushButton { background: #282F3A; border: 1px solid transparent;
+                          border-radius: 21px; color: #FFFFFF; padding: 0; }
+            QPushButton:hover { background: #36404E; }
+            QPushButton:pressed { background: #1D2430; }
+            QPushButton:focus { border-color: #B3BFCE; }
         """)
 
     def _make_nav_btn(self, icon_name: str, size: int) -> QPushButton:
@@ -3388,7 +3537,7 @@ class VideoPlayerWindow(QWidget):
             QPushButton:disabled {{ background: transparent; color: rgba(255,255,255,0.15); }}
         """)
         from icon_theme import CONTROL_STYLE
-        btn.setStyleSheet(CONTROL_STYLE)
+        btn.setStyleSheet(_PLAYER_ICON_STYLE)
         btn.setIconSize(QSize(24, 24))
         btn.setToolTip("Previous recording" if "prev" in icon_name else "Next recording")
         btn.setAccessibleName(btn.toolTip())
@@ -3409,7 +3558,7 @@ class VideoPlayerWindow(QWidget):
             QPushButton:pressed {{ background: rgba(255,255,255,0.04); }}
         """)
         from icon_theme import CONTROL_STYLE
-        btn.setStyleSheet(CONTROL_STYLE)
+        btn.setStyleSheet(_PLAYER_ICON_STYLE)
         btn.setIconSize(QSize(24, 24))
         btn.setToolTip("Back 30 seconds" if "back" in icon_name else "Forward 30 seconds")
         btn.setAccessibleName(btn.toolTip())
@@ -3425,7 +3574,7 @@ class VideoPlayerWindow(QWidget):
         ACCENT = "#FF4055"
 
         panel = QWidget()
-        panel.setFixedWidth(300)
+        panel.setFixedWidth(390)
         panel.setObjectName("EditorPanel")
         panel.setStyleSheet(f"QWidget#EditorPanel {{ background: #11151D; border-left: 1px solid #343B48; }}")
 
@@ -3436,7 +3585,7 @@ class VideoPlayerWindow(QWidget):
         # ── Header ──
         header = QWidget()
         header.setFixedHeight(46)
-        header.setStyleSheet("background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #202633, stop:1 #151923); border-bottom: 1px solid #343B48;")
+        header.setStyleSheet("background: #11151D; border-bottom: 1px solid #272E39;")
         h_lay = QHBoxLayout(header)
         h_lay.setContentsMargins(16, 0, 10, 0)
 
@@ -3469,8 +3618,33 @@ class VideoPlayerWindow(QWidget):
 
         content = QWidget()
         content.setStyleSheet(f"background: {PANEL_BG}; border: none;")
-        self._edit_layout = QVBoxLayout(content)
-        self._edit_layout.setContentsMargins(12, 12, 12, 12)
+        page_shell = QHBoxLayout()
+        page_shell.setContentsMargins(0, 0, 0, 0)
+        self._editor_pages = QStackedWidget()
+        rail = QVBoxLayout()
+        rail.setSpacing(4)
+        self._editor_tabs = []
+        page_shell.addLayout(rail)
+        def page(name, icon):
+            widget = QWidget()
+            box = QVBoxLayout(widget)
+            box.setContentsMargins(8, 10, 8, 10)
+            box.setSpacing(10)
+            index = self._editor_pages.addWidget(widget)
+            button = QToolButton()
+            button.setText(name)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
+            button.setIconSize(QSize(24, 24))
+            button.setIcon(QIcon(_asset(icon)))
+            button.setCheckable(True)
+            button.setFixedSize(68, 68)
+            button.setStyleSheet("QToolButton {color:#F0F2F5; background:transparent; border:0; border-radius:6px; padding:6px;} QToolButton:checked {background:#44202C; border-left:3px solid #FF4055;} QToolButton:hover {background:#282F3C;} QToolButton:focus {border:1px solid #F0F2F5;}")
+            button.clicked.connect(lambda checked=False, w=widget: self._select_editor_page(self._editor_pages.indexOf(w)))
+            rail.addWidget(button)
+            self._editor_tabs.append(button)
+            return box
+        self._edit_layout = page('Trim', 've_trim.png')
+        self._edit_layout.setContentsMargins(8, 10, 8, 10)
         self._edit_layout.setSpacing(12)
 
         # ═══════════ CLIP ═══════════
@@ -3479,8 +3653,27 @@ class VideoPlayerWindow(QWidget):
         self._chk_trim = self._make_tool_btn("ve_trim.png", "Trim", CARD_BG, BORDER)
         self._chk_trim.clicked.connect(self._on_trim_toggled)
         self._edit_layout.addWidget(self._chk_trim)
+        self._trim_fields = []
+        for title in ('Start time', 'End time'):
+            self._edit_layout.addWidget(QLabel(title))
+            field = NoScrollDoubleSpinBox()
+            field.setDecimals(3)
+            field.setSuffix(' s')
+            field.setMinimumHeight(34)
+            field.valueChanged.connect(self._on_trim_fields_changed)
+            self._trim_fields.append(field)
+            self._edit_layout.addWidget(field)
+        self._trim_duration_label = QLabel('Kept duration: 00:00')
+        self._edit_layout.addWidget(self._trim_duration_label)
+        reset_trim = QPushButton('Reset range')
+        reset_trim.setMinimumHeight(34)
+        from icon_theme import CONTROL_STYLE
+        reset_trim.setStyleSheet(CONTROL_STYLE)
+        reset_trim.clicked.connect(self._reset_trim_range)
+        self._edit_layout.addWidget(reset_trim)
 
-        self._edit_layout.addSpacing(10)
+        self._edit_layout.addStretch()
+        self._edit_layout = page("Delete", "ve_delete.png")
         self._edit_layout.addWidget(self._panel_section_header("ve_delete.png", "Delete Segments"))
         
         self._delete_regions_container = QVBoxLayout()
@@ -3503,8 +3696,9 @@ class VideoPlayerWindow(QWidget):
         self._edit_layout.addWidget(btn_add_del)
 
         # separator
-        self._edit_layout.addWidget(self._thin_separator(BORDER))
 
+        self._edit_layout.addStretch()
+        self._edit_layout = page("Audio", "ve_vol_up.png")
         # ═══════════ AUDIO ═══════════
         self._edit_layout.addWidget(self._panel_section_header("ve_vol_up.png", "Audio"))
 
@@ -3522,10 +3716,26 @@ class VideoPlayerWindow(QWidget):
         row_audio.addWidget(self._toggle_audio)
         
         self._edit_layout.addLayout(row_audio)
+        self._mute_regions_container = QVBoxLayout()
+        self._edit_layout.addLayout(self._mute_regions_container)
+        add_mute = QPushButton('Add mute section')
+        add_mute.setIcon(QIcon(_asset('ve_vol_mute.png')))
+        from icon_theme import CONTROL_STYLE
+        add_mute.setStyleSheet(CONTROL_STYLE)
+        add_mute.setMinimumHeight(34)
+        add_mute.setToolTip('Add another independently editable mute section at the playhead')
+        add_mute.setAccessibleName('Add mute section')
+        add_mute.clicked.connect(self._add_mute_region)
+        self._edit_layout.addWidget(add_mute)
+        hint = QLabel('Silence selected times while keeping the video. Yellow bands mark muted audio.')
+        hint.setWordWrap(True)
+        hint.setStyleSheet('color:#9AA4B2; font-size:11px;')
+        self._edit_layout.addWidget(hint)
 
         # separator
-        self._edit_layout.addWidget(self._thin_separator(BORDER))
 
+        self._edit_layout.addStretch()
+        self._edit_layout = page("Text", "ve_text.png")
         # ═══════════ TEXT ═══════════
         self._edit_layout.addWidget(self._panel_section_header("ve_text.png", "Text Overlay"))
 
@@ -3550,8 +3760,23 @@ class VideoPlayerWindow(QWidget):
 
         self._edit_layout.addStretch()
 
-        scroll.setWidget(content)
-        layout.addWidget(scroll, 1)
+        # Keep tool navigation stationary; only the selected tool's content scrolls.
+        text_page = self._editor_pages.widget(3)
+        self._editor_pages.removeWidget(text_page)
+        self._editor_pages.insertWidget(2, text_page)
+        self._editor_tabs = [self._editor_tabs[i] for i in (0, 1, 3, 2)]
+        for button in self._editor_tabs:
+            rail.removeWidget(button)
+        for button in self._editor_tabs:
+            rail.addWidget(button)
+        rail.addStretch()
+        self._select_editor_page(0)
+        scroll.setWidget(self._editor_pages)
+        page_shell.addWidget(scroll, 1)
+        body = QWidget()
+        body.setLayout(page_shell)
+        layout.addWidget(body, 1)
+        content.deleteLater()
 
         # ── Bottom Action Bar ──
         action_bar = QWidget()
@@ -3593,11 +3818,67 @@ class VideoPlayerWindow(QWidget):
         """)
         self._btn_save_as.clicked.connect(self._save_as)
         row_save.addWidget(self._btn_save_as, 1)
+        row_save.removeWidget(self._btn_save)
+        self._btn_cancel_edit = QPushButton('Cancel')
+        self._btn_cancel_edit.setMinimumHeight(38)
+        self._btn_cancel_edit.setStyleSheet('QPushButton {color:#F0F2F5; background:transparent; border:0; padding:0 6px;} QPushButton:hover {background:#282F3C;}')
+        self._btn_cancel_edit.clicked.connect(self._toggle_edit_mode)
+        row_save.insertWidget(0, self._btn_cancel_edit)
+        row_save.addWidget(self._btn_save, 1)
 
         ab.addLayout(row_save)
         layout.addWidget(action_bar)
 
         return panel
+
+    def _select_editor_page(self, index):
+        self._editor_pages.setCurrentIndex(index)
+        for i in range(self._editor_pages.count()):
+            self._editor_pages.widget(i).setSizePolicy(QSizePolicy.Policy.Preferred,
+                QSizePolicy.Policy.Preferred if i == index else QSizePolicy.Policy.Ignored)
+        self._editor_pages.updateGeometry()
+        for i, button in enumerate(self._editor_tabs):
+            button.setChecked(i == index)
+
+    def _add_mute_region(self):
+        duration = self._player.duration()
+        if duration <= 0:
+            return
+        start = min(self._player.position(), max(0, duration - 100))
+        item = _DeleteRegionItem(start, min(duration, start + 2000))
+        self._mute_regions.append(item)
+        row = _MuteRegionRow(item, duration)
+        for label in row.findChildren(QLabel):
+            if label.text() == 'Delete Section':
+                label.setText('Muted audio')
+                label.setStyleSheet('color:#F5BE37; font-weight:600;')
+        self._mute_regions_container.addWidget(row)
+        row.changed.connect(self._refresh_mute_regions)
+        row.removed.connect(self._remove_mute_region)
+        self._refresh_mute_regions()
+
+    def _remove_mute_region(self, row):
+        if row.item in self._mute_regions:
+            self._mute_regions.remove(row.item)
+        self._mute_regions_container.removeWidget(row)
+        row.deleteLater()
+        self._refresh_mute_regions()
+
+    def _clear_mute_regions(self):
+        self._mute_regions.clear()
+        while self._mute_regions_container.count():
+            item = self._mute_regions_container.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self._timeline.set_mute_regions([])
+
+    def _refresh_mute_regions(self):
+        self._timeline.set_mute_regions(self._mute_regions)
+        self._apply_preview_mute(self._player.position())
+
+    def _apply_preview_mute(self, position):
+        section_muted = self._edit_mode and any(r.start_ms <= position < r.end_ms for r in self._mute_regions)
+        self._audio_output.setMuted(self._preview_user_muted or (self._edit_mode and self._mute_on_export) or section_muted)
 
     # ── Sidebar helper widgets ────────────────────────────────────────────────
 
@@ -3833,6 +4114,7 @@ class VideoPlayerWindow(QWidget):
     def _on_timeline_preview(self, ms: int):
         """Handle drag is being moved — seek player for frame preview only."""
         self._seek_to_position(ms, preview=True)
+        self._sync_trim_fields()
         # Update button text in real-time as handles are dragged
         if self._chk_trim.isChecked():
             s, e = self._timeline.get_trim()
@@ -3857,11 +4139,13 @@ class VideoPlayerWindow(QWidget):
     def _on_duration_changed(self, duration: int):
         self._timeline.setEnabled(duration > 0)
         self._timeline.set_duration(duration)
+        self._sync_trim_fields()
         self._seekbar.setRange(0, duration)
         self._update_time_label()
 
     def _on_position_changed(self, position: int):
         self._timeline.set_position(position)
+        self._apply_preview_mute(position)
         if not self._seekbar_dragging:
             self._seekbar.setValue(position)
         self._update_time_label()
@@ -3891,6 +4175,10 @@ class VideoPlayerWindow(QWidget):
 
 
     def _on_state_changed(self, state):
+        if self._edit_mode and state == QMediaPlayer.PlaybackState.PlayingState:
+            self._audio_mute_timer.start()
+        else:
+            self._audio_mute_timer.stop()
         is_playing = (state == QMediaPlayer.PlaybackState.PlayingState)
         if is_playing:
             self._btn_play.setIcon(QIcon(_asset("ve_pause.png")))
@@ -3905,8 +4193,14 @@ class VideoPlayerWindow(QWidget):
         dur = _format_time(self._player.duration())
         self._lbl_time.setText(f"{pos} / {dur}")
 
+    @staticmethod
+    def _speed_symbol():
+        return QPixmap(_asset('playback-speed.png'))
+
     def _on_speed_changed(self, text: str):
-        self._player.setPlaybackRate(float(text.replace("x", "")))
+        rate = float(text.replace('x', '').replace('×', ''))
+        self._player.setPlaybackRate(rate)
+        self._cmb_speed.setToolTip(f'Playback speed: {rate:g}×')
 
     def _on_volume_changed(self, value: int):
         self._audio_output.setVolume(value / 100.0)
@@ -3916,8 +4210,9 @@ class VideoPlayerWindow(QWidget):
 
     def _toggle_mute(self):
         """Toggle playback mute — does NOT affect export mute setting."""
-        muted = not self._audio_output.isMuted()
-        self._audio_output.setMuted(muted)
+        muted = not self._preview_user_muted
+        self._preview_user_muted = muted
+        self._apply_preview_mute(self._player.position())
         self._btn_vol.setIcon(QIcon(_asset("ve_vol_mute.png" if muted else "ve_vol_up.png")))
         self._btn_vol.setToolTip("Unmute preview" if muted else "Mute preview")
 
@@ -4061,7 +4356,7 @@ class VideoPlayerWindow(QWidget):
         from recorder import _unique_media_path
         out_path = _unique_media_path(self._output_folder, "Frame", ".png")
         self._btn_screenshot.setEnabled(False)
-        self._btn_screenshot.setText(" Capturing...")
+        self._btn_screenshot.setToolTip("Saving current frame…")
         self._ss_worker = _ScreenshotWorker(self._filepath, current_pos, out_path)
         self._ss_worker.screenshot_finished.connect(self._on_screenshot_done)
         self._ss_worker.error.connect(self._on_screenshot_error)
@@ -4069,8 +4364,8 @@ class VideoPlayerWindow(QWidget):
 
     def _on_screenshot_done(self, path: str):
         self._btn_screenshot.setEnabled(True)
-        self._btn_screenshot.setText(" Screenshot")
-        self._toast.show_message(f"✓ Saved: {Path(path).name}", 2500, "rgba(34, 197, 94, 0.92)")
+        self._btn_screenshot.setToolTip("Save the current video frame as an image")
+        self._toast.show_message(f"Saved: {Path(path).name}", 2500, "rgba(34, 197, 94, 0.92)")
         from PyQt6.QtCore import QMimeData
         mime = QMimeData()
         mime.setUrls([QUrl.fromLocalFile(path)])
@@ -4081,7 +4376,7 @@ class VideoPlayerWindow(QWidget):
 
     def _on_screenshot_error(self, err: str):
         self._btn_screenshot.setEnabled(True)
-        self._btn_screenshot.setText(" Screenshot")
+        self._btn_screenshot.setToolTip("Save the current video frame as an image")
         self._toast.show_message("Screenshot failed", 2500, "rgba(220, 38, 38, 0.92)")
 
     # ── Edit Mode ─────────────────────────────────────────────────────────────
@@ -4101,9 +4396,10 @@ class VideoPlayerWindow(QWidget):
                 ov._gfx_item = None
         self._text_overlays.clear()
         self._delete_regions.clear()
+        self._clear_mute_regions()
         self._chk_trim.setChecked(False)
         self._mute_on_export = False
-        self._audio_output.setMuted(False)
+        self._apply_preview_mute(self._player.position())
         if hasattr(self, '_toggle_audio'):
             self._toggle_audio.blockSignals(True)
             self._toggle_audio.setChecked(True)
@@ -4114,7 +4410,7 @@ class VideoPlayerWindow(QWidget):
     def _toggle_edit_mode(self):
         if self._edit_mode:
             has_changes = (self._chk_trim.isChecked() or self._mute_on_export
-                           or len(self._text_overlays) > 0 or len(self._delete_regions) > 0)
+                           or len(self._text_overlays) > 0 or len(self._delete_regions) > 0 or bool(self._mute_regions))
             if has_changes:
                 reply = QMessageBox.question(
                     self, "Discard Changes?",
@@ -4126,7 +4422,11 @@ class VideoPlayerWindow(QWidget):
                     self._btn_edit.setChecked(True)
                     return
 
+        from html import escape
+        self._edit_heading.setText(escape(Path(self._filepath).name) + ' <span style="color:#FF4055"> | </span> <b>Edit mode</b>')
         self._edit_mode = not self._edit_mode
+        self.setWindowTitle(Path(self._filepath).name + ("  |  Edit mode" if self._edit_mode else ""))
+        self._edit_heading.setVisible(self._edit_mode)
         self._editor_panel.setVisible(self._edit_mode)
         self._btn_edit.setChecked(self._edit_mode)
 
@@ -4156,6 +4456,7 @@ class VideoPlayerWindow(QWidget):
             # Show text overlay timeline if overlays exist
             self._update_text_timeline()
         else:
+            self._audio_mute_timer.stop()
             self._btn_edit.setText(" Edit")
             self._timeline.set_trim_enabled(False)
             self._timeline.reset()
@@ -4178,18 +4479,50 @@ class VideoPlayerWindow(QWidget):
                 if item and item.widget():
                     item.widget().deleteLater()
             self._delete_regions.clear()
+            self._clear_mute_regions()
             self._timeline.set_delete_regions([])
             self._mute_on_export = False
-            self._audio_output.setMuted(False)
+            self._apply_preview_mute(self._player.position())
             if hasattr(self, '_toggle_audio'):
                 self._toggle_audio.setChecked(True)
 
 
     # ── Edit Panel Actions ────────────────────────────────────────────────────
 
+    def _sync_trim_fields(self):
+        start, end = self._timeline.get_trim()
+        for field, value in zip(self._trim_fields, (start, end)):
+            field.blockSignals(True)
+            field.setMaximum(max(0, self._player.duration()) / 1000)
+            field.setValue(value / 1000)
+            field.blockSignals(False)
+        self._trim_duration_label.setText('Kept duration: ' + _format_time(max(0, end - start)))
+
+    def _reset_trim_range(self):
+        self._timeline._trim_start_ms = 0
+        self._timeline._trim_end_ms = self._player.duration()
+        self._timeline.update()
+        self._sync_trim_fields()
+        self._on_timeline_preview(self._timeline._trim_start_ms)
+
+    def _on_trim_fields_changed(self):
+        duration = self._player.duration()
+        if duration <= 0:
+            return
+        start = min(int(round(self._trim_fields[0].value() * 1000)), max(0, duration - 100))
+        end = min(duration, max(start + 100, int(round(self._trim_fields[1].value() * 1000))))
+        if not self._chk_trim.isChecked():
+            self._chk_trim.setChecked(True)
+            self._timeline.set_trim_enabled(True)
+        self._timeline._trim_start_ms, self._timeline._trim_end_ms = start, end
+        self._timeline.update()
+        self._sync_trim_fields()
+        self._on_timeline_preview(start)
+
     def _on_trim_toggled(self):
         enabled = self._chk_trim.isChecked()
         self._timeline.set_trim_enabled(enabled)
+        self._sync_trim_fields()
         if enabled:
             start_ms, end_ms = self._timeline.get_trim()
             self._chk_trim.setText(f"Trim  ·  {_format_time(start_ms)} → {_format_time(end_ms)}")
@@ -4238,7 +4571,7 @@ class VideoPlayerWindow(QWidget):
             checked = self._toggle_audio.isChecked()
         self._mute_on_export = not checked  # Checked = On = audio enabled
         # Also mute/unmute playback preview to reflect the setting immediately
-        self._audio_output.setMuted(self._mute_on_export)
+        self._apply_preview_mute(self._player.position())
         icon_name = "ve_vol_mute.png" if self._mute_on_export else "ve_vol_up.png"
         self._btn_vol.setIcon(QIcon(_asset(icon_name)))
         self._btn_vol.setToolTip("Unmute preview" if self._mute_on_export else "Mute preview")
@@ -4436,11 +4769,12 @@ class VideoPlayerWindow(QWidget):
             cmd.extend(["-vf", ",".join(vfilters)])
 
         if self._mute_on_export:
-            cmd.append("-an")
-        elif merged_cuts:
-            filters = [f"not(between(t\\,{ds:.3f}\\,{de:.3f}))" for ds, de in merged_cuts]
-            if filters:
-                cmd.extend(["-af", f"aselect='{'*'.join(filters)}',asetpts=N/SR/TB,aresample=async=1"])
+            cmd.append('-an')
+        else:
+            audio_filters = _mute_audio_filters(self._mute_regions, trim_start_ms, trim_end_ms)
+            audio_graph = _audio_edit_filter(audio_filters, merged_cuts, (trim_end_ms - trim_start_ms) / 1000)
+            if audio_graph:
+                cmd.extend(['-af', audio_graph])
 
         if not self._mute_on_export:
             cmd.extend(["-c:a", "aac", "-b:a", "128k"])
@@ -4501,7 +4835,7 @@ class VideoPlayerWindow(QWidget):
         self._btn_save_as.setEnabled(True)
         self._btn_save.setText("Save")
 
-        msg = f"✓ Overwritten: {Path(target_path).name}" if did_overwrite else f"✓ Saved: {Path(target_path).name}"
+        msg = f"Overwritten: {Path(target_path).name}" if did_overwrite else f"Saved: {Path(target_path).name}"
         self._toast.show_message(msg, 3000, "rgba(34, 197, 94, 0.92)")
         self._load_video(target_path, discard_edits=True)
 
@@ -4539,22 +4873,26 @@ class VideoPlayerWindow(QWidget):
     def _reflow_player_controls(self):
         if not hasattr(self, '_player_audio'): return
         wide = self.width() >= 1100
-        if getattr(self, '_player_controls_wide', None) == wide: return
         self._player_controls_wide = wide
         layout = self._player_controls_grid
-        for widget in (self._player_left, self._player_transport, self._player_audio, self._player_file_actions):
+        for widget in (self._player_left, self._player_transport, self._player_right):
             layout.removeWidget(widget)
-        for column in range(4): layout.setColumnStretch(column, 0)
+        for column in range(4):
+            layout.setColumnStretch(column, 0)
+            layout.setColumnMinimumWidth(column, 0)
         if wide:
-            for column, widget in enumerate((self._player_left, self._player_transport, self._player_audio, self._player_file_actions)):
-                layout.addWidget(widget, 0, column)
+            layout.addWidget(self._player_left, 0, 0)
+            layout.addWidget(self._player_transport, 0, 1)
+            layout.addWidget(self._player_right, 0, 2)
+            outer_width = max(self._player_left.sizeHint().width(), self._player_right.sizeHint().width())
+            layout.setColumnMinimumWidth(0, outer_width)
+            layout.setColumnMinimumWidth(2, outer_width)
             layout.setColumnStretch(0, 1)
             layout.setColumnStretch(2, 1)
         else:
-            layout.addWidget(self._player_transport, 0, 0, 1, 4, Qt.AlignmentFlag.AlignHCenter)
-            layout.addWidget(self._player_left, 1, 0, 1, 2)
-            layout.addWidget(self._player_audio, 1, 2)
-            layout.addWidget(self._player_file_actions, 1, 3)
+            layout.addWidget(self._player_transport, 0, 0, 1, 3, Qt.AlignmentFlag.AlignHCenter)
+            layout.addWidget(self._player_left, 1, 0)
+            layout.addWidget(self._player_right, 1, 1, 1, 2)
             layout.setColumnStretch(0, 1)
         layout.invalidate()
 
@@ -4641,7 +4979,7 @@ class VideoPlayerWindow(QWidget):
         return bool(
             self._edit_mode and (
                 self._chk_trim.isChecked() or self._mute_on_export
-                or self._text_overlays or self._delete_regions
+                or self._text_overlays or self._delete_regions or self._mute_regions
             )
         )
 
@@ -4676,13 +5014,14 @@ class VideoPlayerWindow(QWidget):
             self._timeline.setEnabled(True)
             self._player.setSource(QUrl.fromLocalFile(filepath))
             self._player.pause()
-            self.setWindowTitle(f"WWR: Player — {Path(filepath).name}")
+            self.setWindowTitle(f"{Path(filepath).name}")
             self._refresh_video_list()
 
             # Clear any remaining data lists (force_exit_edit_mode clears
             # text_overlays and delete_regions but we do it again to be safe)
             self._text_overlays.clear()
             self._delete_regions.clear()
+            self._clear_mute_regions()
 
             # Clear overlay UI rows
             while self._text_overlays_container.count():
@@ -4723,5 +5062,5 @@ class VideoPlayerWindow(QWidget):
         self._player.pause()
         self._btn_play.setEnabled(True)
         self._timeline.setEnabled(True)
-        self.setWindowTitle(f"WWR: Player — {Path(filepath).name}")
+        self.setWindowTitle(f"{Path(filepath).name}")
         self._refresh_video_list()

@@ -161,3 +161,13 @@ See [architecture](docs/AI_CONTEXT.md), [QA and manual checks](docs/QA_AUDIT.md)
 The current test installers remain on the [existing microphone preview prerelease](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.0-microphone-preview.1). These local-test packages are not a production Store submission.
 
 For development and regression tests on Windows, install `requirements-dev.txt` (includes runtime dependencies, pytest and PyInstaller).
+
+## Automated checks
+
+With Python 3.13 installed, double-click **RUN_TESTS.cmd** from this source tree.
+It creates/reuses a virtual environment, installs dependencies without prompts,
+runs all regression/E2E modules sequentially and opens the HTML report. Reports
+are saved to `artifacts/windows_e2e/` as HTML, JSON, Markdown and JUnit XML. Tests
+supply their own expected dialog responses; unexpected dialogs fail instead of
+waiting for input. Native desktop cases skipped in headless CI run automatically
+on a normal Windows desktop. Current preview package revision is **1.7.0.12**.

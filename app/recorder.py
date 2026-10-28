@@ -7,6 +7,7 @@ import subprocess
 import threading
 import warnings
 import tempfile
+import shutil
 import ctypes
 from ctypes import wintypes
 from datetime import datetime
@@ -769,7 +770,6 @@ class RecordingEngine:
 
         # UX-002: Check disk space before recording
         try:
-            import shutil
             disk_usage = shutil.disk_usage(output_folder)
             free_mb = disk_usage.free / (1024 * 1024)
             if free_mb < 100:

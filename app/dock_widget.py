@@ -38,7 +38,7 @@ import subprocess
 import webbrowser
 import threading
 from updater import UpdateChecker
-from distribution import is_packaged, update_url, store_url
+from distribution import is_packaged, update_url, store_url, RELEASES_URL
 
 # Keep manual check threads alive even if their sidebar is recreated. Qt aborts
 # the process when a running QThread is destroyed.
@@ -416,14 +416,16 @@ class DockWidget(QWidget):
         self._topmost_timer.timeout.connect(self._enforce_topmost)
         self._topmost_timer.start(2000)
 
-        # First Launch Blink
-        self._is_first_launch = True
+        # First Launch Blink - only blink if dock has never been discovered before
+        self._dock_discovered = bool(self._config.get("dock_discovered", False))
+        self._is_first_launch = not self._dock_discovered
         self._blink_on = False
         self._blink_count = 0
         self._first_blink_timer = QTimer(self)
         self._first_blink_timer.setInterval(450)
         self._first_blink_timer.timeout.connect(self._on_first_blink_tick)
-        self._first_blink_timer.start()
+        if self._is_first_launch:
+            self._first_blink_timer.start()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -464,13 +466,18 @@ class DockWidget(QWidget):
         self.update()
 
     def _acknowledge_startup_indicator(self):
-        """Stop the one-time ready blink for the remainder of this process."""
+        """Stop the one-time ready blink for the remainder of this process and persist."""
         if not self._is_first_launch:
             return
         self._is_first_launch = False
+        self._dock_discovered = True
+        self._config["dock_discovered"] = True
         self._blink_on = False
-        self._first_blink_timer.stop()
+        if hasattr(self, "_first_blink_timer"):
+            self._first_blink_timer.stop()
         self.update()
+        if hasattr(self, "position_changed"):
+            self.position_changed.emit()
 
     def _enforce_topmost(self):
         if self.isVisible() and not self._expanded:
@@ -560,7 +567,7 @@ class DockWidget(QWidget):
                     p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
                     p.fillRect(pm_white.rect(), QColor(255, 255, 255))
                     p.end()
-                    self.icon_hover = QIcon(pm)
+                    self.icon_hover = QIcon(pm_white)
                     
                     self.setIcon(self.icon_normal)
 
@@ -583,7 +590,7 @@ class DockWidget(QWidget):
                     p.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
                     p.fillRect(pm_white.rect(), QColor(255, 255, 255))
                     p.end()
-                    self.icon_hover = QIcon(pm)
+                    self.icon_hover = QIcon(pm_white)
                     if self.underMouse():
                         self.setIcon(self.icon_hover)
                     else:
@@ -960,16 +967,19 @@ class DockWidget(QWidget):
             gradient.setColorAt(1.0, QColor(10, 12, 17, 252))
             p.fillPath(path, QBrush(gradient))
 
-            # Red accent on docked edge
+            # Red accent on docked edge (clipped to dock boundary)
+            p.save()
+            p.setClipPath(path)
             aw = 2
             if self._edge == "left":
-                p.fillRect(0, 12, aw, self.height() - 24, QBrush(CLR_RED))
+                p.fillRect(r.left(), r.top() + 12, aw, r.height() - 24, QBrush(CLR_RED))
             elif self._edge == "right":
-                p.fillRect(self.width() - aw, 12, aw, self.height() - 24, QBrush(CLR_RED))
+                p.fillRect(r.right() - aw + 1, r.top() + 12, aw, r.height() - 24, QBrush(CLR_RED))
             elif self._edge == "top":
-                p.fillRect(12, 0, self.width() - 24, aw, QBrush(CLR_RED))
+                p.fillRect(r.left() + 12, r.top(), r.width() - 24, aw, QBrush(CLR_RED))
             else:
-                p.fillRect(12, self.height() - aw, self.width() - 24, aw, QBrush(CLR_RED))
+                p.fillRect(r.left() + 12, r.bottom() - aw + 1, r.width() - 24, aw, QBrush(CLR_RED))
+            p.restore()
 
             p.setPen(QPen(CLR_BORDER, 1.0))
             p.drawPath(path)
@@ -1067,11 +1077,8 @@ class DockWidget(QWidget):
             rec_ico = _asset("record.png")
             if os.path.isfile(rec_ico):
                 self._btn_record.setIcon(QIcon(rec_ico))
-            self._btn_record.setStyleSheet("""
-                QToolButton { background: transparent; border: 1px solid transparent; border-radius: 12px; }
-                QToolButton:hover { background: #FF4055; border: 1px solid #FF6373; }
-                QToolButton:pressed { background: #B91C1C; }
-            """)
+            from icon_theme import CONTROL_STYLE
+            self._btn_record.setStyleSheet(CONTROL_STYLE)
             self._pulse_timer.stop()
             self._pulse_visible = True
         self.update()
@@ -1197,27 +1204,64 @@ class SidebarPanel(QWidget):
     def _check_should_close(self):
         if not self.isVisible() or not self._close_on_focus_loss:
             return
-        
+
+        # Unparented Qt popups (QComboBox view, QMenu, color menus, tooltips'
+        # transient windows) steal activation without being descendants of this
+        # sidebar. Closing on that focus loss dismisses the panel mid-interaction.
+        if QApplication.activePopupWidget() is not None:
+            return
+        if QApplication.activeModalWidget() is not None:
+            return
+
         active = QApplication.activeWindow()
         if active is getattr(self, "_companion_dock", None):
             return
         if active == self:
             return
 
+        # Do not close if a popup widget (combobox dropdown, context menu, tooltip) is active
+        popup = QApplication.activePopupWidget()
+        if popup is not None:
+            p = popup
+            while p:
+                if p == self or p is getattr(self, "_companion_dock", None):
+                    return
+                try:
+                    p = p.parentWidget() or p.parent()
+                except (RuntimeError, AttributeError):
+                    break
+            return
+
+        # Check if focus widget is inside this sidebar
+        fw = QApplication.focusWidget()
+        if fw is not None:
+            p = fw
+            while p:
+                if p == self or p is getattr(self, "_companion_dock", None):
+                    return
+                try:
+                    p = p.parentWidget() or p.parent()
+                except (RuntimeError, AttributeError):
+                    break
+
         # Check if the active window is a child or descendant of this sidebar
         is_descendant = False
         if active:
-            # Modal dialogs often have the sidebar as parent
-            p = active
-            while p:
-                if p == self:
+            try:
+                if self.isAncestorOf(active):
                     is_descendant = True
-                    break
-                try:
-                    p = p.parent()
-                except RuntimeError:
-                    # Handle cases where the object might be being destroyed
-                    p = None
+            except (RuntimeError, TypeError):
+                pass
+            if not is_descendant:
+                p = active
+                while p:
+                    if p == self or p is getattr(self, "_companion_dock", None):
+                        is_descendant = True
+                        break
+                    try:
+                        p = p.parentWidget() or p.parent()
+                    except (RuntimeError, AttributeError):
+                        p = None
         
         if not is_descendant and not self._resizing:
             self.close_panel()
@@ -1766,6 +1810,8 @@ class SettingsSidebar(SidebarPanel):
     quit_requested = pyqtSignal()
     manual_update_check_requested = pyqtSignal()
     manual_update_check_finished = pyqtSignal(bool, str, str, str)
+    # EXE only: request main to media-guard, download Setup EXE, launch Inno, then quit.
+    update_install_requested = pyqtSignal(str, str)  # download_url, version
     font_size_changed = pyqtSignal(str)
     dock_position_changed = pyqtSignal(str)
 
@@ -1995,8 +2041,8 @@ class SettingsSidebar(SidebarPanel):
         dev_details_layout.setSpacing(8)
         self._lbl_dev_mode_info = QLabel(
             "Use GitHub Releases to test preview EXE builds. "
-            + ("This MSIX installation is updated through Microsoft Store."
-               if is_packaged() else "Install EXE updates from the official release page.")
+            + ("This installation receives updates through Microsoft Store."
+               if is_packaged() else "EXE updates download the official Setup installer and launch Inno Setup.")
         )
         self._lbl_dev_mode_info.setWordWrap(True)
         self._lbl_dev_mode_info.setMinimumWidth(0)
@@ -2442,17 +2488,52 @@ class SettingsSidebar(SidebarPanel):
         return self._config
 
     def set_update_status(self, available: bool, version: str, url: str, download_url: str = ""):
+        self._update_status = {
+            "available": available,
+            "version": version,
+            "url": url,
+            "download_url": download_url or "",
+        }
+        try:
+            self._btn_check_update.clicked.disconnect()
+        except TypeError:
+            pass
+
         if is_packaged():
-            self._btn_check_update.setText("Open Microsoft Store")
+            # A desktop release cannot establish Microsoft Store availability.
+            available = False
+            self._update_status.update(available=False, version='', download_url='', url=store_url() or update_url())
             self._btn_check_update.setEnabled(True)
-            self._lbl_update_status.setText("Updates are managed by Microsoft Store.")
+            self._btn_check_update.setText('Open Microsoft Store')
+            self._btn_check_update.setToolTip('Check for updates in Microsoft Store.')
+            self._lbl_update_status.setText('Microsoft Store manages updates for this installation.')
+            self._lbl_update_status.setStyleSheet("color: #9AA4B2; font-size:11px; font-family:'Segoe UI';")
             self._lbl_update_status.setVisible(True)
+            self._btn_check_update.setStyleSheet("""
+                QPushButton {
+                    background: #DC2626; color: #FFFFFF; border: none;
+                    border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 800;
+                }
+                QPushButton:hover { background: #B91C1C; }
+            """ if available else """
+                QPushButton {
+                    background: transparent; color: #DC2626; border: 1px solid #DC2626;
+                    border-radius: 4px; padding: 4px 10px; font-size: 11px; font-weight: 700;
+                }
+                QPushButton:hover { background: rgba(220,38,38,0.1); }
+            """)
+            self._btn_check_update.clicked.connect(self._on_update_now)
             return
-        self._update_status = {"available": available, "version": version, "url": url, "download_url": download_url}
+
         if available:
+            has_installer = bool(download_url)
             self._btn_check_update.setEnabled(True)
-            self._btn_check_update.setText("Open download page")
-            self._btn_check_update.setToolTip(f"Open the official EXE download page for {version}.")
+            self._btn_check_update.setText("Download & Install" if has_installer else "Open download page")
+            self._btn_check_update.setToolTip(
+                f"Silently download and launch the Inno Setup installer for {version}."
+                if has_installer else
+                f"Open the official EXE release page for {version}."
+            )
             self._btn_check_update.setStyleSheet("""
                 QPushButton {
                     background: #DC2626; color: #FFFFFF; border: none;
@@ -2460,12 +2541,9 @@ class SettingsSidebar(SidebarPanel):
                 }
                 QPushButton:hover { background: #B91C1C; }
             """)
-            # BUG-022: Show update status label
             self._lbl_update_status.setText(f"New version {version} available!")
             self._lbl_update_status.setStyleSheet("color: #22C55E; font-size: 11px; font-family: 'Segoe UI';")
             self._lbl_update_status.setVisible(True)
-            # Open the release page; never run an installer inside the recorder.
-            self._btn_check_update.clicked.disconnect()
             self._btn_check_update.clicked.connect(self._on_update_now)
         else:
             from main import APP_VERSION
@@ -2481,9 +2559,18 @@ class SettingsSidebar(SidebarPanel):
             self._lbl_update_status.setStyleSheet("color: rgba(255,255,255,0.4); font-size: 11px; font-family: 'Segoe UI';")
             self._lbl_update_status.setVisible(True)
 
+    def set_update_progress(self, percent: int, message: str = ""):
+        """Show EXE download progress without claiming the install finished."""
+        self._btn_check_update.setEnabled(False)
+        self._btn_check_update.setText(f"Downloading… {max(0, min(100, int(percent)))}%")
+        self._lbl_update_status.setText(message or "Downloading the official installer. Your recordings stay safe.")
+        self._lbl_update_status.setStyleSheet("color: #F0F2F5; font-size: 11px; font-family: 'Segoe UI';")
+        self._lbl_update_status.setVisible(True)
+
     def _on_check_updates(self):
         if is_packaged():
-            self._on_update_now()
+            self.set_update_status(False, "", store_url() or update_url(), "")
+            webbrowser.open(store_url() or update_url())
             return
         if self._updater and self._updater.isRunning():
             return
@@ -2509,14 +2596,26 @@ class SettingsSidebar(SidebarPanel):
     def set_update_error(self, message: str):
         self._btn_check_update.setEnabled(True)
         self._btn_check_update.setText("Try Update Check Again")
+        try:
+            self._btn_check_update.clicked.disconnect()
+        except TypeError:
+            pass
+        self._btn_check_update.clicked.connect(self._on_check_updates)
         self._lbl_update_status.setText(message)
         self._lbl_update_status.setStyleSheet("color: #FCA5A5; font-size: 11px; font-family: 'Segoe UI';")
         self._lbl_update_status.setWordWrap(True)
         self._lbl_update_status.setVisible(True)
 
     def _on_update_now(self):
-        target = update_url() if is_packaged() else self._update_status.get("url") or update_url()
-        webbrowser.open(target)
+        if is_packaged():
+            webbrowser.open(self._update_status.get("url") or store_url() or update_url())
+            return
+        download_url = self._update_status.get("download_url") or ""
+        version = self._update_status.get("version") or ""
+        if download_url:
+            self.update_install_requested.emit(download_url, version)
+            return
+        webbrowser.open(self._update_status.get("url") or RELEASES_URL or update_url())
 
     def set_startup_status(self, enabled, message=""):
         self._config["start_on_boot"] = enabled
@@ -3115,8 +3214,8 @@ class _FileRow(QWidget):
         self._show_copy_confirmation()
 
     def _show_copy_confirmation(self):
-        self._btn_menu.setIcon(QIcon())
-        self._btn_menu.setText("✓")
+        self._btn_menu.setIcon(QIcon(_asset('apply.png')))
+        self._btn_menu.setText("")
         self._btn_menu.setStyleSheet(
             self._btn_menu.styleSheet()
             + "QPushButton { color: #22C55E; font-size: 17px; font-weight: 900; }"
