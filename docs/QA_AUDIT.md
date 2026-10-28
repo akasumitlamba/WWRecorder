@@ -1,12 +1,12 @@
 # Verification status
 
 ## Preview package 1.7.0.12
-- Automated Linux source run: 818 passed, 29 Windows-only skips, zero failures.
+- Automated Linux source run: 821 passed, 29 Windows-only skips, zero failures.
 - Generated audio exports decoded to verify mute sections with trim and cuts.
 - UI tests exercise actual widgets, section selection, dirty state and layout.
 - Runner regression checks verify pass/failure/crashed-child reports and no input.
 - Native Qt dependency checks and frozen startup probe gate both package formats.
-- Windows CI: 992 passed, 3 desktop-only skipped; no failures. Both installer builds and frozen startup probe passed.
+- Windows CI: 995 passed, 3 desktop-only skipped; no failures. Both installer builds and frozen startup probe passed.
 - Packaged runtime, hashes, assets and MSIX identity/signature containers verified.
 - Release privacy scan: 1212 items, zero findings.
 - Real USB/Bluetooth microphone fidelity, Windows DPI/animation acceptance and
@@ -20,3 +20,7 @@ No automated source suite alone certifies physical device or installed-package b
 The Windows one-click bootstrap was executed successfully: fresh virtual
 environment, noninteractive dependency setup and HTML/JSON/JUnit output. Full
 Windows source tests remain 992 passed / 3 headless desktop skips.
+
+Fresh-source Windows bootstrap also verified automatic missing-FFmpeg setup.
+Application packages are the same validated 1.7.0.12 payload; final changes only
+extend test setup. No manual input is required during the tests.
