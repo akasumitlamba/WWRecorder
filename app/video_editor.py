@@ -28,11 +28,11 @@ from PyQt6.QtWidgets import (
     QMenu, QComboBox, QFileDialog, QGridLayout, QLineEdit,
     QSpinBox, QDoubleSpinBox, QScrollArea, QStackedWidget, QProgressBar,
     QStackedLayout, QGraphicsView, QGraphicsScene, QGraphicsTextItem,
-    QGraphicsObject, QScrollBar, QPlainTextEdit, QStyleOptionButton,
+    QGraphicsObject, QGraphicsPixmapItem, QScrollBar, QPlainTextEdit, QStyleOptionButton,
 )
 from PyQt6.QtCore import (
     Qt, QRect, QRectF, QPoint, QSize, QTimer, QPointF,
-    pyqtSignal, QUrl, QThread, QSizeF, QEvent,
+    pyqtSignal, QUrl, QThread, QSizeF, QEvent, QProcess,
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QBrush, QPen, QFont, QFontMetrics,
@@ -40,7 +40,7 @@ from PyQt6.QtGui import (
     QShortcut, QTransform, QAction, QTextOption, QTextCursor,
     QAbstractTextDocumentLayout, QPalette,
 )
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices, QVideoFrame
 from PyQt6.QtMultimediaWidgets import QVideoWidget, QGraphicsVideoItem
 
 # ── Windows API ────────────────────────────────────────────────────────────────
@@ -2320,8 +2320,35 @@ class _VideoGraphicsView(QGraphicsView):
 
         self._video_item = QGraphicsVideoItem()
         self._scene.addItem(self._video_item)
+        # Qt clears its video surface at EOF. Keep the last decoded frame above
+        # that surface, below captions, without converting every playing frame.
+        self._last_frame = QVideoFrame()
+        self._held_frame = QGraphicsPixmapItem()
+        self._held_frame.setZValue(1)
+        self._held_frame.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
+        self._held_frame.hide()
+        self._scene.addItem(self._held_frame)
+        self._video_item.videoSink().videoFrameChanged.connect(self._remember_frame)
         self._video_item.nativeSizeChanged.connect(self._on_native_size_changed)
         self._native_size = QSizeF(1920, 1080)
+
+    def clear_held_frame(self, *_):
+        self._last_frame = QVideoFrame()
+        self._held_frame.hide()
+        self._held_frame.setPixmap(QPixmap())
+
+    def _remember_frame(self, frame):
+        if frame.isValid():
+            self._last_frame = QVideoFrame(frame)
+            self._held_frame.hide()
+        elif self._last_frame.isValid():
+            image = self._last_frame.toImage()
+            if not image.isNull():
+                self._held_frame.setPixmap(QPixmap.fromImage(image))
+                size = self._video_item.size()
+                self._held_frame.setTransform(QTransform.fromScale(
+                    size.width() / image.width(), size.height() / image.height()))
+                self._held_frame.show()
 
     @property
     def video_item(self) -> QGraphicsVideoItem:
@@ -2343,6 +2370,9 @@ class _VideoGraphicsView(QGraphicsView):
         self._video_item.setSize(self._native_size)
         self._scene.setSceneRect(self._video_item.boundingRect())
         self.fitInView(self._video_item, Qt.AspectRatioMode.KeepAspectRatio)
+        for item in self._scene.items():
+            if isinstance(item, DraggableTextItem):
+                item._update_child_positions()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
@@ -2455,10 +2485,11 @@ class _SelectionActionBarItem(QGraphicsObject):
         self.update_layout()
 
     def update_layout(self):
-        fs = self._parent_item.item.font_size if hasattr(self._parent_item, 'item') else 32
-        self._h = max(36.0, fs * 0.85)
-        self._w = self._h * 4.6
+        # Tool chrome stays independent of caption font size and video zoom.
         self.prepareGeometryChange()
+        self._h = 32.0
+        self._w = 148.0
+        self.setFlag(QGraphicsObject.GraphicsItemFlag.ItemIgnoresTransformations, True)
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self._w, self._h)
@@ -2675,12 +2706,16 @@ class DraggableTextItem(QGraphicsTextItem):
 
     def _update_child_positions(self):
         br = self.boundingRect()
-        bar_w = self._action_bar.boundingRect().width()
-        bar_h = self._action_bar.boundingRect().height()
+        scene = self.scene()
+        views = scene.views() if scene is not None else []
+        scale = abs(views[0].transform().m11()) if views else 1.0
+        scale = max(0.001, scale)
+        bar_w = self._action_bar.boundingRect().width() / scale
+        bar_h = self._action_bar.boundingRect().height() / scale
         bar_x = (br.width() - bar_w) / 2.0
-        bar_y = -(bar_h + 8.0)
+        bar_y = -(bar_h + 8.0 / scale)
         if self.pos().y() + bar_y < 0:
-            bar_y = br.height() + 8.0
+            bar_y = br.height() + 8.0 / scale
         self._action_bar.setPos(bar_x, bar_y)
 
         if len(self._resize_handles) == 4:
@@ -2707,7 +2742,6 @@ class DraggableTextItem(QGraphicsTextItem):
         self.item.y_percent = max(0, min(100, ((cy - vr.y()) / vr.height()) * 100))
 
     def paint(self, painter, option, widget):
-        self._update_child_positions()
         rect = self.boundingRect()
 
         # 1. Antialiased rounded dark background matching annotator
@@ -2794,6 +2828,8 @@ class DraggableTextItem(QGraphicsTextItem):
         super().mouseReleaseEvent(event)
 
     def itemChange(self, change, value):
+        if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionHasChanged and hasattr(self, '_action_bar'):
+            self._update_child_positions()
         if change == QGraphicsTextItem.GraphicsItemChange.ItemPositionChange and self._video_item:
             vr = self._video_item.boundingRect()
             br = self.boundingRect()
@@ -3143,6 +3179,10 @@ class VideoPlayerWindow(QWidget):
             return
 
         self._close_poll_timer.stop()
+        self._cancel_scrub_decoder()
+        scrub_timer = getattr(self, '_scrub_timer', None)
+        if scrub_timer is not None:
+            scrub_timer.stop()
         try:
             self._player.setVideoOutput(None)
         except Exception:
@@ -3335,6 +3375,8 @@ class VideoPlayerWindow(QWidget):
         self._scrub_pending = None
         self._scrub_inflight_at = None
         self._scrub_resume = False
+        self._scrub_process = None
+        self._scrub_preview_position = None
         self._scrub_timer = QTimer(self)
         self._scrub_timer.setInterval(33)
         self._scrub_timer.timeout.connect(self._flush_scrub_preview)
@@ -4016,6 +4058,9 @@ class VideoPlayerWindow(QWidget):
         self._player.setAudioOutput(self._audio_output)
         # Set video output to the QGraphicsVideoItem inside the view
         self._player.setVideoOutput(self._video_view.video_item)
+        self._player.sourceChanged.connect(self._video_view.clear_held_frame)
+        self._player.sourceChanged.connect(self._reset_scrub_source)
+        self._player.mediaStatusChanged.connect(self._hold_frame_at_end)
 
         self._player.setSource(QUrl.fromLocalFile(self._filepath))
 
@@ -4025,7 +4070,7 @@ class VideoPlayerWindow(QWidget):
         self._player.errorOccurred.connect(self._on_media_error)
 
         if not self._start_in_edit_mode:
-            QTimer.singleShot(300, self._player.play)
+            QTimer.singleShot(300, lambda: self._player.play() if not self._seekbar_dragging and not self._closing else None)
 
     def _on_default_audio_output_changed(self, device):
         """Follow Windows when headphones or another default output is selected."""
@@ -4203,19 +4248,82 @@ class VideoPlayerWindow(QWidget):
         if frame.isValid():
             self._scrub_inflight_at = None
 
+    def _hold_frame_at_end(self, status):
+        if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            self._video_view._remember_frame(QVideoFrame())
+
+    def _reset_scrub_source(self, *_):
+        self._scrub_timer.stop()
+        self._seekbar_dragging = False
+        self._scrub_pending = None
+        self._scrub_preview_position = None
+        self._cancel_scrub_decoder()
+
+    def _cancel_scrub_decoder(self, *_):
+        process, self._scrub_process = getattr(self, '_scrub_process', None), None
+        if process is not None:
+            process.kill()
+            # Bounded native reap prevents a child surviving window/app teardown.
+            # Killing ffmpeg normally completes immediately; never wait unbounded.
+            process.waitForFinished(100)
+
+    def _decode_scrub_preview(self, position):
+        process = QProcess(QApplication.instance())
+        self._scrub_process = process
+        timeout = QTimer(process)
+        timeout.setSingleShot(True)
+        timeout.timeout.connect(process.kill)
+        completed = False
+
+        def finish(*_):
+            nonlocal completed
+            if completed:
+                return
+            completed = True
+            timeout.stop()
+            if self._scrub_process is process:
+                self._scrub_process = None
+                image = QImage.fromData(bytes(process.readAllStandardOutput()), 'PNG')
+                if self._seekbar_dragging and not image.isNull():
+                    held = self._video_view._held_frame
+                    held.setPixmap(QPixmap.fromImage(image))
+                    size = self._video_view.video_item.size()
+                    held.setTransform(QTransform.fromScale(
+                        size.width() / image.width(), size.height() / image.height()))
+                    held.show()
+                    self._scrub_preview_position = position
+                    self._on_position_changed(position)
+            process.deleteLater()
+
+        process.finished.connect(finish)
+        process.errorOccurred.connect(lambda error: finish() if error == QProcess.ProcessError.FailedToStart else None)
+        process.start(_get_ffmpeg(), [
+            '-v', 'error', '-nostdin', '-ss', f'{position / 1000:.3f}',
+            '-i', self._filepath, '-an', '-frames:v', '1',
+            '-vf', "scale='min(1280,iw)':-2", '-threads', '1',
+            '-f', 'image2pipe', '-c:v', 'png', 'pipe:1'])
+        timeout.start(3000)
+
     def _flush_scrub_preview(self, force=False):
-        # Let the decoder finish one preview instead of continuously cancelling
-        # it with newer seeks. Always retain the latest pointer position.
-        if not force and self._scrub_inflight_at is not None and time.monotonic() - self._scrub_inflight_at < 0.2:
+        if force:
+            self._cancel_scrub_decoder()
+            if self._scrub_pending is not None:
+                position, self._scrub_pending = self._scrub_pending, None
+                self._seek_to_position(position, preview=True)
             return
+        if self._scrub_process is not None:
+            return  # Complete a frame while pointer motion updates the next target.
         if self._scrub_pending is not None:
             position, self._scrub_pending = self._scrub_pending, None
-            self._scrub_inflight_at = time.monotonic()
-            self._seek_to_position(position, preview=True)
+            if self._filepath and os.path.isfile(self._filepath):
+                self._decode_scrub_preview(position)
+            else:
+                self._seek_to_position(position, preview=True)
 
     def _on_seekbar_moved(self, position: int):
         if self._seekbar_dragging:
             self._scrub_pending = position
+            self._update_time_label()
         else:
             self._seek_to_position(position)
 
@@ -4258,7 +4366,9 @@ class VideoPlayerWindow(QWidget):
                     self._player.setPosition(reg.end_ms)
                     break
 
-        # Update text overlay visibility
+        self._sync_overlay_visibility(position)
+
+    def _sync_overlay_visibility(self, position):
         for overlay in self._text_overlays:
             if overlay._gfx_item:
                 visible = (overlay.start_ms <= position <= overlay.end_ms)
@@ -4281,7 +4391,8 @@ class VideoPlayerWindow(QWidget):
         self._update_play_button_style(is_playing)
 
     def _update_time_label(self):
-        pos = _format_time(self._player.position())
+        position = self._seekbar.value() if self._seekbar_dragging else self._player.position()
+        pos = _format_time(position)
         dur = _format_time(self._player.duration())
         self._lbl_time.setText(f"{pos} / {dur}")
 
@@ -4746,13 +4857,28 @@ class VideoPlayerWindow(QWidget):
                 row_widget.set_end_time(ms)
 
     def _remove_text_overlay(self, row_widget):
-        if hasattr(row_widget, 'item') and row_widget.item in self._text_overlays:
-            self._text_overlays.remove(row_widget.item)
-            if row_widget.item._gfx_item:
-                self._video_view.gfx_scene.removeItem(row_widget.item._gfx_item)
-                row_widget.item._gfx_item = None
+        if not hasattr(row_widget, 'item') or row_widget.item not in self._text_overlays:
+            return  # Ignore duplicate/late removal signals.
+        overlay = row_widget.item
+        row_widget.blockSignals(True)
+        self._text_overlays.remove(overlay)
+        graphics, overlay._gfx_item = overlay._gfx_item, None
+        if graphics is not None:
+            # Detach callbacks before focus-out; removal is immediately visible.
+            graphics.setVisible(False)
+            graphics.set_change_callback(None)
+            graphics.set_select_callback(None)
+            graphics.set_delete_callback(None)
+            graphics.clearFocus()
+            scene = graphics.scene()
+            if scene is not None:
+                scene.removeItem(graphics)
+            from PyQt6 import sip
+            sip.delete(graphics)
         self._text_overlays_container.removeWidget(row_widget)
+        row_widget.hide()
         row_widget.deleteLater()
+        self._video_view.viewport().update()
         self._update_text_timeline()
         self._select_text_overlay(-1)
 
@@ -4776,6 +4902,8 @@ class VideoPlayerWindow(QWidget):
     def _update_text_timeline(self):
         """Refresh text overlay lanes in the unified FrameTimelineWidget."""
         self._timeline.set_text_overlays(self._text_overlays if self._edit_mode else [])
+        self._sync_overlay_visibility(self._player.position())
+        self._video_view.viewport().update()
         # Timeline height may have changed (more/fewer lanes) — reposition the
         # floating controls widget so it actually fits the new height.
         from PyQt6.QtCore import QTimer

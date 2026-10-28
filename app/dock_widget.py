@@ -1356,7 +1356,7 @@ class SidebarPanel(QWidget):
         if os.path.isfile(heading_path):
             img_label = QLabel()
             from icon_theme import wordmark_pixmap
-            scaled = wordmark_pixmap(24)
+            scaled = wordmark_pixmap(24 if self._horizontal_panel else 18)
             img_label.setPixmap(scaled)
             heading_layout.addWidget(img_label)
         else:
@@ -1371,11 +1371,11 @@ class SidebarPanel(QWidget):
             heading_layout.addWidget(lbl_rest)
 
         divider = QFrame()
-        divider.setFixedSize(1, 24)
+        divider.setFixedSize(1, 24 if self._horizontal_panel else 18)
         divider.setStyleSheet("background: #343B48; border: none;")
         heading_layout.addWidget(divider)
         title = QLabel("Settings" if isinstance(self, SettingsSidebar) else "Gallery")
-        title.setStyleSheet("color: #A8AFBA; font: 24px 'Segoe UI'; background: transparent;")
+        title.setStyleSheet(f"color: #A8AFBA; font: {24 if self._horizontal_panel else 18}px 'Segoe UI'; background: transparent;")
         heading_layout.addWidget(title)
         heading_layout.addStretch()
 

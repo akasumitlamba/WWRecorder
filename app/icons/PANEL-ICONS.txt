@@ -30,3 +30,13 @@ Close subject:
 A clean diagonal X close icon, two equal crossed strokes, pale white #E9EDF4.
 
 2026-10-26 Settings action icons: panel-reset.png, panel-share.png, panel-power.png. Generated with built-in imagegen, transparent RGBA, normalized to 64px. Prompt: flat crisp centered conventional reset/share/power symbol, rounded strokes, light reset/share and red power, 65 percent canvas occupancy with generous transparent padding, no clipping/shadow/glow/text/background. Originals retained in the generation output directory.
+
+Current runtime policy (2026-10-28): icon_theme.asset_path resolves legacy action
+names to the approved modern PNGs. Superseded root PNG copies have been removed;
+they are available only through Git history. The original record.png camera and
+wwrecorder.png wordmark remain intentional. modern/power.svg and apply.svg are
+editable geometric sources for their matching runtime PNGs, rebuilt with
+scripts/build_power_icon.py and scripts/build_check_icon.py. They are source and
+raster representations of one icon, not competing runtime themes. The Explorer
+SVG is a licensed fallback for Windows shell artwork. Live Laser now uses the
+approved modern/laser.png; its cursor remains the selected-color laser dot.

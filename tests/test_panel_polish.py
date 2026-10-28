@@ -258,7 +258,8 @@ def test_generated_header_assets_are_transparent_and_shipped():
 
     root = Path(__file__).resolve().parents[1] / "app/icons"
     for name in ("search", "settings", "close"):
-        image = Image.open(root / f"panel-{name}.png").convert("RGBA")
+        from icon_theme import asset_path
+        image = Image.open(asset_path(f"panel-{name}.png")).convert("RGBA")
         assert image.size == (64, 64)
         assert image.getpixel((0, 0))[3] == 0
         assert image.getchannel("A").getextrema()[1] > 240

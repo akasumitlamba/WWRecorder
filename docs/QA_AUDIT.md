@@ -79,3 +79,26 @@ an interrupted active drag restores its original anchor. Temporary screen work
 area clamps affect presentation only, preserving the home for later restoration.
 Regression coverage includes both pending and active gestures, each interruption,
 stale config refreshes, transient work areas, all edges and existing monitor tests.
+
+## Preview consistency and asset ownership — 2026-10-28
+
+Live Laser uses approved modern artwork without color changes replacing it.
+Removed 59 superseded root PNGs; shared aliases resolve all those action names
+to modern runtime images. Original Camera/wordmark and SVG-to-PNG geometric
+source pairs are intentional. Vertical brand/title are 18px; horizontal remains
+24px. Caption Edit/Delete controls keep a fixed screen footprint independent
+of font size and video fit. Removal disconnects callbacks, immediately hides
+and destroys scene items, removes the row and timeline/model entry; timing
+changes refresh visibility while paused. No geometry mutation occurs in paint.
+Scrubbing uses one asynchronous FFmpeg preview process at a time (latest queued
+position, 3s deadline, bounded cancellation), avoiding repeated Qt seek decoder
+interruption. Release seeks the actual player exactly and restores prior play
+state. A cached decoded frame remains visible when Qt clears its EOF surface;
+source changes clear it. Portable functional regressions cover these paths.
+Package revision 1.7.0.14 validation/build pending; do not claim publication yet.
+Release notes must be cumulative against stable v1.6, reconciled with shipped
+source and merged changes, rather than a list of latest package increments.
+
+Portable release-gate result: 886 passed, 29 Windows-only skipped, zero failures.
+Required seven-module compilation and diff whitespace check passed. Windows
+CI, frozen validation and both installer builds remain pending.
