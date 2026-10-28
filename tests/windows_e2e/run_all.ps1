@@ -69,9 +69,10 @@ if (Test-Path $VenvPython) {
 } else {
     $cmd = Get-Command py -ErrorAction SilentlyContinue
     if ($cmd) {
-        & $cmd.Source -3 -m venv (Join-Path $RepoRoot '.venv')
+        & $cmd.Source -3.13 -m venv (Join-Path $RepoRoot '.venv')
         if ($LASTEXITCODE -eq 0) { $Python = $VenvPython }
-    } else {
+    }
+    if (-not $Python) {
         $cmd = Get-Command python -ErrorAction SilentlyContinue
         if ($cmd) {
             & $cmd.Source -m venv (Join-Path $RepoRoot '.venv')
