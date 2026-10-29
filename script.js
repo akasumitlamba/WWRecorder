@@ -2,8 +2,9 @@
   'use strict';
 
   const RELEASES_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases?per_page=30';
-  const RELEASES_FALLBACK = 'https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1';
-  const PATCHED_INSTALLER = 'WWRecorder_Setup_1.7.1.1.exe';
+  const LATEST_RELEASE_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases/latest';
+  const RELEASES_FALLBACK = 'https://github.com/akasumitlamba/WWRecorder/releases/latest';
+  const SECURITY_UPDATE_INSTALLER = 'WWRecorder_Setup_1.7.1.1.exe';
   const OFFICIAL_ASSET_PREFIX = 'https://github.com/akasumitlamba/WWRecorder/releases/download/';
 
   // GitHub-published installer names and SHA-256 digests from release asset metadata.
@@ -28,9 +29,9 @@
     notice.setAttribute('role', 'status');
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
-      <strong>Install the patched 1.7.1</strong>
-      <p>FFmpeg security fix (CVE-2026-8461). Update before opening untrusted videos. GitHub labels 1.7.1 as prerelease.</p>
-      <div><a href="download.html?version=v1.7.1">Get patched version</a><a href="release-notes.html#security">Security details</a></div>`;
+      <strong>Media security update</strong>
+      <p>FFmpeg security fix (CVE-2026-8461) is available in the 1.7.1 preview. Default downloads use the latest stable release.</p>
+      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1">Preview release</a></div>`;
     const dismissNotice = () => {
       notice.remove();
       try { sessionStorage.setItem(noticeKey, 'dismissed'); } catch (_) { /* Dismiss still works. */ }
@@ -135,19 +136,25 @@
   let releasePromise;
   const fetchInstallerReleases = () => {
     if (!releasePromise) {
-      releasePromise = fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
-        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Release lookup failed')))
-        .then((releases) => releases
-          .filter((release) => !release.draft && (!release.prerelease || release.tag_name === 'v1.7.1'))
-          .map((release) => ({
-            name: release.name || release.tag_name,
-            tag: release.tag_name,
-            patched: release.tag_name === 'v1.7.1' && release.assets?.some((asset) => asset.name === PATCHED_INSTALLER),
-            published: release.published_at,
-            asset: Array.isArray(release.assets) ? (release.assets.find((asset) => asset.name === PATCHED_INSTALLER) || release.assets.find((asset) => /\.exe$/i.test(asset.name))) : null
-          }))
-          .filter((release) => release.asset && release.asset.browser_download_url.startsWith(OFFICIAL_ASSET_PREFIX))
-          .sort((a, b) => Number(b.patched) - Number(a.patched)));
+      const readReleaseMetadata = (url) => fetch(url, { headers: { Accept: 'application/vnd.github+json' } })
+        .then((response) => response.ok ? response.json() : Promise.reject(new Error('Release lookup failed')));
+      releasePromise = Promise.all([readReleaseMetadata(RELEASES_API), readReleaseMetadata(LATEST_RELEASE_API)])
+        .then(([releases, latest]) => {
+          if (!Array.isArray(releases) || !latest?.tag_name || latest.draft || latest.prerelease) {
+            throw new Error('Latest stable release metadata unavailable');
+          }
+          return [latest, ...releases.filter((release) => release.tag_name !== latest.tag_name)]
+            .filter((release) => !release.draft && !release.prerelease)
+            .map((release) => ({
+              name: release.name || release.tag_name,
+              tag: release.tag_name,
+              latest: release.tag_name === latest.tag_name,
+              published: release.published_at,
+              asset: Array.isArray(release.assets) ? release.assets.find((asset) =>
+                /^WWRecorder_Setup.*\.exe$/i.test(asset.name) && !/local[-_ ]?test/i.test(asset.name)) : null
+            }))
+            .filter((release) => release.asset && release.asset.browser_download_url.startsWith(OFFICIAL_ASSET_PREFIX));
+        });
     }
     return releasePromise;
   };
@@ -185,7 +192,7 @@
               <span class="choice-text">
                 <small>STANDALONE</small>
                 <strong>Installer</strong>
-                <em>Patched 1.7.1 from GitHub</em>
+                <em>Latest stable release from GitHub</em>
               </span>
             </a>
           </div>
@@ -214,9 +221,9 @@
         const params = new URLSearchParams({ url: release.asset.browser_download_url, version: release.tag });
         link.href = `download.html?${params}`;
         const title = document.createElement('span');
-        title.textContent = `${release.patched ? '1.7.1' : release.tag} · ${release.asset.name}`;
+        title.textContent = `${release.tag} · ${release.asset.name}`;
         const meta = document.createElement(index === 0 ? 'b' : 'small');
-        meta.textContent = release.patched ? 'Patched release' : formatReleaseDate(release.published);
+        meta.textContent = release.latest ? 'Latest stable' : formatReleaseDate(release.published);
         link.append(title, meta);
         list.append(link);
       });
@@ -276,7 +283,7 @@
           manualLink.innerHTML = `<img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true"> Download ${release.tag}`;
         }
       }
-      if (releaseName) releaseName.textContent = `${release.patched ? '1.7.1' : release.tag} · ${release.asset.name}`;
+      if (releaseName) releaseName.textContent = `${release.tag} · ${release.asset.name}`;
       if (targetName) targetName.textContent = `${release.tag} (${release.asset.name})`;
       if (targetPill) targetPill.style.display = 'inline-flex';
 
@@ -297,18 +304,14 @@
       window.location.href = activeUrl;
     };
 
-    manualLink?.addEventListener('click', (event) => {
-      if (!activeUrl) event.preventDefault();
-    });
-
     try {
       const releases = await fetchInstallerReleases();
       if (!releases.length) throw new Error('No installer found');
       const requested = requestedUrl.startsWith(OFFICIAL_ASSET_PREFIX)
         ? releases.find((release) => release.asset.browser_download_url === requestedUrl)
         : releases.find((release) => release.tag === requestedVersion);
-      const chosen = requested || releases.find((release) => release.patched);
-      if (!chosen) throw new Error("Patched installer metadata unavailable");
+      const chosen = requested || releases.find((release) => release.latest);
+      if (!chosen) throw new Error("Latest stable installer metadata unavailable");
       setActiveRelease(chosen, true);
 
       if (versionSelect) {
@@ -316,7 +319,7 @@
         releases.forEach((release, index) => {
           const option = document.createElement('option');
           option.value = release.asset.browser_download_url;
-          option.textContent = `${release.tag}${release.patched ? ' (patched 1.7.1)' : ''} · ${formatReleaseDate(release.published)}`;
+          option.textContent = `${release.tag}${release.latest ? ' (latest stable)' : ''} · ${formatReleaseDate(release.published)}`;
           option.selected = release.asset.browser_download_url === activeUrl;
           versionSelect.append(option);
         });
@@ -330,8 +333,8 @@
       }
       window.setTimeout(startDownload, 900);
     } catch (error) {
-      if (statusTitle) statusTitle.textContent = 'Open the patched release release';
-      if (statusText) statusText.textContent = 'The live installer lookup is unavailable. Get the patched 1.7.1 directly from the official GitHub release.';
+      if (statusTitle) statusTitle.textContent = 'Open the latest stable release';
+      if (statusText) statusText.textContent = 'The live installer lookup is unavailable. Open GitHub’s latest stable release to choose its installer.';
       if (manualLink) {
         manualLink.href = RELEASES_FALLBACK;
         manualLink.textContent = 'Open GitHub releases';
@@ -399,7 +402,7 @@
     }
     const matchedRelease = published.find((release) => release.sha256 === entered);
     if (matchedRelease) {
-      showHashResult(`Fingerprint matches ${matchedRelease.releaseName} (${matchedRelease.filename}).${matchedRelease.filename !== PATCHED_INSTALLER ? " This older version does not contain the current FFmpeg patch; use 1.7.1." : ""}`, 'success');
+      showHashResult(`Fingerprint matches ${matchedRelease.releaseName} (${matchedRelease.filename}).${matchedRelease.filename !== SECURITY_UPDATE_INSTALLER ? " This version predates the FFmpeg security update described in the release notes." : ""}`, 'success');
     } else {
       showHashResult('No match. Do not run this file. Download it again from Microsoft Store or the official GitHub release.', 'danger');
     }
