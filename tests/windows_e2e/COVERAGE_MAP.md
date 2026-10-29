@@ -105,3 +105,8 @@ headers, original dock dimensions, actual painted WW/Rec blink pixels, annotatio
 bounds on compact/ultrawide/negative-origin screens, and Store identity staging.
 
 Validation: 976 portable tests passed (31 Windows-only skips); 1152 Windows tests passed (three desktop-only skips). Both package formats, frozen startup, dependency/media checks and unattended reports passed.
+
+Recording/installer repair regressions cover active-clock video sampling, decoded
+system/microphone timing, centered discard and Keycast cancellation/policies,
+Windows icon resources and cross-process native update requests. The native bridge
+case uses the Windows Qt backend; Linux skips it explicitly. No input is required.

@@ -6,11 +6,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const http = require('node:http');
 const site = path.resolve(process.env.WWR_SITE_ROOT || (fs.existsSync('Supporting/Website/site') ? 'Supporting/Website/site' : '.'));
-const patched = 'https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.0.exe';
+const patched = 'https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.1.exe';
 const asset = name => ({name, browser_download_url:'https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/'+name});
 const releases = [
  {tag_name:'v1.6',published_at:'2026-09-08T00:00:00Z',assets:[asset('WWRecorder_Setup_1.6.3.exe')]},
- {tag_name:'v1.7.1',prerelease:false,published_at:'2026-10-29T00:00:00Z',assets:[asset('WWRecorder_Setup_1.7.0.14.exe'),asset('WWRecorder_Setup_1.7.1.0.exe')]},
+ {tag_name:'v1.7.1',prerelease:false,published_at:'2026-10-29T00:00:00Z',assets:[asset('WWRecorder_Setup_1.7.0.14.exe'),asset('WWRecorder_Setup_1.7.1.1.exe')]},
  {tag_name:'v9',prerelease:true,assets:[asset('Unreviewed.exe')]},
  {tag_name:'draft',draft:true,assets:[asset('Draft.exe')]}
 ];
@@ -80,13 +80,28 @@ const server=http.createServer((req,res)=>{
   });
   await check('Installer fingerprint feedback distinguishes patched, old and unknown files',async()=>{
    await page.goto(base+'/install-help.html');
-   await page.locator('[data-hash-input]').fill('1b87b1cd6aabee45c6fc4d08dad9a82660020366a308742a8a9d519d8a260fbc');
+   await page.locator('[data-hash-input]').fill('0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd');
    await page.locator('[data-check-hash]').click();
    assert.match(await page.locator('[data-hash-result]').innerText(),/1.7.1/);
    await page.locator('[data-hash-input]').fill('ec30b53e4f0ce2ac57ffac66d3f9c90340b4dca5c7ca9e6391926e6a82720eb9');
    await page.locator('[data-check-hash]').click();assert.match(await page.locator('[data-hash-result]').innerText(),/older version does not contain/);
    await page.locator('[data-hash-input]').fill('0'.repeat(64));await page.locator('[data-check-hash]').click();
    assert.match(await page.locator('[data-hash-result]').innerText(),/No match/);
+  });
+  await check('Current feature screenshots load and Keycast is discoverable on desktop and phone',async()=>{
+   await page.goto(base+'/index.html');
+   const keycast=page.locator('#keycast');
+   assert.ok(await keycast.count());
+   for(const width of [1440,375]){
+    await page.setViewportSize({width,height:950});
+    for(const name of ['recording','annotation','recent-files','video-editor','keycast']){
+     const image=page.locator(`img[src*="media/features/${name}.png"]`);
+     await image.scrollIntoViewIfNeeded();
+     await image.evaluate(el=>el.decode());
+     assert.ok(await image.evaluate(el=>el.naturalWidth>0));
+    }
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   }
   });
   await check('Blocked browser storage never prevents notice dismissal',async()=>{
    const isolated=await browser.newContext();

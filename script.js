@@ -3,12 +3,12 @@
 
   const RELEASES_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases?per_page=30';
   const RELEASES_FALLBACK = 'https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1';
-  const PATCHED_INSTALLER = 'WWRecorder_Setup_1.7.1.0.exe';
+  const PATCHED_INSTALLER = 'WWRecorder_Setup_1.7.1.1.exe';
   const OFFICIAL_ASSET_PREFIX = 'https://github.com/akasumitlamba/WWRecorder/releases/download/';
 
   // GitHub-published installer names and SHA-256 digests from release asset metadata.
   const OFFICIAL_INSTALLER_RELEASES = Object.freeze([
-    Object.freeze({ releaseName: 'WWRecorder 1.7.1', filename: 'WWRecorder_Setup_1.7.1.0.exe', sha256: '1b87b1cd6aabee45c6fc4d08dad9a82660020366a308742a8a9d519d8a260fbc' }),
+    Object.freeze({ releaseName: 'WWRecorder 1.7.1', filename: 'WWRecorder_Setup_1.7.1.1.exe', sha256: '0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd' }),
     Object.freeze({ releaseName: 'WWRecorder 1.6.3', filename: 'WWRecorder_Setup_1.6.3.exe', sha256: 'ec30b53e4f0ce2ac57ffac66d3f9c90340b4dca5c7ca9e6391926e6a82720eb9' }),
     Object.freeze({ releaseName: 'WWRecorder v1.6.0 Public Beta', filename: 'WWRecorder_Setup_1.6.exe', sha256: 'caa0cc1d8741a81937933ab1105510397305913bff516cef7e5c9287636e1694' }),
     Object.freeze({ releaseName: 'WWRecorder v1.5.0', filename: 'WWRecorder_Setup_1.5.exe', sha256: 'caf5d2afaa366f503453f8ac09211ce47af8b457163eafd853bb24dbd7a4a687' }),
@@ -19,7 +19,7 @@
     Object.freeze({ releaseName: 'WWRecorder v1.0.0', filename: 'WWRecorder_Setup_1.0.0.exe', sha256: '72c7ef30b60dc5cbbe59971b9d3f61aa6a19d209e3d50f9fb443a26eabb4a2cf' })
   ]);
 
-  const noticeKey = 'wwrec-security-notice-1.7.1';
+  const noticeKey = 'wwrec-security-notice-1.7.1.1';
   let noticeDismissed = false;
   try { noticeDismissed = sessionStorage.getItem(noticeKey) === 'dismissed'; } catch (_) { /* Storage can be blocked. */ }
   if (!noticeDismissed) {
@@ -29,7 +29,7 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Install the patched 1.7.1</strong>
-      <p>Includes the FFmpeg security fix for recording and playback. Older downloads do not include this patch.</p>
+      <p>Includes the FFmpeg security fix and recording synchronization improvements. Install the updated release.</p>
       <div><a href="download.html?version=v1.7.1">Get patched version</a><a href="enterprise.html#media-security">Security details</a></div>`;
     notice.querySelector('button').addEventListener('click', () => {
       notice.remove();

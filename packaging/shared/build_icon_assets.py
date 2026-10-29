@@ -25,15 +25,28 @@ def render_icon(source, size):
 
 
 def write_ico(source, destination):
-    # Explicit PNG frames preserve alpha in every size instead of relying on
-    # legacy BMP AND masks with independently downsampled corner alpha.
+    # Conventional DIB sizes plus a PNG jumbo frame support native shell and
+    # installer resource readers; every AND mask derives from the same alpha.
     import io
     import struct
     frames = []
     for size in ICON_SIZES:
-        data = io.BytesIO()
-        render_icon(source, size).save(data, format='PNG')
-        frames.append((size, data.getvalue()))
+        image = render_icon(source, size)
+        if size == 256:
+            data = io.BytesIO(); image.save(data, format='PNG'); encoded = data.getvalue()
+        else:
+            # DIB frames are understood by both the shell and Inno's PE icon
+            # resource handling. Preserve alpha AND a correctly padded mask.
+            color = image.tobytes('raw', 'BGRA', 0, -1)
+            stride = ((size + 31) // 32) * 4
+            mask = bytearray(stride * size)
+            for y in range(size):
+                for x in range(size):
+                    if image.getpixel((x, size - 1 - y))[3] == 0:
+                        mask[y * stride + x // 8] |= 0x80 >> (x % 8)
+            header = struct.pack('<IiiHHIIiiII', 40, size, size * 2, 1, 32, 0, len(color) + len(mask), 0, 0, 0, 0)
+            encoded = header + color + mask
+        frames.append((size, encoded))
     offset = 6 + 16 * len(frames)
     result = bytearray(struct.pack('<HHH', 0, 1, len(frames)))
     for size, data in frames:

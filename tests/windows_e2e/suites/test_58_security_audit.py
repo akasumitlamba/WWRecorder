@@ -39,8 +39,9 @@ def test_keycast_warning_acceptance_is_explicit_and_remembered(qapp, remember):
     box = pill._keycast_warning
     assert box is not None and not pill._btn_keycast.isChecked()
     assert pill._keycast.session is None
-    assert 'visible in the recording' in box.text()
-    assert 'passwords' in box.informativeText() and 'outside' in box.informativeText()
+    assert 'keys and clicks' in box.text()
+    assert box.icon()==QMessageBox.Icon.Warning
+    assert 'Passwords' in box.informativeText() and 'other windows' in box.informativeText()
     assert not box.checkBox().isChecked()
     box.checkBox().setChecked(remember)
     next(b for b in box.buttons() if b.text() == 'Enable Keycast').click()

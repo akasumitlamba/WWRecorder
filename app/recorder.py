@@ -92,6 +92,28 @@ def _read_audio_chunk(recorder, chunk_frames: int):
     return data, discontinuities
 
 
+class _VideoSampleClock:
+    """Map sampled screens to their active-time CFR slots, preserving event time.
+
+    Missing slots hold the previous screen; they must never be distributed
+    across the entire take by stretching every surviving frame uniformly.
+    """
+    def __init__(self):
+        self.slot = -1
+        self.previous = None
+
+    def append(self, frame, elapsed):
+        target = max(0, int(max(0.0, elapsed) * TARGET_FPS + 1e-6))
+        if target <= self.slot:
+            return
+        held = self.previous if self.previous is not None else frame
+        for _ in range(self.slot + 1, target):
+            yield held
+        yield frame
+        self.slot = target
+        self.previous = frame
+
+
 def _next_frame_deadline(deadline: float, now: float) -> tuple[float, int]:
     """Advance a capture clock without creating a duplicate-frame backlog.
 
@@ -1107,7 +1129,9 @@ class RecordingEngine:
         # The temp video is already x264/ultrafast, so re-encode is fast.
         # Paused raw frames were never sent to FFmpeg; applying pause ranges
         # here would shorten the video twice.
-        video_filter = _video_timing_filter([], active_duration, captured_frames)
+        # Frames already occupy active-clock slots; global retiming would move
+        # speech/click events when capture throughput changes within the take.
+        video_filter = _video_timing_filter([], active_duration)
         video_encode = ["-vf", video_filter,
                         "-c:v", "libx264", "-preset", "veryfast", "-crf", str(FINAL_VIDEO_CRF),
                         "-pix_fmt", "yuv420p", "-threads", "0"]
@@ -1441,7 +1465,8 @@ class RecordingEngine:
                 connected_once = recorder is not None
                 active_device_key = self._audio_device_key(mic_device) if mic_device is not None else ''
                 next_default_check = time.perf_counter() + 1.0
-                ready_event.set()
+                if recorder is None:
+                    ready_event.set()
 
                 while self._running:
                     enabled = self._sys_audio_enabled if is_system else self._mic_audio_enabled
@@ -1519,6 +1544,7 @@ class RecordingEngine:
                                 try:
                                     data, glitches = _read_audio_chunk(mic, chunk_frames)
                                     discontinuity_count += glitches
+                                    ready_event.set()
                                 except Exception as dev_err:
                                     print(f"[WWRecorder] {label} audio device error: {dev_err}")
                                     unavailable_since = time.perf_counter()
@@ -1635,6 +1661,7 @@ class RecordingEngine:
         with mss.mss() as sct:
             deadline = time.perf_counter()
             canvas = None
+            video_clock = _VideoSampleClock()
 
             while self._running:
                 now = time.perf_counter()
@@ -1654,6 +1681,7 @@ class RecordingEngine:
                 try:
                     canvas = capture_bgra_frame(sct, segments, self._region["width"], self._region["height"], canvas)
                     bgra = canvas
+                    sampled_at = self._active_elapsed()
 
                     # Composite native cursor if it's inside the capture region
                     try:
@@ -1701,7 +1729,10 @@ class RecordingEngine:
                         if not self._running:
                             break
                         try:
-                            self._ffmpeg_proc.stdin.write(raw)
+                            for timed_frame in video_clock.append(raw, sampled_at):
+                                if not self._running:
+                                    break
+                                self._ffmpeg_proc.stdin.write(timed_frame)
                         except (BrokenPipeError, OSError, ValueError):
                             with self._state_lock:
                                 self._capture_failed = self._running
@@ -1710,11 +1741,9 @@ class RecordingEngine:
                     with self._state_lock:
                         self._captured_frames += 1
 
-                    # Never catch up here by injecting the same stale frame.
-                    # Rawvideo has no timestamps, so finalization stretches the
-                    # captured-frame timeline to the measured active wall time
-                    # before producing CFR 30. Skip missed scheduler slots and
-                    # capture the newest screen state next.
+                    # Hold the previous screen only in its missing clock slots.
+                    # The next captured state keeps its actual active timestamp;
+                    # finalization does not smear stalls across the whole take.
                     deadline, missed = _next_frame_deadline(deadline, time.perf_counter())
                     if missed:
                         with self._state_lock:

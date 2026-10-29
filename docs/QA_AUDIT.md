@@ -161,3 +161,49 @@ checks. EXE/MSIX, bootstrap/report, frozen startup and security gates passed.
 Store certification and installed hardware acceptance remain separate.
 
 Final public-export validation: 984 portable tests passed (including eight website navigation/policy tests), 31 Windows-only skips, zero failures/errors. Eight browser interaction checks passed. Core/build source matched the validated installer source; staged privacy and secret scans passed.
+
+## Recording synchronization and interface repairs
+
+Capture fills missed active-clock frame slots with the previous screen, preserving
+individual event timing instead of uniformly stretching surviving frames. Decoded
+FFmpeg regressions compare microphone/system tones with visible events after
+uneven capture stalls and pause/preparation accounting (less than 50ms skew).
+Native hardware acceptance remains a separate check.
+
+The original compact dock handle is retained. Thumbnail play symbols are blue;
+headers render crisp high-DPI artwork. Discard is centered/modal, and floating
+controls yield to modal dialogs. Keycast warns that private typing may appear in
+the recording, with explicit cancellation and administrator policy coverage.
+Installer branding is composed once for Welcome/Finish. Windows PE icon extraction
+is validated, and a hidden native bridge requests normal media-safe Quit without
+force-killing recordings. Older installed builds can need one manual quit.
+Website screenshots retain the existing dark walkthrough content and show current
+controls. Keycast has a dedicated feature section with synthetic sample input.
+
+### Precision-touchpad Keycast feedback
+
+Keycast supplements low-level mouse wheel events with a passive touchpad-only
+Raw Input listener. The owned Windows message thread reads per-device HID
+capabilities and complete contact frames; two-finger common motion produces
+up/down/left/right feedback. Single-finger motion, pinches, palms and button
+drags do not produce scroll feedback. Windows scrolling direction is respected.
+Registration is serialized across stop/restart; input is never suppressed or
+injected. No contacts or typing are written to a log. Native registration and
+shutdown are tested independently of physical gesture acceptance.
+
+## Remaining physical Windows acceptance
+
+- In a browser and File Explorer, verify two-finger up/down/left/right scrolling
+  displays the matching Keycast direction; ordinary mouse wheels still work.
+  Confirm one-finger pointing, pinch zoom and button dragging do not display scroll.
+- Disable/re-enable Keycast and stop/discard capture: no lingering contact feedback
+  or interruption to other applications' gestures. Test administrator restrictions.
+- Compare visible events with microphone/system sound in a saved recording using
+  another player, including pause/resume and sustained capture load. Repeat with
+  built-in, USB and Bluetooth microphones in both distribution formats.
+- Install/update on a desktop, inspect Explorer/taskbar icons and Welcome/Finish
+  branding, and verify safe shutdown does not destroy active capture/edit work.
+
+Automated release checks: 1,177 Windows passed (three headless desktop skips),
+999 portable passed (33 Windows-only skips), nine desktop/mobile browser checks.
+These counts do not stand in for physical device or installed Store acceptance.

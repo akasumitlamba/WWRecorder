@@ -50,7 +50,7 @@ def test_shared_aliases_and_frozen_paths(monkeypatch,tmp_path):
 
 def test_wordmark_visible_art_fills_its_declared_height(app):
     pixmap=wordmark_pixmap(24)
-    assert pixmap.height()==24 and pixmap.width()>130
+    assert pixmap.deviceIndependentSize().height()==24 and pixmap.width()>130
     image=pixmap.toImage()
     rows=[y for y in range(image.height()) if any(image.pixelColor(x,y).alpha()>128 for x in range(image.width()))]
     assert max(rows)-min(rows)>=22
