@@ -14,7 +14,7 @@ GitHub currently labels v1.7.1 as a **prerelease** and v1.6 as **Latest**. Use t
 
 | Distribution | Download | Status |
 | --- | --- | --- |
-| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.2.exe) | Direct installer; unsigned. Verify the release SHA-256. |
+| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.3.exe) | Direct installer; unsigned. Verify the release SHA-256. |
 | Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Open the Store listing to check the available version and updates. |
 
 [Release notes and security advisory](https://akasumitlamba.github.io/WWRecorder/release-notes.html) ·
