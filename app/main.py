@@ -716,6 +716,8 @@ class WWRecorderApp:
 
     def __init__(self):
         self.app = QApplication(sys.argv)
+        from window_layers import install_window_layers
+        install_window_layers(self.app)
         self.app.setApplicationName(APP_NAME)
         self.app.setApplicationVersion(APP_VERSION)
         # All top-level windows/dialogs inherit our transparent icon, including
@@ -2437,9 +2439,14 @@ class WWRecorderApp:
 # ─────────────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
+    is_smoke = len(sys.argv) == 3 and sys.argv[1] in (
+        "--distribution-smoke-test",
+        "--recording-smoke-test",
+        "--recording-qa-test",
+    )
     # Prevent multiple instances via a named mutex (Windows)
     mutex = None
-    if sys.platform == "win32":
+    if sys.platform == "win32" and not is_smoke:
         import ctypes
         mutex, already_running = _acquire_single_instance_mutex()
         if already_running:

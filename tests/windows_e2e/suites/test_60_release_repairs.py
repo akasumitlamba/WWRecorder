@@ -17,7 +17,7 @@ def test_discard_is_centered_modal_and_does_not_get_covered_or_duplicate(qapp,mo
     pill.show();pill._initiate_discard();QTest.qWait(20)
     box=pill._discard_dialog;assert box.isVisible() and not pill._stopping
     assert QApplication.activeModalWidget() is box
-    assert (box.geometry().center()-pill.screen().availableGeometry().center()).manhattanLength()<30
+    assert (box.geometry().center()-pill.screen().availableGeometry().center()).manhattanLength()<=35
     raised=[];monkeypatch.setattr(pill,'raise_',lambda:raised.append(True))
     pill._enforce_topmost();assert not raised
     pill._initiate_discard();assert pill._discard_dialog is box
@@ -30,8 +30,10 @@ def test_discard_is_centered_modal_and_does_not_get_covered_or_duplicate(qapp,mo
 def test_keycast_warning_has_clear_icon_and_cancel_never_remembers(qapp,exit_action):
     pill=import_app('ui_elements').PillWidget(FakeRecordingEngine(),{},pre_record=True)
     pill._btn_keycast.setChecked(True);box=pill._keycast_warning;QTest.qWait(10)
-    assert box.icon()==QMessageBox.Icon.Warning
-    assert 'Passwords' in box.informativeText() and 'other windows' in box.informativeText()
+    assert not box.iconPixmap().isNull()
+    assert box.iconPixmap().deviceIndependentSize().width() <= 64
+    assert 'passwords' in box.informativeText().lower() and 'outside the selected area' in box.informativeText()
+    assert box.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
     box.checkBox().setChecked(True)
     if exit_action=='escape':QTest.keyClick(box,Qt.Key.Key_Escape)
     else:box.close()

@@ -10,6 +10,7 @@ import time
 
 import pytest
 from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import Qt
 from PyQt6.QtTest import QTest
 from helpers.env import import_app
 from helpers.action_matrix import FakeRecordingEngine
@@ -40,8 +41,12 @@ def test_keycast_warning_acceptance_is_explicit_and_remembered(qapp, remember):
     assert box is not None and not pill._btn_keycast.isChecked()
     assert pill._keycast.session is None
     assert 'keys and clicks' in box.text()
-    assert box.icon()==QMessageBox.Icon.Warning
-    assert 'Passwords' in box.informativeText() and 'other windows' in box.informativeText()
+    assert not box.iconPixmap().isNull()
+    assert box.iconPixmap().deviceIndependentSize().width() <= 64
+    assert box.accessibleName() == "Keycast privacy warning"
+    assert 'passwords' in box.informativeText().lower() and 'outside the selected area' in box.informativeText()
+    assert 'this warning is about' not in box.informativeText().lower()
+    assert box.windowFlags() & Qt.WindowType.WindowStaysOnTopHint
     assert not box.checkBox().isChecked()
     box.checkBox().setChecked(remember)
     next(b for b in box.buttons() if b.text() == 'Enable Keycast').click()

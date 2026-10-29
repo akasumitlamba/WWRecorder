@@ -207,3 +207,12 @@ shutdown are tested independently of physical gesture acceptance.
 Automated release checks: 1,177 Windows passed (three headless desktop skips),
 999 portable passed (33 Windows-only skips), nine desktop/mobile browser checks.
 These counts do not stand in for physical device or installed Store acceptance.
+
+
+## Floating-window layering
+
+Shared window_layers.py keeps dialogs, dropdowns, menus and tooltips above the
+floating controls. Native file dialogs use the same topmost policy. Controls
+yield while a transient window is visible. Delete confirmation is nonblocking,
+owned by Recent Files and defaults to No; Cancel/Escape/close preserve the file.
+Delete errors remain visible. The same code is used in EXE and MSIX editions.

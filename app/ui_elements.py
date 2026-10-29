@@ -12,6 +12,7 @@ import os
 import sys
 from typing import Optional
 
+from window_layers import transient_is_visible, prepare_dialog
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QFileDialog, QLineEdit,
@@ -454,7 +455,7 @@ class CaptureBorderWidget(QWidget):
         _exclude_from_capture(int(self.winId()))
 
     def _enforce_topmost(self):
-        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+        if transient_is_visible():
             return
         if self.isVisible() and _user32:
             HWND_TOPMOST = -1
@@ -721,7 +722,7 @@ class PillWidget(QWidget):
         _exclude_from_capture(int(self.winId()))
 
     def _enforce_topmost(self):
-        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+        if transient_is_visible():
             return
         # Raising the owner above its active popup hides the microphone choices
         # on Windows. Let the popup own the topmost position until it closes.
@@ -961,11 +962,26 @@ class PillWidget(QWidget):
         box.setWindowTitle('Before enabling Keycast')
         box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
         box.setIcon(QMessageBox.Icon.Warning)
+        illustration = QPixmap(_asset('keycast-warning-doodle.png'))
+        if not illustration.isNull():
+            dpr = self.devicePixelRatioF()
+            illustration = illustration.scaled(
+                round(64 * dpr), round(64 * dpr),
+                Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation,
+            )
+            illustration.setDevicePixelRatio(dpr)
+            box.setIconPixmap(illustration)
+        box.setAccessibleName('Keycast privacy warning')
+        box.setStyleSheet("QMessageBox { background: #17191F; color: #E7EBF2; }"
+                          "QMessageBox QLabel, QMessageBox QCheckBox { color: #E7EBF2; }"
+                          "QMessageBox QPushButton { background: #272C35; color: #E7EBF2;"
+                          " border: 1px solid #48515E; border-radius: 4px; padding: 6px 12px; }"
+                          "QMessageBox QPushButton:hover { background: #39414E; }"
+                          "QMessageBox QPushButton:default { border-color: #E7EBF2; }")
         box.setText('Show keys and clicks in your recording?')
-        box.setInformativeText('Keycast helps viewers follow your typing and mouse actions.\n\n'
-                               'Passwords, private text and typing in other windows can also appear '
-                               'in the video. Turn Keycast off before entering sensitive information.\n\n'
-                               'This warning is about what viewers of the recording can see.')
+        box.setInformativeText('Your keyboard input will appear in the recording, even when you '
+                               'type outside the selected area.\n\n'
+                               'Turn Keycast off before entering passwords or other sensitive information.')
         remember = QCheckBox("Don't show this again", box)
         box.setCheckBox(remember)
         enable = box.addButton('Enable Keycast', QMessageBox.ButtonRole.AcceptRole)
@@ -984,7 +1000,8 @@ class PillWidget(QWidget):
             box.deleteLater()
 
         box.finished.connect(completed)
-        box.open()
+        prepare_dialog(box)
+        box.show()
         self._center_capture_dialog(box)
         _exclude_from_capture(int(box.winId()))
 
@@ -1301,8 +1318,8 @@ class PillWidget(QWidget):
                 if discard and not self._stopping:
                     self._initiate_discard(confirm=False)
             box.finished.connect(completed)
-            box.setWindowModality(Qt.WindowModality.ApplicationModal)
-            box.open()
+            prepare_dialog(box, Qt.WindowModality.ApplicationModal)
+            box.show()
             self._center_capture_dialog(box)
             _exclude_from_capture(int(box.winId()))
             return
