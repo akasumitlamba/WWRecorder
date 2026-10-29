@@ -67,9 +67,19 @@ class _NativeDialogs(QAbstractNativeEventFilter):
 class WindowLayers(QObject):
     def eventFilter(self, watched, event):
         if (event.type() in (QEvent.Type.Show, QEvent.Type.WindowActivate) and
-                isinstance(watched, QWidget) and watched.isWindow() and
-                watched.isVisible() and is_transient(watched)):
-            _set_topmost(int(watched.winId()))
+                isinstance(watched, QWidget) and watched.isWindow() and watched.isVisible()):
+            if is_transient(watched):
+                _set_topmost(int(watched.winId()))
+            else:
+                # Newly shown controls/notifications must also yield, not only
+                # periodic topmost timers. Keep popup/tooltip layers above dialogs.
+                transients = [w for w in QApplication.topLevelWidgets()
+                              if w.isVisible() and is_transient(w)]
+                active = QApplication.activeModalWidget()
+                transients.sort(key=lambda w: (w.windowType() in (Qt.WindowType.Popup, Qt.WindowType.ToolTip),
+                                               w.windowType() == Qt.WindowType.ToolTip, w is active))
+                for window in transients:
+                    _set_topmost(int(window.winId()))
         return False
 
 

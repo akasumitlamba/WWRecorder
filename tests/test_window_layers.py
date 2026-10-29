@@ -82,3 +82,19 @@ def test_prepare_dialog_applies_modality_before_topmost(modality):
     box.reject()
     box.deleteLater()
     owner.deleteLater()
+
+
+def test_new_floating_window_yields_to_an_existing_dialog(layers):
+    dialog = QDialog()
+    dialog.show()
+    QApplication.processEvents()
+    layers.clear()
+    tool = QWidget(None, Qt.WindowType.Tool | Qt.WindowType.WindowStaysOnTopHint)
+    tool.show()
+    QApplication.processEvents()
+    assert int(dialog.winId()) in layers
+    assert int(tool.winId()) not in layers
+    dialog.close()
+    tool.close()
+    dialog.deleteLater()
+    tool.deleteLater()
