@@ -1320,7 +1320,11 @@ class WWRecorderApp:
 
     def _poll_engine_events(self) -> None:
         for kind, message in self.engine.drain_runtime_events():
-            if kind == 'audio_error':
+            if kind == 'microphone_selection_reset':
+                # A stale worker event must never overwrite a newer manual choice.
+                if self.config.get('microphone_id', '') == message:
+                    self._on_microphone_selected('', 'Same as Windows')
+            elif kind == 'audio_error':
                 self.tray.showMessage("Audio capture issue", str(message), self.tray.icon(), 8000)
             elif kind == 'capture_error':
                 self.tray.showMessage('Recording recovery', str(message), self.tray.icon(), 8000)
