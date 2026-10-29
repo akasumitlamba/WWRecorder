@@ -70,7 +70,7 @@
           </span>
           <svg class="contributor-star" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           <span class="contributor-item has-tooltip" tabindex="0">
-            <span>Aaryan Singh</span>
+            <span>Vinayak Gupta</span>
             <span class="contributor-tooltip" role="tooltip">Contributed Code</span>
           </span>
           <svg class="contributor-star" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -129,7 +129,7 @@
         <article class="practical-item reveal"><strong>Global shortcuts</strong><p>Start recording or take a screenshot while another app is focused.</p></article>
         <article class="practical-item reveal"><strong>Clipboard-ready captures</strong><p>Copy saved screenshots and recordings without hunting through folders.</p></article>
         <article class="practical-item reveal"><strong>Your output folder</strong><p>Choose where media is stored and open that location from Recent Files.</p></article>
-        <article class="practical-item reveal"><strong>Recovery-aware saving</strong><p>Failed finalization keeps recent work media instead of silently deleting the only playable copy.</p></article>
+        <article class="practical-item reveal"><strong>Recording recovery</strong><p>If saving fails, your recording stays in a recovery folder instead of being deleted.</p></article>
       </div>
     </section>
 
@@ -137,13 +137,13 @@
       <div class="engineering-heading reveal-left">
         <p class="section-kicker">Under the hood</p>
         <h2>Engineered for<br><em>reliable capture.</em></h2>
-        <p>Pixels, audio, timing, and temporary media each have a clear owner. That matters when the computer is busy, an audio device changes, or final processing fails.</p>
-        <a class="text-link" href="specs.html">Open the engineering deep dive <span aria-hidden="true">→</span></a>
+        <p>Record video and audio locally, choose your microphone, and keep a recovery copy if saving fails.</p>
+        <a class="text-link" href="specs.html">View technical specifications <span aria-hidden="true">→</span></a>
       </div>
       <div class="engineering-grid">
-        <article class="engineering-card reveal" data-accent="clock"><span class="tech-index">01 / TIMING</span><strong>Frame timing follows real time</strong><p>Missed scheduler slots are counted instead of filled with stale frames, then the final video is normalized to a stable 30 FPS.</p><code>wall clock → setpts → CFR 30</code></article>
+        <article class="engineering-card reveal" data-accent="clock"><span class="tech-index">01 / TIMING</span><strong>Frame timing follows real time</strong><p>When capture slows, the last screen image is held until a new frame is available to keep video aligned with audio.</p><code>H.264 · 30 FPS · MKV</code></article>
         <article class="engineering-card reveal" data-accent="audio"><span class="tech-index">02 / AUDIO</span><strong>Audio stays on Windows endpoints</strong><p>System sound and microphone capture use short WASAPI reads, follow default-device changes, and mix locally.</p><code>WASAPI · 48 kHz · Opus</code></article>
-        <article class="engineering-card reveal" data-accent="safety"><span class="tech-index">03 / RECOVERY</span><strong>Recovery comes before cleanup</strong><p>Work media is removed only after a non-empty final MKV is proven, so a processing failure does not erase the only copy.</p><code>saved · discarded · recoverable</code></article>
+        <article class="engineering-card reveal" data-accent="safety"><span class="tech-index">03 / RECOVERY</span><strong>A copy to recover</strong><p>If saving fails, the recording is kept in the .wwr_temp recovery folder inside your output folder.</p><code>Your output folder · .wwr_temp</code></article>
       </div>
     </section>
 
@@ -255,6 +255,7 @@
       </div>
       <div>
         <strong>Project &amp; Code</strong>
+        <a href="release-notes.html">Release notes &amp; security</a>
         <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
         <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
         <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
