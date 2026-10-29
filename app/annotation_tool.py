@@ -953,8 +953,9 @@ class AnnotationCanvas(QWidget):
                 except Exception:
                     pass
                     
-            self.activateWindow()
-            self.setFocus()
+            if not transient_is_visible():
+                self.activateWindow()
+                self.setFocus()
         else:
             self._commit_text()
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
