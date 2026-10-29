@@ -106,11 +106,12 @@ def test_volume_speaker_pixels_stable_and_three_levels_distinct(app):
     window._edit_mode=True
     window._mute_on_export=True
     window._update_volume_icon()
-    global_muted=window._btn_vol.icon().pixmap(64,64).toImage()
+    export_disabled=window._btn_vol.icon().pixmap(64,64).toImage()
+    assert export_disabled == images[-1]
     window._mute_on_export=False
     window._preview_user_muted=True
     window._update_volume_icon()
-    assert global_muted==window._btn_vol.icon().pixmap(64,64).toImage()
+    assert export_disabled != window._btn_vol.icon().pixmap(64,64).toImage()
     window._edit_mode=False
     window.close()
 

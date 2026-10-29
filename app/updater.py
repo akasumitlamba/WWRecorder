@@ -14,6 +14,7 @@ Workers never touch Qt widgets. Progress and errors are signals only.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import ssl
@@ -22,7 +23,7 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote, unquote
 from pathlib import Path
 
 from PyQt6.QtCore import QThread, pyqtSignal
@@ -124,6 +125,69 @@ def parse_github_release(data: dict, current_version: str, *, packaged: bool) ->
     return available, version, RELEASES_URL, download or ""
 
 
+_ASSET_HOSTS = frozenset({'github.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'})
+_verified_installers = {}
+
+
+def _allowed_download_url(url, *, api=False):
+    try:
+        parsed = urlsplit(url)
+        hosts = {'api.github.com'} if api else _ASSET_HOSTS
+        return (parsed.scheme == 'https' and parsed.hostname in hosts and
+                parsed.port in (None, 443) and not parsed.username and not parsed.password)
+    except ValueError:
+        return False
+
+
+class _OfficialRedirects(urllib.request.HTTPRedirectHandler):
+    def __init__(self, api=False):
+        super().__init__()
+        self.api = api
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not _allowed_download_url(newurl, api=self.api):
+            raise ValueError('Update redirect was not from an approved GitHub host.')
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _open_update_url(url, *, api=False, timeout=60):
+    if not _allowed_download_url(url, api=api):
+        raise ValueError('Unapproved update host.')
+    opener = urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=_make_ssl_context()), _OfficialRedirects(api))
+    response = opener.open(urllib.request.Request(url, headers={'User-Agent': USER_AGENT}), timeout=timeout)
+    if not _allowed_download_url(response.geturl(), api=api):
+        response.close()
+        raise ValueError('Unapproved final update host.')
+    return response
+
+
+def _installer_metadata(download_url):
+    prefix = '/akasumitlamba/WWRecorder/releases/download/'
+    path = urlsplit(download_url).path
+    tag, filename = path[len(prefix):].split('/', 1)
+    if not tag or not filename:
+        raise ValueError('Incomplete release asset URL.')
+    url = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases/tags/' + quote(unquote(tag), safe='')
+    with _open_update_url(url, api=True, timeout=15) as response:
+        release = json.loads(response.read(2 * 1024 * 1024))
+    asset = next((asset for asset in release.get('assets', [])
+                  if asset.get('browser_download_url') == download_url), None)
+    digest = asset.get('digest', '') if asset else ''
+    size = asset.get('size', 0) if asset else 0
+    if not re.fullmatch(r'sha256:[0-9a-fA-F]{64}', digest or '') or type(size) is not int or size <= 0:
+        raise ValueError('Official installer integrity metadata is unavailable. Nothing was installed.')
+    return digest[7:].lower(), size
+
+
+def _file_digest(path):
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def update_staging_directory() -> Path:
     """Isolated temp folder for installer downloads (never the user's media folder)."""
     root = Path(tempfile.gettempdir()) / "WWRecorder_updates"
@@ -138,6 +202,8 @@ def launch_inno_installer(installer_path: str) -> None:
     still getting a real installer process. Caller must ensure capture is idle and
     typically quit the app afterward so Inno can replace files (installer mutex).
     """
+    if is_packaged():
+        raise PermissionError('Microsoft Store installations cannot launch EXE updates.')
     path = Path(installer_path)
     if not path.is_file() or path.suffix.lower() != ".exe":
         raise FileNotFoundError(f"Installer not found: {installer_path}")
@@ -146,6 +212,9 @@ def launch_inno_installer(installer_path: str) -> None:
     resolved = path.resolve()
     if staged not in resolved.parents and resolved.parent != staged:
         raise PermissionError("Refusing to launch an installer outside the WWRecorder update staging folder.")
+    expected = _verified_installers.get(str(resolved))
+    if expected is None or _file_digest(resolved) != expected:
+        raise PermissionError('Installer integrity could not be verified. Nothing was installed.')
     creationflags = 0
     if sys.platform == "win32":
         creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -179,7 +248,10 @@ class UpdateChecker(QThread):
             ctx = _make_ssl_context()
             req = urllib.request.Request(self.repo_url, headers={"User-Agent": USER_AGENT})
             with urllib.request.urlopen(req, context=ctx, timeout=10) as response:
-                data = json.loads(response.read().decode()) or {}
+                raw = response.read(2 * 1024 * 1024 + 1)
+                if len(raw) > 2 * 1024 * 1024:
+                    raise ValueError('Update metadata exceeds the allowed size')
+                data = json.loads(raw.decode()) or {}
             if not isinstance(data, dict):
                 self.check_failed.emit("The update server returned an incomplete response. Please try again later.")
                 return
@@ -242,11 +314,13 @@ class InstallerDownloader(QThread):
         if not host_ok:
             self.download_failed.emit("The update download link is not from the official GitHub release.")
             return
+        temporary = None
         try:
-            ctx = _make_ssl_context()
-            req = urllib.request.Request(self.download_url, headers={"User-Agent": USER_AGENT})
-            with urllib.request.urlopen(req, context=ctx, timeout=60) as response:
+            expected_digest, expected_size = _installer_metadata(self.download_url)
+            with _open_update_url(self.download_url) as response:
                 total = int(response.headers.get("Content-Length") or 0)
+                if total and total != expected_size:
+                    raise ValueError('Installer size differs from the official release.')
                 safe_version = re.sub(r"[^0-9A-Za-z._-]+", "_", self.version_label).strip("_") or "update"
                 destination = update_staging_directory() / f"WWRecorder_Setup_{safe_version}.exe"
                 temporary = destination.with_suffix(".partial")
@@ -264,15 +338,24 @@ class InstallerDownloader(QThread):
                             break
                         handle.write(chunk)
                         received += len(chunk)
+                        if received > expected_size:
+                            raise ValueError('Installer is larger than the official release.')
                         if total > 0:
                             self.progress.emit(min(99, int(received * 100 / total)))
+                if received != expected_size or (total and received != total):
+                    raise ValueError('Installer download was incomplete. Nothing was installed.')
+                if _file_digest(temporary) != expected_digest:
+                    raise ValueError('Installer checksum did not match the official release. Nothing was installed.')
                 os.replace(temporary, destination)
+                _verified_installers[str(destination.resolve())] = expected_digest
                 if destination.stat().st_size <= 0:
                     destination.unlink(missing_ok=True)
                     self.download_failed.emit("The downloaded installer was empty. Nothing was installed.")
                     return
                 self.progress.emit(100)
                 self.download_finished.emit(str(destination))
+        except ValueError as exc:
+            self.download_failed.emit(str(exc))
         except urllib.error.HTTPError as exc:
             self.download_failed.emit(f"Download failed (HTTP {exc.code}). Your recordings were not changed.")
         except (urllib.error.URLError, ConnectionError, TimeoutError, OSError) as exc:
@@ -282,3 +365,9 @@ class InstallerDownloader(QThread):
         except Exception as exc:
             print(f"[Updater] Download failure: {exc}")
             self.download_failed.emit("Could not download the update. Your recordings were not changed.")
+        finally:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass  # A locked partial file is never treated as an installer.

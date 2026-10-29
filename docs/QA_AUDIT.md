@@ -130,3 +130,34 @@ one GUI operation. Paused timing edits update visibility immediately. Action
 chrome has fixed screen dimensions; geometry never changes inside paint.
 Cumulative release notes are maintained in RELEASE_NOTES_1_7.md against the
 published v1.6 baseline, including merged feature and reliability work.
+
+## Version 1.7.1 security and compact UI
+
+The encoder is FFmpeg 9.0.2. Qt/PyQt 6.12.0 playback independently uses patched
+FFmpeg 9.0.1 DLLs. scripts/prepare_media_runtime.py fetches the pinned encoder;
+app/ffmpeg.exe is generated, not tracked. Use requirements-windows.lock for
+Windows CPython 3.13 x64. Build checks generate dependency/native/payload
+inventories and verify exact media hashes and frozen startup.
+
+Keycast retains typing and warns that passwords/private input, including outside
+the recording area, may be visible in the video. Remembered acknowledgement is
+optional. HKLM policies can block Keycast or automatic clipboard (manual Copy is
+separate). See ENTERPRISE_DEPLOYMENT.md for documented limits and operations.
+Exports have bounded supervision/error tails, preserve original media and use
+FFmpeg 9 fps_mode cfr. Lifecycle ownership is serialized across preparation,
+stop/mux/discard with session generation guards. Disabled audio tracks do not
+open devices. Export Audio is independent of preview speaker mute.
+
+Saved notifications have one small close, thumbnail/actions and Recent Files hint;
+processing says Compressing video and audio. Vertical headers omit section labels,
+horizontal headers retain Recent Files/Settings. WWRec replaces the collapsed
+dock dots/lines within the same footprint. Discovery blinks whole text; recording
+blinks Rec only. Annotation strip caps are 720px horizontal / 840px vertical with
+20–36px controls and screen-fit reduction, including Close.
+
+Windows automated suite: 1152 passed, three desktop-only skips. Portable suite:
+976 passed, 31 Windows-only skips. Website has eight static and eight browser
+checks. EXE/MSIX, bootstrap/report, frozen startup and security gates passed.
+Store certification and installed hardware acceptance remain separate.
+
+Final public-export validation: 984 portable tests passed (including eight website navigation/policy tests), 31 Windows-only skips, zero failures/errors. Eight browser interaction checks passed. Core/build source matched the validated installer source; staged privacy and secret scans passed.

@@ -106,5 +106,7 @@ Linux reports explicitly skip Windows API/import cases; rerun the same launcher
 on Windows for the complete supported suite. Source tests do not certify physical
 microphone fidelity or an installed package merely by running source widgets.
 
-The Windows bootstrap prepares missing source FFmpeg automatically from the
-imageio-ffmpeg development wheel, preserving any existing app/ffmpeg.exe.
+When source FFmpeg is absent, the Windows bootstrap prepares it automatically
+from the pinned, hash-verified production encoder manifest. An outdated or modified source encoder is replaced only after the approved download verifies.
+
+Security tests: suite 58 checks Keycast consent, managed restrictions, actual export child cancellation/timeouts, native media integrity, log rotation and metadata limits. Windows one-click setup uses requirements-windows.lock (CPython 3.13 x64) and writes unattended reports.

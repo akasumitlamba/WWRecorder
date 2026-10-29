@@ -84,18 +84,20 @@ if (-not $Python) {
     Fail-Preflight "Python not found. Install Python 3.13, then double-click RUN_TESTS.cmd."
 }
 
+& $Python -c "import sys; sys.exit(0 if sys.version_info[:2] == (3,13) else 1)"
+if ($LASTEXITCODE -ne 0) { Fail-Preflight "The locked Windows runtime requires Python 3.13. Install Python 3.13 and recreate this checkout's .venv." }
+
 Write-Host "WWRecorder Windows E2E"
 Write-Host "  repo:    $RepoRoot"
 Write-Host "  python:  $Python"
 Write-Host "  reports: $ReportDir"
 
 if ($InstallDeps) {
-    & $Python -m pip install --no-input --disable-pip-version-check -r (Join-Path $RepoRoot "requirements-dev.txt")
+    & $Python -m pip install --no-input --disable-pip-version-check --require-hashes -r (Join-Path $RepoRoot "requirements-windows.lock")
     if ($LASTEXITCODE -ne 0) { Fail-Preflight "Dependency installation failed. Check network access and the console output." }
 }
 
-# Public source omits executable dependencies. Prepare the wheel's bundled tool
-# only when app/ffmpeg.exe is missing; never overwrite an existing source runtime.
+# Use the same pinned, hash-verified patched encoder as both installers.
 & $Python (Join-Path $RepoRoot 'scripts/prepare_test_runtime.py')
 if ($LASTEXITCODE -ne 0) { Fail-Preflight "Test FFmpeg setup failed. Check dependency installation and console output." }
 

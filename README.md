@@ -2,23 +2,27 @@
 
 **Record, capture, annotate, and make quick edits—all on your device.**
 
-WWRecorder is a lightweight desktop screen recorder and screenshot tool for Windows, with an additional Linux Flatpak preview. Capture a selected area, include computer sound and microphone audio, draw while you explain, and finish your recording or screenshot in the built-in editors.
+WWRecorder is a lightweight desktop screen recorder and screenshot tool for Windows, with archived Linux development. Capture a selected area, include computer sound and microphone audio, draw while you explain, and finish your recording or screenshot in the built-in editors.
 
 [Website](https://akasumitlamba.github.io/WWRecorder/) · [Downloads](https://akasumitlamba.github.io/WWRecorder/download.html) · [GitHub Releases](https://github.com/akasumitlamba/WWRecorder/releases) · [Report an issue](https://github.com/akasumitlamba/WWRecorder/issues)
 
 ## Version and download status
 
-The latest documented application build is **1.7.0**. Build availability and published releases are listed separately below.
+**WWRecorder v1.7.1** is the current public release. It includes the FFmpeg
+security fix for recording/export and Qt's independent playback media libraries.
 
-| Distribution | Where to find it | Status |
+| Distribution | Download | Status |
 | --- | --- | --- |
-| Windows EXE | [Latest GitHub release](https://github.com/akasumitlamba/WWRecorder/releases/latest) | Currently the `v1.6` release, containing `WWRecorder_Setup_1.6.3.exe`. |
-| Windows MSIX 1.7.0 | [Package details and checksum](downloads/1.7/) | Store submission package. The package notes record certification/publication as pending; this unsigned file is **not a direct sideload installer**. |
-| Linux Flatpak 1.7.0 | Preview development | Targets x86_64 Kubuntu/KDE Plasma. No Linux bundle is currently listed in this repository's downloads or releases. |
+| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.0.exe) | Direct installer; unsigned. Verify the release SHA-256. |
+| Production MSIX 1.7.1.0 | [Store submission package](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_1.7.1.0_x64.msix) | Unsigned Store ingestion package; not a direct sideload installer. Microsoft signs Store distribution. |
+| Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Verify the version available in the Store; GitHub publication does not imply Store certification. |
 
-The current MSIX Store product ID is **`9PBS5VDWFXND`**: [Microsoft Store product page](https://apps.microsoft.com/detail/9PBS5VDWFXND). A configured product ID or uploaded submission package does not by itself establish Store availability.
+[Cumulative release notes since v1.6](docs/RELEASE_NOTES_1_7.md) ·
+[For enterprise](https://akasumitlamba.github.io/WWRecorder/enterprise.html) ·
+[Privacy policy](https://akasumitlamba.github.io/WWRecorder/privacy-policy.html)
 
-Download installers from the official links above and check the artifact's version and status. A newer file under `downloads/` is not automatically a newer stable GitHub release.
+Historical releases remain available, but earlier packages do not contain the
+current FFmpeg patch. Linux is archived; this release updates Windows only.
 
 ## Features
 

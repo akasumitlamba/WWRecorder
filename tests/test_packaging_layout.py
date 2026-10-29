@@ -15,6 +15,8 @@ def test_shared_spec_resolves_sources_and_resources_from_another_directory(monke
     hooks = ModuleType('PyInstaller.utils.hooks')
     hooks.collect_data_files = lambda name: []
     hooks.collect_dynamic_libs = lambda name: []
+    metadata_packages = []
+    hooks.copy_metadata = lambda name: (metadata_packages.append(name), [])[1]
     monkeypatch.setitem(sys.modules, 'PyInstaller.utils.hooks', hooks)
     monkeypatch.chdir(tmp_path)
     analyses = []
@@ -36,6 +38,7 @@ def test_shared_spec_resolves_sources_and_resources_from_another_directory(monke
         'COLLECT': lambda *args, **kwargs: object(),
     })
     sources, options = analyses[0]
+    assert {"PyQt6-Qt6", "Pillow", "certifi", "soundcard"} <= set(metadata_packages)
     assert sources == [str(ROOT / 'app/main.py')]
     assert options['pathex'] == [str(ROOT / 'app')]
     assert {'pynput.mouse', 'pynput.mouse._win32'} <= set(options['hiddenimports'])
