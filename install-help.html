@@ -19,7 +19,7 @@
     </nav></header>
 
   <main class="inner-main" id="main">
-    <header class="inner-hero reveal"><p class="section-kicker">Standalone installer help</p><h1>Find the message you see.<br><em>Follow only those steps.</em></h1><p>Windows uses several different protections for downloads and applications. The illustrations below show where the relevant controls normally appear. Exact wording can vary with your Edge and Windows version.</p></header>
+    <header class="inner-hero reveal"><p class="section-kicker">Standalone installer help</p><h1>Find the message you see.<br><em>Follow only those steps.</em></h1><p>Windows uses several different protections for downloads and applications. The illustrations below show where the relevant controls normally appear. Match the warning on your device to the examples below.</p></header>
 
     <aside class="help-summary reveal"><div><strong>Microsoft Store avoids most standalone-installer warnings.</strong><p>Use the Store version first if it is available on your device. Windows handles acquisition and updates through the Store.</p></div><a class="store-button" href="ms-windows-store://pdp/?productid=9PBS5VDWFXND"><span class="ms-logo" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span><small>GET IT FROM</small>Microsoft</span></a></aside>
 
@@ -35,7 +35,7 @@
       </section>
 
       <section class="help-section reveal" id="smart-app-control">
-        <div class="help-copy"><span class="help-index">03 / SMART APP CONTROL</span><h2>No “Run anyway” option</h2><p>Smart App Control is stricter. Microsoft says there is currently no bypass for one specific application. It may block an unsigned application when its cloud service cannot make a confident safety prediction.</p><p><strong>Recommended:</strong> install WWRecorder from Microsoft Store instead of changing a device-wide security setting.</p><p>If you intentionally decide to change it, open <strong>Windows Security → App &amp; browser control → Smart App Control settings</strong>. Read the Windows warning before switching it off. Recent Windows updates may allow it to be enabled again, but availability and policy differ across devices.</p><div class="risk-note">Turning Smart App Control off changes protection for other applications too. Company or school devices may prevent the change; contact the administrator rather than working around policy.</div><a class="official-link" href="https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions" target="_blank" rel="noopener">Read Microsoft’s current Smart App Control FAQ →</a></div>
+        <div class="help-copy"><span class="help-index">03 / SMART APP CONTROL</span><h2>No “Run anyway” option</h2><p>Smart App Control is stricter. Microsoft says there is currently no bypass for one specific application. It may block an unsigned application when its cloud service cannot make a confident safety prediction.</p><p><strong>Recommended:</strong> install WWRecorder from Microsoft Store instead of changing a device-wide security setting.</p><p>If you intentionally decide to change it, open <strong>Windows Security → App &amp; browser control → Smart App Control settings</strong>. Read the Windows warning before switching it off. Follow Microsoft’s current guidance for your Windows version.</p><div class="risk-note">Turning Smart App Control off changes protection for other applications too. Company or school devices may prevent the change; contact the administrator rather than working around policy.</div><a class="official-link" href="https://support.microsoft.com/en-us/windows/security/threat-malware-protection/smart-app-control-frequently-asked-questions" target="_blank" rel="noopener">Read Microsoft’s current Smart App Control FAQ →</a></div>
         <figure class="help-visual" aria-label="Illustration of the Windows Security App and browser control page"><div class="security-window"><div class="security-head"><span class="shield">✓</span>Windows Security</div><div class="security-body"><div class="security-nav"><span>Home</span><span>Virus &amp; threat protection</span><span class="active">App &amp; browser control</span><span>Device security</span></div><div class="security-content"><h4>App &amp; browser control</h4><div class="security-card"><b>Smart App Control</b>Review Smart App Control settings</div><div class="security-card"><b>Reputation-based protection</b>Protect your device from malicious or potentially unwanted apps, files and websites.</div><div class="security-card"><b>Exploit protection</b>Built into Windows to help protect your device.</div></div></div></div></figure>
       </section>
     </div>
@@ -44,7 +44,7 @@
       <div class="hash-copy">
         <p class="section-kicker">Concerned about security?</p>
         <h2>Check the installer’s SHA-256 fingerprint.</h2>
-        <p>A matching fingerprint confirms that the downloaded file is byte-for-byte identical to an installer fingerprint published on this site. It does not replace Windows security checks.</p>
+        <p>A matching fingerprint confirms that the downloaded file is byte-for-byte identical to an installer fingerprint published on this site. Keep Windows security checks enabled.</p>
         <ol>
           <li>Open PowerShell in Windows.</li>
           <li>
@@ -68,7 +68,7 @@
       </div>
     </section>
 
-    <section class="other-help reveal"><article><h3>“Virus detected”</h3><p>Open Windows Security → Virus &amp; threat protection → Protection history. Do not restore a file identified as known malware. Download again from the official stable release and report the detection if it continues.</p></article><article><h3>Work or school computer</h3><p>Managed policy can remove Keep or Run anyway. Ask your administrator to approve the Store listing or installer. Do not bypass organisational security.</p></article><article><h3>Windows in S mode</h3><p>S mode limits installation to Microsoft Store. Use the Store listing, or review Microsoft’s S mode guidance before changing Windows mode.</p></article><article><h3>Incomplete or damaged file</h3><p>Delete the partial download, remove it from the browser’s Downloads list, confirm free disk space, and download it again over a stable connection.</p></article></section>
+    <section class="other-help reveal"><article><h3>“Virus detected”</h3><p>Open Windows Security → Virus &amp; threat protection → Protection history. Do not restore a file identified as known malware. Download again from the official release and report the detection if it continues.</p></article><article><h3>Work or school computer</h3><p>Managed policy can remove Keep or Run anyway. Ask your administrator to approve the Store listing or installer. Do not bypass organisational security.</p></article><article><h3>Windows in S mode</h3><p>S mode limits installation to Microsoft Store. Use the Store listing, or review Microsoft’s S mode guidance before changing Windows mode.</p></article><article><h3>Incomplete or damaged file</h3><p>Delete the partial download, remove it from the browser’s Downloads list, confirm free disk space, and download it again over a stable connection.</p></article></section>
 
     <section class="closing reveal"><h2>Still blocked?</h2><p>Include the exact warning text, Windows version, download route and installer filename in a support issue. Do not post private recordings or unreviewed logs.</p><div class="hero-actions"><a class="button button-primary" href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Open a support issue</a><a class="button button-secondary" href="download.html">Return to download</a></div></section>
   </main>
@@ -98,6 +98,7 @@
       </div>
       <div>
         <strong>Project &amp; Code</strong>
+        <a href="release-notes.html">Release notes &amp; security</a>
         <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
         <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
         <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
