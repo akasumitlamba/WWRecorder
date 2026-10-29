@@ -4,12 +4,12 @@
   const RELEASES_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases?per_page=30';
   const LATEST_RELEASE_API = 'https://api.github.com/repos/akasumitlamba/WWRecorder/releases/latest';
   const RELEASES_FALLBACK = 'https://github.com/akasumitlamba/WWRecorder/releases/latest';
-  const SECURITY_UPDATE_INSTALLER = 'WWRecorder_Setup_1.7.1.1.exe';
   const OFFICIAL_ASSET_PREFIX = 'https://github.com/akasumitlamba/WWRecorder/releases/download/';
 
   // GitHub-published installer names and SHA-256 digests from release asset metadata.
   const OFFICIAL_INSTALLER_RELEASES = Object.freeze([
-    Object.freeze({ releaseName: 'WWRecorder 1.7.1', filename: 'WWRecorder_Setup_1.7.1.1.exe', sha256: '0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd' }),
+    Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.2)', filename: 'WWRecorder_Setup_1.7.1.2.exe', sha256: '9d2a11b7164d4ce90ddd825949ef48c42e8bfeec9fa28959a9d20a7f51436b61', mediaSecurityUpdate: true }),
+    Object.freeze({ releaseName: 'WWRecorder 1.7.1', filename: 'WWRecorder_Setup_1.7.1.1.exe', sha256: '0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.6.3', filename: 'WWRecorder_Setup_1.6.3.exe', sha256: 'ec30b53e4f0ce2ac57ffac66d3f9c90340b4dca5c7ca9e6391926e6a82720eb9' }),
     Object.freeze({ releaseName: 'WWRecorder v1.6.0 Public Beta', filename: 'WWRecorder_Setup_1.6.exe', sha256: 'caa0cc1d8741a81937933ab1105510397305913bff516cef7e5c9287636e1694' }),
     Object.freeze({ releaseName: 'WWRecorder v1.5.0', filename: 'WWRecorder_Setup_1.5.exe', sha256: 'caf5d2afaa366f503453f8ac09211ce47af8b457163eafd853bb24dbd7a4a687' }),
@@ -402,7 +402,7 @@
     }
     const matchedRelease = published.find((release) => release.sha256 === entered);
     if (matchedRelease) {
-      showHashResult(`Fingerprint matches ${matchedRelease.releaseName} (${matchedRelease.filename}).${matchedRelease.filename !== SECURITY_UPDATE_INSTALLER ? " This version predates the FFmpeg security update described in the release notes." : ""}`, 'success');
+      showHashResult(`Fingerprint matches ${matchedRelease.releaseName} (${matchedRelease.filename}).${!matchedRelease.mediaSecurityUpdate ? " This version predates the FFmpeg security update described in the release notes." : ""}`, 'success');
     } else {
       showHashResult('No match. Do not run this file. Download it again from Microsoft Store or the official GitHub release.', 'danger');
     }
