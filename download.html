@@ -24,14 +24,14 @@
     <section class="download-status-grid">
       <div class="download-status-card" data-download-status-card>
         <div class="download-glyph has-svg loading" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></div>
-        <h1 data-download-title>Finding the patched installer</h1>
-        <p data-download-text>WWRecorder is checking the official GitHub release list. Version 1.7.1 includes the security update and is currently labeled prerelease on GitHub.</p>
+        <h1 data-download-title>Finding the latest stable installer</h1>
+        <p data-download-text>WWRecorder is checking GitHub for the latest stable release. Prereleases are excluded.</p>
         <div class="download-target-pill" data-target-pill style="display:none"><span class="target-label">Target:</span> <strong data-target-name>WWRecorder_Setup.exe</strong></div>
         <div class="download-progress" aria-hidden="true"><span></span></div>
-        <div class="download-status-actions"><a class="button button-primary" data-manual-download href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true"><span data-button-label>Download installer</span></a><a class="button button-secondary" href="install-help.html">Installation help</a></div>
+        <div class="download-status-actions"><a class="button button-primary" data-manual-download href="https://github.com/akasumitlamba/WWRecorder/releases/latest"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true"><span data-button-label>Download installer</span></a><a class="button button-secondary" href="install-help.html">Installation help</a></div>
       </div>
       <aside class="release-panel">
-        <p class="section-kicker">Published versions</p><h2>Choose an installer</h2><p>Version 1.7.1 is selected automatically and addresses a flaw that can be triggered by malicious video files; <a href="release-notes.html#security">read the security advisory</a>. GitHub currently labels it prerelease. Versions before 1.7.1 do not include this security fix. Update unless you have a specific reason not to.</p>
+        <p class="section-kicker">Published versions</p><h2>Choose an installer</h2><p>The latest stable release is selected automatically. The list below contains stable installers only. A media security update is also available in a separately labeled preview; <a href="release-notes.html#security">read the security advisory</a> before opening untrusted videos.</p>
         <label for="version-select">Installer version</label><select class="version-select" id="version-select" data-version-select><option>Loading published installers…</option></select>
         <p class="selected-row"><strong>Selected:</strong> <span class="selected-badge" data-selected-release>Checking GitHub…</span></p>
         <div class="download-inline-help"><strong>Having trouble?</strong><br>If Edge blocks the file, or Windows shows SmartScreen or Smart App Control, keep this page open and use the steps below. Do not bypass a warning for a file from an unexpected address.</div>
@@ -88,6 +88,6 @@
       </div>
     </div>
   </footer>
-  <script src="script.js?v=9" defer></script>
+  <script src="script.js?v=10" defer></script>
 </body>
 </html>
