@@ -1381,9 +1381,11 @@ class RecordingEngine:
                         try:
                             available = self.list_microphones()
                             if self._microphone_id not in {i for i, _ in available}:
-                                self._mic_fallback = True
+                                missing_id, missing_name = self._microphone_id, self._microphone_name
+                                self.set_microphone()
+                                self._report_runtime_event('microphone_selection_reset', missing_id)
                                 self._report_runtime_event('audio_reconnected',
-                                    f"{self._microphone_name} is unavailable. Using the Windows default microphone for this take.")
+                                    f"{missing_name} is unavailable. Microphone selection reset to Same as Windows.")
                         except Exception:
                             pass
 
@@ -1547,6 +1549,14 @@ class RecordingEngine:
                                     ready_event.set()
                                 except Exception as dev_err:
                                     print(f"[WWRecorder] {label} audio device error: {dev_err}")
+                                    if not is_system and self._microphone_id:
+                                        try:
+                                            if self._microphone_id not in {i for i, _ in self.list_microphones()}:
+                                                # Persist Windows for the next take, but keep this
+                                                # worker pinned so unplugging never changes inputs.
+                                                self._report_runtime_event('microphone_selection_reset', self._microphone_id)
+                                        except Exception:
+                                            pass  # An enumeration failure does not prove removal.
                                     unavailable_since = time.perf_counter()
                                     break
 
