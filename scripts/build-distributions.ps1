@@ -113,6 +113,10 @@ try {
         if (-not $iscc) { throw 'Inno Setup 6 ISCC.exe not found' }
         & $iscc "/DDistDir=$payload" "/O$exeOutput" "/FWWRecorder_Setup_$($artifactVersion)_$($identity.channel)" packaging/exe/installer_config.iss
         if ($LASTEXITCODE) { throw 'EXE installer build failed' }
+        & $pythonExe scripts/verify_windows_icon.py (Join-Path $exeOutput "WWRecorder_Setup_$($artifactVersion)_$($identity.channel).exe")
+        if ($LASTEXITCODE) { throw 'Installer shell icon validation failed' }
+        & $pythonExe scripts/verify_windows_icon.py (Join-Path $payload 'WWRecorder.exe')
+        if ($LASTEXITCODE) { throw 'Application shell icon validation failed' }
     }
     Get-ChildItem -LiteralPath $output -Recurse -File | Where-Object { $_.Extension -in @('.exe','.msix','.cer') } | Get-FileHash -Algorithm SHA256 | Select-Object @{n='file';e={$_.Path.Substring($output.Length + 1).Replace('\', '/')}},Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'SHA256.json') -Encoding UTF8
     Copy-Item -Recurse -Force work/build/security-evidence (Join-Path $output 'security-evidence')

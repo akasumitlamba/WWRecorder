@@ -42,21 +42,14 @@ def test_headers_never_overlap_brand_with_section_names(qapp,tmp_path,edge,setti
 
 
 @pytest.mark.parametrize('edge',['left','right','top','bottom'])
-def test_dock_wordmark_blinks_all_before_discovery_and_only_rec_during_capture(qapp,edge):
+def test_original_grabber_is_compact_and_recording_changes_only_dots(qapp,edge):
     dock=import_app('dock_widget').DockWidget(FakeRecordingEngine(),{'dock_edge':edge})
-    dock._first_blink_timer.stop()
-    dock._is_first_launch=True;dock._blink_on=True
-    assert dock._handle_text_color(0)==dock._handle_text_color(1)
-    assert dock._handle_text_color(0).red()>200
-    dock._blink_on=False;assert dock._handle_text_color(0).alpha()==dock._handle_text_color(1).alpha()==0
-    dock._acknowledge_startup_indicator();assert dock._handle_text_color(0).alpha()==255
-    dock.set_recording_state(True);dock._pulse_timer.stop()
-    ww=dock._handle_text_color(0)
-    dock._pulse_visible=True;assert dock._handle_text_color(1).alpha()==255
-    dock._pulse_visible=False;assert dock._handle_text_color(1).alpha()==0 and dock._handle_text_color(0)==ww
-    dock.show();qapp.processEvents()
-    image=dock.grab().toImage();assert not image.isNull()
+    dock._acknowledge_startup_indicator();dock.set_recording_state(True)
+    dock._pulse_timer.stop();dock.show();qapp.processEvents()
+    dock._pulse_visible=True;lit=dock.grab().toImage()
+    dock._pulse_visible=False;dim=dock.grab().toImage()
     assert sorted([dock.width(),dock.height()])==[12,48]
+    assert lit!=dim
     dock.close()
 
 
@@ -83,23 +76,6 @@ def test_processing_mentions_compression_without_duplicate_dismiss_controls(qapp
     assert len(popup.findChildren(QPushButton))==1
     assert popup.height()<100
     popup._btn_close.click();assert not popup.isVisible() and not popup._activity._timer.isActive()
-
-
-def test_actual_dock_text_pixels_follow_discovery_and_recording_blink(qapp):
-    dock=import_app('dock_widget').DockWidget(FakeRecordingEngine(),{'dock_edge':'top'})
-    dock.show();qapp.processEvents();dock._first_blink_timer.stop()
-    def pixels():
-        image=dock.grab().toImage()
-        colors=[image.pixelColor(x,y) for y in range(image.height()) for x in range(image.width())]
-        return (sum(c.red()>180 and c.green()<110 and c.blue()<130 for c in colors),
-                sum(min(c.red(),c.green(),c.blue())>180 for c in colors))
-    dock._is_first_launch=True;dock._blink_on=True
-    assert pixels()[0]>5
-    dock._blink_on=False;assert pixels()[0]==0
-    dock.set_recording_state(True);dock._pulse_timer.stop();dock._pulse_visible=True
-    lit=pixels();dock._pulse_visible=False;dim=pixels()
-    assert lit[0]>5 and dim[0]==0 and lit[1]==dim[1] and dim[1]>5
-    dock.close()
 
 
 def test_store_staging_uses_production_identity_and_store_version(tmp_path):

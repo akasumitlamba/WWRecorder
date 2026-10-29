@@ -68,8 +68,8 @@ LZMAUseSeparateProcess=yes
 ; ── Wizard appearance ─────────────────────────────────────────────────────────
 WizardStyle=modern dark windows11
 WizardSizePercent=110
-WizardSmallImageFile={#RepoRoot}packaging\shared\icon-source.png
-WizardImageFile={#RepoRoot}packaging\exe\assets\welcome.png
+WizardSmallImageFile={#RepoRoot}packaging\exe\assets\header-logo.png
+WizardImageFile={#RepoRoot}packaging\exe\assets\branded.png
 WizardImageStretch=yes
 WizardImageBackColor=$1D1511
 WizardImageBackColorDynamicDark=$1D1511
@@ -165,60 +165,8 @@ Type: dirifempty; Name: "{userappdata}\{#MyAppName}"
 ; ============================================================================
 [Code]
 
-var
-  BrandLogo: TBitmapImage;
-  BrandWW, BrandR, BrandRest: TNewStaticText;
-
-procedure AddInstallerBranding();
-var
-  LeftEdge, TopEdge, TotalWidth: Integer;
-begin
-  { Native controls keep the established app icon and exact red-R spelling. }
-  BrandLogo := TBitmapImage.Create(WizardForm);
-  BrandLogo.Parent := WizardForm.WelcomePage;
-  BrandLogo.PngImage.Assign(WizardForm.WizardSmallBitmapImage.PngImage);
-  BrandLogo.Stretch := True;
-  BrandLogo.AutoSize := False;
-  BrandLogo.Width := ScaleX(64);
-  BrandLogo.Height := ScaleY(64);
-  BrandLogo.Left := (WizardForm.WizardBitmapImage.Width - BrandLogo.Width) div 2;
-  BrandLogo.Top := ScaleY(62);
-  BrandWW := TNewStaticText.Create(WizardForm);
-  BrandR := TNewStaticText.Create(WizardForm);
-  BrandRest := TNewStaticText.Create(WizardForm);
-  BrandWW.Parent := WizardForm.WelcomePage;
-  BrandR.Parent := WizardForm.WelcomePage;
-  BrandRest.Parent := WizardForm.WelcomePage;
-  BrandWW.Caption := 'WW';
-  BrandR.Caption := 'R';
-  BrandRest.Caption := 'ecorder';
-  BrandWW.Font.Name := 'Segoe UI';
-  BrandWW.Font.Size := 16;
-  BrandWW.Font.Style := [fsBold];
-  BrandWW.Font.Color := $F5F2F0;
-  BrandR.Font.Assign(BrandWW.Font);
-  BrandR.Font.Color := $5540FF;
-  BrandRest.Font.Assign(BrandWW.Font);
-  BrandWW.Color := $1D1511;
-  BrandR.Color := $1D1511;
-  BrandRest.Color := $1D1511;
-  BrandWW.AutoSize := True;
-  BrandR.AutoSize := True;
-  BrandRest.AutoSize := True;
-  TotalWidth := BrandWW.Width + BrandR.Width + BrandRest.Width;
-  LeftEdge := (WizardForm.WizardBitmapImage.Width - TotalWidth) div 2;
-  TopEdge := BrandLogo.Top + BrandLogo.Height + ScaleY(16);
-  BrandWW.Left := LeftEdge;
-  BrandWW.Top := TopEdge;
-  BrandR.Left := BrandWW.Left + BrandWW.Width;
-  BrandR.Top := TopEdge;
-  BrandRest.Left := BrandR.Left + BrandR.Width;
-  BrandRest.Top := TopEdge;
-end;
-
 procedure InitializeWizard();
 begin
-  AddInstallerBranding();
   { Keep complete glyph bounds at fractional DPI, with comfortable line spacing. }
   WizardForm.TasksList.MinItemHeight := ScaleY(26);
   WizardForm.TasksList.Offset := ScaleX(8);
@@ -239,10 +187,13 @@ end;
 function InitializeSetup(): Boolean;
 var
   Attempt: Integer;
+  Bridge: Integer;
 begin
+  Bridge := FindWindowByWindowName('WWRecorder Update Bridge');
+  if Bridge <> 0 then PostMessage(Bridge, $8047, 0, 0);
   { In-app update launches Setup just before quitting. Give that idle shutdown
     time to release the same session mutex, without force-killing capture. }
-  for Attempt := 1 to 60 do
+  for Attempt := 1 to 200 do
   begin
     if not IsAppRunning() then Break;
     Sleep(100);
@@ -254,7 +205,7 @@ begin
     if not WizardSilent then
       MsgBox(
         '{#MyAppName} is currently running.' + #13#10 +
-        'Please close it before continuing the installation.',
+        'Please finish or discard active work and close WWRecorder before continuing. Your media has not been changed.',
         mbError, MB_OK
       );
     Result := False;

@@ -480,6 +480,8 @@ class DockWidget(QWidget):
             self.position_changed.emit()
 
     def _enforce_topmost(self):
+        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+            return
         if self.isVisible() and not self._expanded:
             if _user32:
                 HWND_TOPMOST = -1
@@ -1063,37 +1065,44 @@ class DockWidget(QWidget):
             p.setPen(QPen(CLR_BORDER, 1.0))
             p.drawPath(gp)
 
-            # Keep the original 12×48 handle; text follows the long axis.
-            p.resetTransform()
-            p.translate(self.width() / 2, self.height() / 2)
-            if self._edge in ('left', 'right'):
-                p.rotate(-90)
-            font = QFont('Segoe UI')
-            font.setPixelSize(10)
-            font.setWeight(QFont.Weight.Bold)
-            metrics = QFontMetrics(font)
-            start = -(metrics.horizontalAdvance('WW') + metrics.horizontalAdvance('Rec')) / 2
-            baseline = (metrics.ascent() - metrics.descent()) / 2
-            for index, text in enumerate(('WW', 'Rec')):
-                color = self._handle_text_color(index)
-                path = QPainterPath()
-                path.addText(QPointF(start, baseline), font, text)
-                if color.red() > color.green() * 1.5 and color.alpha():
-                    glow = QColor(color); glow.setAlpha(65)
-                    p.strokePath(path, QPen(glow, 1.2))
-                p.fillPath(path, color)
-                start += metrics.horizontalAdvance(text)
+            # Before first discovery, the complete affordance blinks on/off.
+            # Once discovered (including while recording), lines stay steady.
+            if self._is_first_launch and not self._blink_on:
+                p.setPen(Qt.PenStyle.NoPen)
+            elif self._is_first_launch:
+                p.setPen(QPen(CLR_RED, 1.5))
+            else:
+                p.setPen(QPen(QColor(200, 200, 200, 160), 1.5))
+
+            cx = self.GRABBER_W // 2
+            cy = self.GRABBER_H // 2
+            for dy in [-7, 0, 7]:
+                p.drawLine(cx - 3, cy + dy, cx + 3, cy + dy)
+
+            # Red dots (top and bottom)
+            if self._is_recording:
+                if self._pulse_visible:
+                    p.setBrush(QColor(255, 59, 48))
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(cx - 2, 6, 4, 4)
+                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
+            else:
+                # Startup dots blink fully on/off at one constant size.
+                if self._is_first_launch and self._blink_on:
+                    p.setBrush(CLR_RED_HVR)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(cx - 2, 6, 4, 4)
+                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
+                elif not self._is_first_launch:
+                    p.setBrush(CLR_RED)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.drawEllipse(cx - 2, 6, 4, 4)
+                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
 
         p.end()
 
     # ── Recording state ──────────────────────────────────────────────────────
 
-    def _handle_text_color(self, segment):
-        if self._is_recording:
-            return QColor('#EEF1F6') if segment == 0 else QColor(255, 51, 71, 255 if self._pulse_visible else 0)
-        if self._is_first_launch:
-            return QColor(255, 51, 71, 255 if self._blink_on else 0)
-        return QColor('#EEF1F6')
 
     def set_recording_state(self, is_recording: bool):
         self._is_recording = is_recording
@@ -3086,10 +3095,15 @@ class _FileRow(QWidget):
             painter.drawRect(final_pm.rect())
             
             # Draw play icon in center
-            play_ico = _asset("play.png")
-            if os.path.isfile(play_ico):
-                ico = QPixmap(play_ico).scaled(20, 20, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-                painter.drawPixmap((final_pm.width()-20)//2, (final_pm.height()-20)//2, ico)
+            center = final_pm.rect().center()
+            triangle = QPainterPath()
+            triangle.moveTo(center.x()-6, center.y()-9)
+            triangle.lineTo(center.x()+9, center.y())
+            triangle.lineTo(center.x()-6, center.y()+9)
+            triangle.closeSubpath()
+            painter.setPen(QPen(QColor('#143A5C'), 1))
+            painter.setBrush(QColor('#249FE8'))
+            painter.drawPath(triangle)
                 
             # Draw duration on bottom-right (clean text, no box/icon)
             if dur_str:
@@ -3170,7 +3184,7 @@ class _FileRow(QWidget):
 
         ext = Path(self._filepath).suffix.lower()
         if ext in ('.png', '.jpg', '.jpeg'):
-            open_edit_action = QAction("Open in editor", menu)
+            open_edit_action = QAction("Open in Editor", menu)
             open_edit_action.triggered.connect(self._edit_file)
             menu.addAction(open_edit_action)
         elif ext in ('.mkv', '.mp4', '.webm', '.avi'):
@@ -3390,7 +3404,7 @@ class RecentFilesSidebar(SidebarPanel):
         "Turn Export Audio off to save a silent video.",
         "Settings-> Adjust audio capture defaults.",
         "Use annotator to add Text and doodle on screen.",
-        "Open in editor images-> Copy edits without saving.",
+        "Open in Editor images-> Copy edits without saving.",
         "Hold CTRL or ALT key to draw straight lines.",
     )
 

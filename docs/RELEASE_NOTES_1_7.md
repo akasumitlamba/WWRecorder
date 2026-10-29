@@ -12,7 +12,8 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
 - **Keycast**, an optional recording control, displays recent keys and shortcuts
   inside the capture and mouse-button/scroll feedback near the pointer. It
   preserves letter case, groups modifier chords, handles Windows/media/function
-  keys, and retains precision-touchpad scroll deltas. Feedback fades and adapts
+  keys, and observes two-finger precision-touchpad scrolling through passive
+  HID input as well as ordinary mouse-wheel events. Feedback fades and adapts
   to narrow areas. Hardware Fn keys without Windows events cannot be observed.
 - Position the dock on any screen edge. Top/bottom panels use a horizontal
   gallery and two-column Settings; left/right retain a vertical panel. Expanded
@@ -32,7 +33,7 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
   Settings moves off the pill; Annotate remains alongside Keycast and audio.
 - Compact, responsive gallery cards retain thumbnail, name, size and actions.
   Search and Explorer sit beside Settings; internal Gallery navigation remains
-  distinct from opening Windows File Explorer. Context action is Open in editor.
+  distinct from opening Windows File Explorer. Context action is Open in Editor.
 - Settings groups Dock & Appearance, Capture & Output, Shortcuts, Audio Defaults
   and Advanced settings meaningfully. Changes apply on Save. Horizontal footer
   puts secondary actions left and Save right. Vertical Advanced can scroll with
@@ -50,6 +51,16 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
   its trash icon. Eraser and arrow tools use a plain crosshair cursor.
 
 ## Capture and editing fixes
+
+- Preserved audio/video event timing during uneven capture load by holding the
+  previous screen in missed frame slots, rather than stretching the entire video.
+- Restored the original dots-and-lines dock handle; added visible blue thumbnail
+  play indicators, camera screenshot artwork and crisp high-DPI header branding.
+- Centered discard confirmations and kept them above recording controls; clarified
+  the Keycast recording-visibility warning with explicit Enable and Cancel actions.
+- Repaired installer/application Windows icons and retained welcome branding on
+  the completion page. Updating requests a normal, media-safe application quit.
+  Older installed builds without this integration may need to be quit once manually.
 
 - Improved text/detail recording quality and preserved native lossless PNG
   screenshots. Avoided redundant capture-frame copies.
@@ -101,8 +112,8 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
 - Saved notifications use one small dismiss action, retain thumbnails/actions and
   identify Recent Files. Processing explicitly mentions video/audio compression.
 - Vertical panel headers no longer crowd section labels against the wordmark;
-  horizontal panels retain Recent Files/Settings headings. The same compact dock
-  now displays WWRec, with discovery and recording blink states distinguished.
+  horizontal panels retain Recent Files/Settings headings. The compact dock uses
+  the original dots-and-lines handle with its recording and discovery feedback.
 - Annotation strips retain responsive controls but cap length and thickness on
   ultrawide displays, including the Close control.
 
@@ -114,10 +125,9 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
   Markdown and JUnit reports. No test-time user input is required.
 - EXE and MSIX build from one validated sanitized payload. EXE uses the official
   GitHub update channel; MSIX does not query or launch the EXE updater.
-- The EXE is a direct Windows installer and remains unsigned. The production-identity
-  MSIX is a Store submission package, not a signed sideload installer; Microsoft
-  signs Store distribution after submission and certification. Store availability
-  must be verified independently. Historical preview MSIX kits are not this release.
+- Download the Windows installer from this release, or use Microsoft Store for
+  Store-managed installation and updates. The direct-download EXE remains
+  unsigned; check the version available in your chosen distribution channel.
 
 
 ## Website and enterprise information
@@ -130,14 +140,12 @@ This is the cumulative 1.7 family changelog relative to the published v1.6
 
 ## Automated validation
 
-- Windows: 1,152 passed, three desktop-only cases skipped in offscreen CI.
-- Portable application suite: 976 passed, 31 Windows-only cases skipped.
-- Website: eight navigation/policy tests and eight real desktop/mobile browser
+- Windows: 1,177 passed, three desktop-only cases skipped in offscreen CI.
+- Portable application suite: 999 passed, 33 Windows-only cases skipped.
+- Website: eight navigation/policy tests and nine real desktop/mobile browser
   checks passed, including dismissal, blocked storage, release lookup failure,
   exact installer selection and fingerprint feedback.
 - Required compilation, unattended bootstrap/report generation, frozen Qt/startup,
   dependency/native-media integrity and EXE/MSIX packaging gates passed.
 - Physical hardware, installed-desktop acceptance and Store certification/delivery
   remain separate from these automated checks.
-
-Final public-export validation: 984 portable tests passed (including eight website navigation/policy tests), 31 Windows-only skips, zero failures/errors. Eight browser interaction checks passed. Core/build source matched the validated installer source; staged privacy and secret scans passed.

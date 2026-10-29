@@ -59,9 +59,10 @@ def test_laser_glow_is_centered_and_soft_not_offset(app):
     draw_annotation_item(painter,{'type':'laser','color':'#FF4055','width':5,'points':[(20,50),(80,50)],'opacity':1})
     painter.end()
     assert image.pixelColor(50,50).alpha()>200
-    assert 0<image.pixelColor(50,54).alpha()<50
-    assert image.pixelColor(50,44).alpha()==0
-    assert abs(image.pixelColor(50,47).alpha()-image.pixelColor(50,52).alpha())<3
+    levels=[image.pixelColor(50,50+d).alpha() for d in range(10)]
+    assert levels==sorted(levels,reverse=True)
+    assert 0<levels[4]<levels[1] and levels[-1]==0
+    assert all(abs(image.pixelColor(50,49-d).alpha()-image.pixelColor(50,50+d).alpha())<3 for d in range(8))
 
 
 def test_quit_power_is_entirely_red_and_clear_uses_separate_brush(app):

@@ -109,3 +109,8 @@ Helpers: `helpers/adversarial.py`. Selective run:
 6. FFmpeg export cancel under load (worker race) on Windows
 
 These are marked in `ACTION_INVENTORY.md` / `COVERAGE_MAP.md` — not silent greens.
+
+Recording/installer repair regressions cover active-clock video sampling, decoded
+system/microphone timing, centered discard and Keycast cancellation/policies,
+Windows icon resources and cross-process native update requests. The native bridge
+case uses the Windows Qt backend; Linux skips it explicitly. No input is required.
