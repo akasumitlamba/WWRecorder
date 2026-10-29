@@ -12,11 +12,11 @@
 ; ============================================================================
 
 #define MyAppName       "WWRecorder"
-#define MyAppVersion    "1.7.0"
+#define MyAppVersion    "1.7.1"
 #define MyAppPublisher  "Sumit Kumar Lamba"
 #define MyAppURL        "https://akasumitlamba.github.io/WWRecorder/"
 #define MyAppExeName    "WWRecorder.exe"
-#define MyAppMutex      "Global\WWRecorder_mutex"
+#define MyAppMutex      "Local\WWRecorder_mutex"
 
 ; Path to the PyInstaller output folder
 #define RepoRoot AddBackslash(SourcePath) + "..\..\"
@@ -155,12 +155,6 @@ Filename: "{app}\{#MyAppExeName}"; \
   Flags: nowait postinstall skipifsilent runasoriginaluser
 
 
-[UninstallRun]
-; Gracefully close a running instance before uninstalling
-Filename: "taskkill.exe"; Parameters: "/IM {#MyAppExeName} /F"; \
-  Flags: runhidden; RunOnceId: "KillApp"
-
-
 [UninstallDelete]
 ; Remove app config from %APPDATA% only if user chose to (see Code section)
 Type: dirifempty; Name: "{userappdata}\{#MyAppName}"
@@ -243,7 +237,16 @@ end;
 
 // ── Pre-install: warn if already running ──────────────────────────────────
 function InitializeSetup(): Boolean;
+var
+  Attempt: Integer;
 begin
+  { In-app update launches Setup just before quitting. Give that idle shutdown
+    time to release the same session mutex, without force-killing capture. }
+  for Attempt := 1 to 60 do
+  begin
+    if not IsAppRunning() then Break;
+    Sleep(100);
+  end;
   if IsAppRunning() then
   begin
     { Store-initiated installs must remain silent. Return a failure code when
@@ -260,27 +263,13 @@ begin
     Result := True;
 end;
 
-// ── Pre-uninstall: gracefully close app ───────────────────────────────────
+// Never force-kill an application that might own unfinished media.
 function InitializeUninstall(): Boolean;
 begin
-  if IsAppRunning() then
-  begin
-    if UninstallSilent then
-      Result := False
-    else if MsgBox(
-      '{#MyAppName} is currently running and needs to be closed.' + #13#10 +
-      'Click OK to close it and continue uninstalling, or Cancel to abort.',
-      mbConfirmation, MB_OKCANCEL
-    ) = IDOK then
-    begin
-      // taskkill is handled by UninstallRun above; we just return True
-      Result := True;
-    end
-    else
-      Result := False;
-  end
-  else
-    Result := True;
+  Result := not IsAppRunning();
+  if (not Result) and (not UninstallSilent) then
+    MsgBox('Please finish or discard any recording/export and quit WWRecorder, then run uninstall again.' + #13#10 +
+      'Your recordings have not been changed.', mbInformation, MB_OK);
 end;
 
 // ── Optionally delete user config on uninstall ────────────────────────────

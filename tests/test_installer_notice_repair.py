@@ -156,7 +156,7 @@ def test_installer_welcome_has_native_branding_and_single_next_instruction():
     assert 'Click Next' not in welcome
 
 
-def test_saved_notice_is_compact_and_keeps_actions_thumbnail_and_hide(app,tmp_path):
+def test_saved_notice_is_compact_and_keeps_actions_thumbnail_and_close(app,tmp_path):
     cls=success_class();image=QPixmap(160,90);image.fill(QColor('#267DA4'))
     notice=cls(str(tmp_path/'capture.png'),'Screenshot saved','capture.png',image)
     notice._play_sound=lambda:None
@@ -164,8 +164,12 @@ def test_saved_notice_is_compact_and_keeps_actions_thumbnail_and_hide(app,tmp_pa
     assert notice.height()<=115
     buttons=notice.findChildren(QPushButton)
     assert {'Open','Rename'} <= {button.text() for button in buttons}
-    hide=next(button for button in buttons if button.toolTip()=='Hide saved capture notification')
-    hide.click();assert notice.isHidden()
+    close=next(button for button in buttons if button.toolTip()=='Dismiss saved capture notification')
+    assert close.width() == 20 and not any('Hide saved' in button.toolTip() for button in buttons)
     assert not notice._thumb_lbl.pixmap().isNull()
     assert not any('Saved to your' in label.text() for label in notice.findChildren(QLabel))
-    notice._auto_timer.stop();notice.close()
+    closed=[];notice.destroyed.connect(lambda:closed.append(True))
+    close.click()
+    from PyQt6.QtTest import QTest
+    QTest.qWait(250)
+    assert closed

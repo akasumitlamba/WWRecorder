@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "ffmpeg": {
+    "url": "https://github.com/GyanD/codexffmpeg/releases/download/9.0.2/ffmpeg-9.0.2-essentials_build.zip",
+    "archive_sha256": "60f467265b1e312373dbcd92200c2618a74850f98d3d078e94296bb3fa2047ba",
+    "exe_sha256": "3256173f3f8bffd7df12227c68adf68025edb1832273a9530688a7bb1ed8edec",
+    "version": "9.0.2"
+  },
+  "qt": {
+    "version": "6.12.0",
+    "wheel": "pyqt6_qt6-6.12.0-py3-none-win_amd64.whl",
+    "wheel_sha256": "a0f3e52fcd014b3d40f4aa856f8cb6843cf13720a2c2f31267f03702bc54d07b",
+    "url": "https://files.pythonhosted.org/packages/31/35/1bf45d60b44c7f942d73cb6455b39974b2c6101ff068f568e4acce6f52cb/pyqt6_qt6-6.12.0-py3-none-win_amd64.whl",
+    "ffmpeg_version": "9.0.1",
+    "dll_sha256": {
+      "avcodec-63.dll": "8a973b82493d8c1b5d0509d98630e47692077ea2783b194fe5a713d0bc6876db",
+      "avformat-63.dll": "3cbbe526c6b827fba6c8eb0001f590f76b6e7ad89d831b584ec284e8b7da8f50",
+      "avutil-61.dll": "40a373bf520707b54ac5db5c093bcc0f2a095c31912a29a3200412b0bd30fb1f",
+      "swresample-7.dll": "4dbcd7af686211f48adec8bc2036d46260e29b1c7fa3989ef6cd2d652235c9b6",
+      "swscale-10.dll": "d9c866540bee73cb6b7e20d70171e8252b741836e0d299d8d3f345e003d40930"
+    }
+  },
+  "cve": "CVE-2026-8461",
+  "upstream_patch": "https://code.ffmpeg.org/FFmpeg/FFmpeg/pulls/23159",
+  "fixed_source": "https://github.com/FFmpeg/FFmpeg/blob/n9.0.1/libavcodec/magicyuv.c"
+}

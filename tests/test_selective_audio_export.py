@@ -22,8 +22,9 @@ def test_mute_ranges_clip_merge_and_offset():
                        "volume=0:enable='gte(t,3.000)*lt(t,4.000)'"]
 
 
+@pytest.mark.parametrize('size', ['32x32', '33x33'])
 @pytest.mark.parametrize('cut', [False, True, 'middle'])
-def test_actual_editor_export_silences_source_times_before_delete_retiming(tmp_path, monkeypatch, cut):
+def test_actual_editor_export_silences_source_times_before_delete_retiming(tmp_path, monkeypatch, cut, size):
     ffmpeg = shutil.which('ffmpeg')
     if not ffmpeg:
         bundled = Path(__file__).resolve().parents[1] / 'app/ffmpeg.exe'
@@ -31,9 +32,9 @@ def test_actual_editor_export_silences_source_times_before_delete_retiming(tmp_p
             pytest.skip('FFmpeg is required for decoded audio export verification')
         ffmpeg = str(bundled)
     source = tmp_path / 'source.mkv'
-    subprocess.run([ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i', 'color=s=32x32:r=30:d=4',
+    subprocess.run([ffmpeg, '-v', 'error', '-y', '-f', 'lavfi', '-i', f'testsrc=size={size}:rate=30:duration=4',
                     '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=4',
-                    '-c:v', 'libx264', '-c:a', 'pcm_s16le', str(source)], check=True, timeout=20)
+                    '-c:v', 'libx264', '-pix_fmt', 'yuv444p', '-c:a', 'pcm_s16le', str(source)], check=True, timeout=20)
     global _APP
     _APP = QApplication.instance() or QApplication([])
     app = _APP
@@ -62,8 +63,13 @@ def test_actual_editor_export_silences_source_times_before_delete_retiming(tmp_p
     try:
         window._save_edited(str(output))
         assert captured
-        subprocess.run(captured[0], check=True, timeout=30, capture_output=True)
+        exported = subprocess.run(captured[0], timeout=30, capture_output=True)
+        assert exported.returncode == 0, exported.stderr.decode(errors="replace")
         actual = Path(captured[0][-1])
+        from PIL import Image
+        from io import BytesIO
+        dimensions = subprocess.run([ffmpeg,'-v','error','-i',str(actual),'-frames:v','1','-f','image2pipe','-c:v','png','-'],capture_output=True,check=True,timeout=20).stdout
+        assert Image.open(BytesIO(dimensions)).size == ((34,34) if size=='33x33' else (32,32))
         raw = subprocess.run([ffmpeg, '-v', 'error', '-i', str(actual), '-map', '0:a:0',
                               '-f', 'f32le', '-ac', '1', '-ar', '48000', '-'],
                              check=True, timeout=20, capture_output=True).stdout

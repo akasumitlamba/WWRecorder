@@ -389,7 +389,7 @@ def test_keycast_pill_toggle_arms_then_starts_pauses_clears_and_stops(app):
             self.paused = False
 
     engine = Engine()
-    pill = PillWidget(engine, {}, pre_record=True)
+    pill = PillWidget(engine, {"keycast_warning_dismissed": True}, pre_record=True)
     pill._keycast.session_factory = FakeSession
     button = pill._btn_keycast
     assert button.width() == button.height() == 38 and not button.isChecked()
@@ -461,7 +461,7 @@ def test_close_clears_active_keycast_even_when_pill_already_stopping(app):
     engine = SimpleNamespace(
         get_system_audio=lambda: False, get_mic=lambda: False, is_paused=lambda: False
     )
-    pill = PillWidget(engine, {}, pre_record=False)
+    pill = PillWidget(engine, {"keycast_warning_dismissed": True}, pre_record=False)
     pill._keycast.session_factory = FakeSession
     pill.set_keycast_region({"left": 0, "top": 0, "width": 320, "height": 180})
     pill._btn_keycast.click()
@@ -520,7 +520,7 @@ def test_stop_button_clears_overlay_before_recording_finalization(app, monkeypat
     engine = SimpleNamespace(
         get_system_audio=lambda: False, get_mic=lambda: False, is_paused=lambda: False
     )
-    pill = ui.PillWidget(engine, {}, pre_record=False)
+    pill = ui.PillWidget(engine, {"keycast_warning_dismissed": True}, pre_record=False)
     pill._keycast.session_factory = FakeSession
     pill.set_keycast_region({"left": 0, "top": 0, "width": 320, "height": 180})
     pill._btn_keycast.click()
@@ -544,7 +544,7 @@ def test_overlay_is_recorded_while_pill_is_excluded(app, monkeypatch):
     engine = SimpleNamespace(
         get_system_audio=lambda: False, get_mic=lambda: False, is_paused=lambda: False
     )
-    pill = ui.PillWidget(engine, {}, pre_record=True)
+    pill = ui.PillWidget(engine, {"keycast_warning_dismissed": True}, pre_record=True)
     pill.show()
     app.processEvents()
     assert int(pill.winId()) in excluded

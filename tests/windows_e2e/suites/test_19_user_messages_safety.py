@@ -22,9 +22,9 @@ def test_friendly_error_maps_disk_full(messages):
     assert "full" in text.lower() or "space" in text.lower()
 
 
-def test_friendly_error_maps_ffmpeg_keep_safe(messages):
-    text = messages.friendly_error(RuntimeError("ffmpeg exit code 1"))
-    assert "safe" in text.lower() or "original" in text.lower()
+def test_friendly_error_preserves_ffmpeg_reason(messages):
+    reason = 'ffmpeg exit code 1: Stream Audio; No such filter: bad_filter'
+    assert messages.friendly_error(RuntimeError(reason)) == reason
 
 
 def test_friendly_error_maps_permission(messages):

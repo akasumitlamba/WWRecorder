@@ -275,6 +275,8 @@ def make_pill(qapp, *, pre_record: bool = True, **config_overrides):
     main_mod = import_app("main")
     engine = FakeRecordingEngine()
     cfg = dict(main_mod.DEFAULT_CONFIG)
+    # Consent UI has its own explicit accept/cancel tests; this matrix tests armed controls.
+    cfg["keycast_warning_dismissed"] = True
     cfg.update(config_overrides)
     pill = ui.PillWidget(engine, cfg, pre_record=pre_record)
     qapp.processEvents()

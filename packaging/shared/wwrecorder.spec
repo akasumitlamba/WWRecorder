@@ -17,7 +17,7 @@ from pathlib import Path
 
 repo_root = Path(SPECPATH).resolve().parents[1]
 app_root = repo_root / "app"
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
 
 block_cipher = None
 
@@ -32,7 +32,13 @@ certifi_datas = collect_data_files("certifi")
 
 # ── Data files to bundle ──────────────────────────────────────────────────────
 # (source_path, dest_folder_inside_bundle)
-datas = soundcard_datas + certifi_datas + [
+# Preserve exact runtime package metadata for independent installed-artifact SCA.
+metadata_datas = []
+for package in ('PyQt6', 'PyQt6-Qt6', 'PyQt6-sip', 'mss', 'numpy', 'Pillow',
+                'pywin32', 'soundcard', 'pynput', 'certifi', 'cffi', 'pycparser',
+                'six', 'winrt-Windows.ApplicationModel', 'winrt-Windows.Foundation', 'winrt-runtime'):
+    metadata_datas += copy_metadata(package)
+datas = soundcard_datas + certifi_datas + metadata_datas + [
     (str(app_root / "icon.ico"), "."),
     (str(app_root / "icon.ico"), "assets"),
     (str(app_root / "icon.ico"), "icons"),

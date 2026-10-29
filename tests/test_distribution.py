@@ -85,7 +85,7 @@ def test_packaged_updater_never_queries_github_and_delegates_store(monkeypatch, 
             return self
         def __exit__(self, *a):
             return False
-        def read(self):
+        def read(self, *_args):
             return json.dumps(payload).encode()
 
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: pytest.fail("MSIX queried GitHub"))

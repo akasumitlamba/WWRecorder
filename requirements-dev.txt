@@ -1,5 +1,4 @@
 -r requirements.txt
-pytest>=8,<9
-pyinstaller>=6,<7
+pytest>=9.0.3,<10
+pyinstaller>=6.22.3,<7
 pytest-timeout>=2.3,<3
-imageio-ffmpeg>=0.6,<0.7; sys_platform == "win32"

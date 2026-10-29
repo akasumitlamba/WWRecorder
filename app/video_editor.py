@@ -694,28 +694,11 @@ class _ExportWorker(QThread):
                 cmd_with_progress, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                 creationflags=flags,
             )
-            stderr_lines = []
-            if self._duration_ms > 0:
-                # Read stderr line-by-line to parse progress
-                for raw_line in self._process.stderr:
-                    if self._is_stopped:
-                        break
-                    line = raw_line.decode(errors='replace').strip()
-                    stderr_lines.append(line)
-                    if line.startswith("out_time_us="):
-                        try:
-                            us = int(line.split("=")[1])
-                            pct = min(99, int(us / (self._duration_ms * 1000) * 100))
-                            self.progress.emit(pct)
-                        except Exception:
-                            pass
-                _, raw_err = self._process.communicate(timeout=10)
-                if raw_err:
-                    stderr_lines.extend(raw_err.decode(errors='replace').splitlines())
-            else:
-                _, raw_err = self._process.communicate()
-                if raw_err:
-                    stderr_lines = raw_err.decode(errors='replace').splitlines()
+            from export_process import supervise_export
+            err_msg = supervise_export(
+                self._process, self._duration_ms,
+                lambda: self._is_stopped, self.progress.emit,
+            )
 
             if self._is_stopped:
                 return
@@ -723,7 +706,6 @@ class _ExportWorker(QThread):
                 self.progress.emit(100)
                 self.export_finished.emit(self._output_path)
             else:
-                err_msg = "\n".join(stderr_lines[-10:]) or "Unknown error"
                 self.error.emit(err_msg)
         except Exception as e:
             if not self._is_stopped:
@@ -3990,7 +3972,7 @@ class VideoPlayerWindow(QWidget):
 
     def _apply_preview_mute(self, position):
         section_muted = self._edit_mode and any(r.start_ms <= position < r.end_ms for r in self._mute_regions)
-        self._audio_output.setMuted(self._preview_user_muted or (self._edit_mode and self._mute_on_export) or section_muted)
+        self._audio_output.setMuted(self._preview_user_muted or section_muted)
 
     # ── Sidebar helper widgets ────────────────────────────────────────────────
 
@@ -4413,7 +4395,7 @@ class VideoPlayerWindow(QWidget):
 
     def _update_volume_icon(self):
         value = self._sld_volume.value()
-        muted = self._preview_user_muted or value == 0 or (self._edit_mode and self._mute_on_export)
+        muted = self._preview_user_muted or value == 0
         count = 0 if muted else (1 if value <= 33 else 2 if value <= 66 else 3)
         pm = QPixmap(64, 64)
         pm.fill(Qt.GlobalColor.transparent)
@@ -4592,6 +4574,9 @@ class VideoPlayerWindow(QWidget):
         self._btn_screenshot.setEnabled(True)
         self._btn_screenshot.setToolTip("Save the current video frame as an image")
         self._toast.show_message(f"Saved: {Path(path).name}", 2500, "rgba(34, 197, 94, 0.92)")
+        from enterprise_policy import disabled
+        if disabled('AutomaticClipboard'):
+            return
         from PyQt6.QtCore import QMimeData
         mime = QMimeData()
         mime.setUrls([QUrl.fromLocalFile(path)])
@@ -4968,9 +4953,9 @@ class VideoPlayerWindow(QWidget):
             cmd.extend(["-to", _format_time_precise(trim_end_ms)])
 
         cmd.extend(["-i", self._filepath])
-        cmd.extend(["-vsync", "1"])
+        cmd.extend(["-fps_mode", "cfr"])
 
-        vfilters = []
+        vfilters = ["pad=ceil(iw/2)*2:ceil(ih/2)*2"]
         native_size = self._video_view.video_item.nativeSize()
         preview_height = float(native_size.height() or self._video_view.video_item.boundingRect().height() or 1080.0)
 
@@ -5100,7 +5085,7 @@ class VideoPlayerWindow(QWidget):
         self._btn_save_as.setEnabled(True)
         self._btn_save.setText("Save")
         from user_messages import friendly_error
-        self._toast.show_message(friendly_error(err), 5000, "rgba(220, 38, 38, 0.92)")
+        self._toast.show_message('Export failed. Your original recording is unchanged.\n' + friendly_error(err)[-600:], 5000, "rgba(220, 38, 38, 0.92)")
         print(f"[VideoEditor] Export error:\n{err}")
 
     def _cleanup_temp_files(self):

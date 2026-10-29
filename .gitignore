@@ -1,9 +1,21 @@
+build/
+dist/
+installer_output/
 __pycache__/
 *.pyc
-.venv/
-.pytest_cache/
+Supporting/BuildCache/
+Supporting/Release/OlderInstallers/
+Supporting/QA/outputs/msix-20260925/**/capture-*/
+
+# Local generated work and versioned installer binaries
 work/
-artifacts/
-app/ffmpeg.exe
+artifacts/windows/
+artifacts/windows_e2e/
+.pytest_cache/
+.venv/
 *.pfx
 *.p12
+app/ffmpeg.exe
+# Generated CI QA receipts are not source changes.
+artifacts/test-reports/
+artifacts/bootstrap-report/

@@ -50,11 +50,11 @@ from ui_elements import SelectionOverlay, PillWidget, SettingsWindow, CaptureBor
 from dock_widget import (
     DockWidget, SettingsSidebar, RecentFilesSidebar, _ACTIVE_UPDATE_THREADS,
 )
+from enterprise_policy import disabled as policy_disabled
 from updater import UpdateChecker, InstallerDownloader, launch_inno_installer
 from distribution import is_packaged, config_directory, migrate_legacy_config, store_url
 from startup_integration import PackagedStartup, desktop_startup_state
 from display_geometry import build_capture_plan, compose_frozen_desktop, qt_screen_transforms
-from user_messages import friendly_error
 
 APP_NAME = "WWRecorder"
 
@@ -185,18 +185,12 @@ class _SuccessNotification(QWidget):
         lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 14px; font-weight: 600; font-family: 'Segoe UI';")
         header.addWidget(lbl_title, 1)
 
-        btn_minimize = QPushButton('−')
-        btn_minimize.setFixedSize(24, 24)
-        btn_minimize.setToolTip('Hide saved capture notification')
-        btn_minimize.setStyleSheet('QPushButton {color:#B9C1CE;background:transparent;border:0;} QPushButton:hover {background:#343E50;}')
-        btn_minimize.clicked.connect(self.hide)
-        header.addWidget(btn_minimize)
         btn_close = QPushButton()
         from icon_theme import asset_path
         btn_close.setIcon(QIcon(asset_path("close.png")))
-        btn_close.setIconSize(QSize(16,16))
+        btn_close.setIconSize(QSize(12,12))
         btn_close.setToolTip("Dismiss saved capture notification")
-        btn_close.setFixedSize(26, 26)
+        btn_close.setFixedSize(20, 20)
         btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_close.setStyleSheet("""
             QPushButton { background: transparent; color: #8E8E93; border: none; font-size: 16px; font-weight: bold; }
@@ -216,6 +210,9 @@ class _SuccessNotification(QWidget):
         self._lbl_sub.setWordWrap(True)
         self._lbl_sub.setMaximumHeight(30)
         right.addWidget(self._lbl_sub)
+        self._recent_hint = QLabel('Available in Recent Files')
+        self._recent_hint.setStyleSheet("color:#929CAA;font:10px 'Segoe UI';border:none;background:transparent;")
+        right.addWidget(self._recent_hint)
 
         # Rename inline editor (hidden by default)
         self._rename_edit = QLineEdit()
@@ -392,18 +389,28 @@ class _SuccessNotification(QWidget):
             # Emit so the app can release any player file lock first,
             # then rename, then notify us via the `renamed` signal.
             self.rename_needed.emit(old_path, new_path)
-            # Update notification UI optimistically — if rename fails the app
-            # will show an error toast but we still close the editor here.
-            self._filepath = new_path
-            self._lbl_sub.setText(new_name)
-            self._rename_edit.setVisible(False)
-            self._lbl_sub.setVisible(True)
-            self._btn_rename.setText("Rename")
-            self._is_renaming = False
-            if not getattr(self, '_dismissing', False):
-                self._auto_timer.start(3000)
+            # The app acknowledges success/failure asynchronously. Keep the
+            # original name until the filesystem operation actually succeeds.
         except Exception as e:
             print(f"[Notification] Rename failed: {e}")
+
+    def begin_rename(self):
+        self._btn_rename.setEnabled(False)
+        self._rename_edit.setEnabled(False)
+
+    def rename_result(self, new_path, error=None):
+        self._btn_rename.setEnabled(True)
+        self._rename_edit.setEnabled(True)
+        if error:
+            return  # Keep the editor and original filepath available for correction.
+        self._filepath = new_path
+        self._lbl_sub.setText(Path(new_path).name)
+        self._rename_edit.hide()
+        self._lbl_sub.show()
+        self._btn_rename.setText('Rename')
+        self._is_renaming = False
+        if not getattr(self, '_dismissing', False):
+            self._auto_timer.start(3000)
 
     def enterEvent(self, event):
         self._auto_timer.stop()  # Pause auto-dismiss while hovered
@@ -435,7 +442,7 @@ qInstallMessageHandler(qt_message_handler)
 #  Constants / defaults
 # ─────────────────────────────────────────────────────────────────────────────
 
-APP_VERSION = "1.7.0"
+APP_VERSION = "1.7.1"
 
 CONFIG_DIR  = config_directory()
 CONFIG_FILE = CONFIG_DIR / "config.json"
@@ -443,6 +450,11 @@ LOG_FILE    = CONFIG_DIR / "wwrecorder.log"
 CRASH_FILE  = CONFIG_DIR / "wwrecorder-crash.log"
 
 _crash_stream = None
+
+
+def _rotate_native_crash_log(path, limit=2 * 1024 * 1024):
+    if path.exists() and path.stat().st_size >= limit:
+        path.replace(path.with_suffix('.log.1'))
 
 
 def _install_crash_logging() -> None:
@@ -469,6 +481,8 @@ def _install_crash_logging() -> None:
         )
     try:
         import faulthandler
+        # Bound previous native crash diagnostics before opening the new session.
+        _rotate_native_crash_log(CRASH_FILE)
         _crash_stream = CRASH_FILE.open("a", encoding="utf-8")
         faulthandler.enable(_crash_stream, all_threads=True)
     except Exception as exc:
@@ -486,6 +500,7 @@ DEFAULT_CONFIG: dict = {
     "microphone_name":      "Same as Windows",
     "start_on_boot":        True,
     "copy_to_clipboard":    True,
+    "keycast_warning_dismissed": False,
     "sidebar_width":        380,
     "panel_height":         -1,
     "close_on_focus_loss":  True,
@@ -507,6 +522,8 @@ class HotkeyListener(QObject):
     """
     Listens for global hotkeys on pynput's own background thread.
     Emits `record_triggered` and `screenshot_triggered` on the Qt side.
+    AutoConnection queues delivery to GUI-thread receivers. Native callbacks
+    must emit only; never invoke widget/controller UI methods here.
 
     Nesting Listener inside QThread caused a Windows shutdown/join race because
     pynput.Listener is already a thread. Keep exactly one native listener owner.
@@ -1097,7 +1114,7 @@ class WWRecorderApp:
             self._last_saved_filepath = saved_path
             
             # Copy to clipboard
-            if self.config.get("copy_to_clipboard", True):
+            if self.config.get("copy_to_clipboard", True) and not policy_disabled("AutomaticClipboard"):
                 if saved_path and os.path.exists(saved_path):
                     mime = QMimeData()
                     mime.setUrls([QUrl.fromLocalFile(saved_path)])
@@ -1129,7 +1146,7 @@ class WWRecorderApp:
             self._last_saved_filepath = saved_path
             
             # ... clipboard and tray logic ...
-            if self.config.get("copy_to_clipboard", True):
+            if self.config.get("copy_to_clipboard", True) and not policy_disabled("AutomaticClipboard"):
                 if saved_path and os.path.exists(saved_path):
                     mime = QMimeData()
                     mime.setUrls([QUrl.fromLocalFile(saved_path)])
@@ -1278,7 +1295,9 @@ class WWRecorderApp:
     def _poll_engine_events(self) -> None:
         for kind, message in self.engine.drain_runtime_events():
             if kind == 'audio_error':
-                self.tray.showMessage("Audio device disconnected", str(message), self.tray.icon(), 8000)
+                self.tray.showMessage("Audio capture issue", str(message), self.tray.icon(), 8000)
+            elif kind == 'capture_error':
+                self.tray.showMessage('Recording recovery', str(message), self.tray.icon(), 8000)
             elif kind == 'audio_reconnected':
                 self.tray.showMessage("Audio device changed", message, self.tray.icon(), 5000)
 
@@ -1342,8 +1361,8 @@ class WWRecorderApp:
             if hasattr(self, 'pill') and self.pill:
                 self.pill.close()
                 self.pill = None
-            # Discard any pre-warmed state
-            self.engine.discard()
+            # Pill close owns cleanup; a fallback is harmless and generation-bound.
+            self._discard_engine_async()
             return
 
         # Just store the latest region — do NOT prepare the engine yet.
@@ -1359,7 +1378,9 @@ class WWRecorderApp:
             self._audio_config_initialized = True
 
         if not getattr(self, 'pill', None) or not self.pill.isVisible():
+            self._capture_discarded = False  # Reset only when a new take is created.
             self.pill = PillWidget(self.engine, self.config, pre_record=True)
+            self.pill.keycast_consent_changed.connect(self._on_keycast_consent_changed)
             self.pill.microphone_selected.connect(self._on_microphone_selected)
             self.pill.stopped.connect(self._on_recording_stopped)
             self.pill.save_completed.connect(self._on_save_completed)
@@ -1461,6 +1482,7 @@ class WWRecorderApp:
             self.pill = PillWidget(self.engine, self.config)
             self.pill.stopped.connect(self._on_recording_stopped)
             self.pill.save_completed.connect(self._on_save_completed)
+            self.pill.keycast_consent_changed.connect(self._on_keycast_consent_changed)
             self.pill.microphone_selected.connect(self._on_microphone_selected)
             self.pill.annotate_requested.connect(self._toggle_global_annotator)
             self.pill.annotation_toggled.connect(self._on_annotation_toggled)
@@ -1509,6 +1531,8 @@ class WWRecorderApp:
             self.dock.set_recording_state(False)
 
         if filepath == "<SAVING>":
+            if getattr(self, '_capture_discarded', False):
+                return
             # Muxing in progress — pill stays alive (hidden) to run _StopWorker.
             # Notification will come from _on_save_completed.
             self.tray.setToolTip(f"{APP_NAME} - Processing…")
@@ -1530,17 +1554,26 @@ class WWRecorderApp:
                 print(f"[WWRecorder] Processing popup failed: {exc}")
                 self.tray.showMessage(
                     APP_NAME,
-                    "Your recording is still processing. It will appear in Files when ready.",
+                    "Your recording is still processing. It will appear in Recent Files when ready.",
                     self.tray.icon(), 5000,
                 )
             return
 
-        # For <DISCARDED> and other immediate results, clean up pill now
+        # For <DISCARDED> and other immediate results, clean up pill now.
+        # Discard during finalization arrives after <SAVING> already showed the
+        # processing notice. Clear that UI here so a late save cannot look active.
         self.pill = None
         self.tray.setToolTip(f"{APP_NAME} - Ready")
 
         if filepath == "<DISCARDED>":
+            self._capture_discarded = True
             self._last_saved_filepath = None
+            self._processing_filename = None
+            if self._saving_popup:
+                self._saving_popup.hide_saving()
+                self._saving_popup = None
+            if self._recent_panel and self._recent_panel.isVisible():
+                self._recent_panel.clear_processing_file()
             if was_recording:
                 self.tray.showMessage(
                     APP_NAME, "Recording discarded.",
@@ -1551,6 +1584,9 @@ class WWRecorderApp:
 
     def _on_save_completed(self, filepath: str) -> None:
         """Called when background muxing finishes — shows notification, copies to clipboard."""
+        # Discard already cleared the take. Ignore a late success from the mux thread.
+        if getattr(self, "_capture_discarded", False):
+            return  # The take's worker owns discarded output cleanup.
         if self._saving_popup:
             self._saving_popup.hide_saving()
             self._saving_popup = None
@@ -1568,7 +1604,7 @@ class WWRecorderApp:
             size_mb = os.path.getsize(filepath) / (1024 * 1024)
 
             # Copy to clipboard
-            if self.config.get("copy_to_clipboard", True):
+            if self.config.get("copy_to_clipboard", True) and not policy_disabled("AutomaticClipboard"):
                 mime = QMimeData()
                 mime.setUrls([QUrl.fromLocalFile(filepath)])
                 QApplication.clipboard().setMimeData(mime)
@@ -1717,16 +1753,9 @@ class WWRecorderApp:
     def _safe_rename(self, old_path: str, new_path: str):
         """Rename a file safely, releasing any open VideoPlayerWindow lock first.
 
-        Steps:
-          1. Find any player window that has old_path loaded.
-          2. Tell it to release the file (setSource empty).
-          3. Attempt os.rename with a short retry loop (player may need a tick to release).
-          4. Reload the player with new_path.
-          5. Refresh the recent-files sidebar.
-          6. Show a clear error toast if still locked after retries.
+        Retries run on a single-shot Qt timer. Never sleep or re-enter the event
+        loop; acknowledge success only after the filesystem rename completes.
         """
-        import time
-
         old = Path(old_path)
         new = Path(new_path)
         invalid_chars = set('<>:"/\\|?*')
@@ -1743,78 +1772,74 @@ class WWRecorderApp:
             self._show_rename_error("Choose a valid filename without path characters or Windows reserved names.")
             return
 
-        # Find player windows with this file open
-        locked_windows = [
-            w for w in self._video_player_windows
-            if getattr(w, '_filepath', '').lower() == old_path.lower()
-        ]
-
-        # Release file lock in all matching players
+        operations = getattr(self, '_rename_operations', None)
+        if operations is None:
+            operations = self._rename_operations = {}
+        key = os.path.normcase(os.path.abspath(old_path))
+        if key in operations:
+            return
+        locked_windows = [w for w in self._video_player_windows
+                          if getattr(w, '_filepath', '').lower() == old_path.lower()]
         for win in locked_windows:
             try:
                 win._player.setSource(QUrl())
-            except Exception:
+            except RuntimeError:
                 pass
+        timer = QTimer(self.app)
+        timer.setSingleShot(True)
+        operations[key] = timer
+        notification = getattr(self, '_success_notif', None)
+        if (notification and getattr(notification, '_filepath', '').lower() == old_path.lower()
+                and hasattr(notification, 'begin_rename')):
+            notification.begin_rename()
+        attempts = 0
 
-        # Retry os.rename up to 8 times (~2s) to give Windows time to release the handle
-        max_tries = 8
-        delay = 0.25
-        last_err = None
-        for attempt in range(max_tries):
-            try:
-                os.rename(old_path, new_path)
-                last_err = None
-                break
-            except PermissionError as e:
-                last_err = e
-                self.app.processEvents()
-                time.sleep(delay)
-            except FileExistsError:
-                # Target already exists
-                self._show_rename_error(f"❌ Rename failed: '{Path(new_path).name}' already exists.")
-                # Re-bind player source with original path without resetting edit mode
-                for win in locked_windows:
-                    try:
-                        win._player.setSource(QUrl.fromLocalFile(old_path))
-                    except Exception:
-                        pass
-                return
-            except Exception as e:
-                last_err = e
-                break
-
-        if last_err is not None:
-            print(f"[Rename] Failed after {max_tries} attempts: {last_err}")
-            self._show_rename_error(
-                f"❌ Rename failed — file is in use by another process.\n"
-                f"Close any app using '{Path(old_path).name}' and try again."
-            )
-            # Restore only the media source.  Calling _load_video would erase
-            # the current overlay and cut lists.
+        def finish(error=None):
+            operations.pop(key, None)
+            timer.deleteLater()
             for win in locked_windows:
+                if win not in self._video_player_windows:
+                    continue
                 try:
-                    win.restore_source_after_rename(old_path)
-                except Exception:
+                    win.restore_source_after_rename(old_path if error else new_path)
+                except RuntimeError:
                     pass
-            return
+            notification = getattr(self, '_success_notif', None)
+            if notification and getattr(notification, '_filepath', '').lower() == old_path.lower():
+                if hasattr(notification, 'rename_result'):
+                    notification.rename_result(new_path, error)
+                elif not error:
+                    notification._filepath = new_path
+                if not error:
+                    notification.renamed.emit(old_path, new_path)
+            if error:
+                from user_messages import friendly_error
+                self._show_rename_error('Rename failed: ' + friendly_error(error))
+                return
+            if (getattr(self, '_last_saved_filepath', '') or '').lower() == old_path.lower():
+                self._last_saved_filepath = new_path
+            if self._recent_panel and self._recent_panel.isVisible():
+                self._recent_panel.refresh()
 
-        # Success — update the source without resetting in-progress edits.
-        for win in locked_windows:
+        def attempt():
+            nonlocal attempts
+            attempts += 1
             try:
-                win.restore_source_after_rename(new_path)
-            except Exception:
-                pass
+                if new.exists() and os.path.normcase(str(old)) != os.path.normcase(str(new)):
+                    raise FileExistsError('A file with that name already exists.')
+                os.rename(old_path, new_path)
+            except PermissionError as exc:
+                if attempts < 8:
+                    timer.start(250)
+                else:
+                    finish(exc)
+            except OSError as exc:
+                finish(exc)
+            else:
+                finish()
 
-        # Update notification widget filepath if it's the same file
-        if self._success_notif and getattr(self._success_notif, '_filepath', '').lower() == old_path.lower():
-            self._success_notif._filepath = new_path
-            self._success_notif.renamed.emit(old_path, new_path)
-
-        # Refresh recent files sidebar
-        self._last_saved_filepath = new_path if getattr(self, '_last_saved_filepath', '').lower() == old_path.lower() else getattr(self, '_last_saved_filepath', '')
-        if self._recent_panel and self._recent_panel.isVisible():
-            self._recent_panel.refresh()
-        print(f"[Rename] OK: '{Path(old_path).name}' → '{Path(new_path).name}'")
+        timer.timeout.connect(attempt)
+        timer.start(0)  # Return to Qt; no sleep or nested processEvents loop.
 
     def _show_rename_error(self, message: str):
         """Show a non-blocking error toast for rename failures."""
@@ -1974,6 +1999,16 @@ class WWRecorderApp:
         if self._settings_sidebar and self._settings_sidebar.isVisible():
             self._settings_sidebar.set_update_error(message)
 
+    def _discard_engine_async(self):
+        engine = self.engine
+        generation = getattr(engine, '_session_generation', None)
+        def cleanup():
+            if generation is None:
+                engine.discard()
+            else:
+                engine.discard(expected_generation=generation)
+        threading.Thread(target=cleanup, daemon=True).start()
+
     def _cancel_pre_record(self) -> None:
         is_pre_record = bool(self.pill and getattr(self.pill, '_pre_record', False))
         is_record_selection = bool(
@@ -1989,7 +2024,7 @@ class WWRecorderApp:
             self.pill = None
         
         if self.engine.is_prewarming():
-            self.engine.discard()
+            self._discard_engine_async()
 
     # ── Annotation Handlers ───────────────────────────────────────────────────
 
@@ -2207,6 +2242,10 @@ class WWRecorderApp:
         self.config["sidebar_width"] = width
         self._save_config()
 
+    def _on_keycast_consent_changed(self, dismissed: bool) -> None:
+        self.config['keycast_warning_dismissed'] = dismissed
+        self._save_config()
+
     def _on_settings_saved(self, new_config: dict) -> None:
         """Handle settings saved from the sidebar."""
         old_fs = self.config.get("font_size", "Default")
@@ -2226,6 +2265,7 @@ class WWRecorderApp:
         new_config = dict(new_config)
         for key in ('microphone_id', 'microphone_name', 'dock_x', 'dock_y', 'panel_height'):
             new_config[key] = self.config.get(key, DEFAULT_CONFIG[key])
+        new_config['keycast_warning_dismissed'] = self.config.get('keycast_warning_dismissed', False)
         self.config = new_config
         self._save_config()
         if startup_changed:

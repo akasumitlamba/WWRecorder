@@ -61,7 +61,7 @@ def test_external_dock_visible_aligned_and_pinned(app,monkeypatch,edge):
 
 def test_settings_gallery_action_has_plain_folder(app):
     panel=SettingsSidebar({})
-    button=next(b for b in panel.findChildren(QPushButton) if b.toolTip()=='Open Gallery')
+    button=next(b for b in panel.findChildren(QPushButton) if b.toolTip()=='Open Recent Files')
     assert not button.icon().isNull()
     assert button.icon().pixmap(20,20).toImage()!=RecentFilesSidebar._explorer_icon().pixmap(20,20).toImage()
     panel.close()
@@ -147,9 +147,10 @@ def test_header_brand_and_label_are_compact_only_on_vertical(app, tmp_path, edge
     panel = (SettingsSidebar({}, edge=edge) if kind == 'settings'
              else RecentFilesSidebar(str(tmp_path), edge=edge))
     labels = panel._heading_container.findChildren(QLabel)
-    title = next(label for label in labels if label.text() in ('Gallery', 'Settings'))
+    titles = [label for label in labels if label.text() in ('Recent Files', 'Settings')]
+    assert len(titles) == (1 if edge in ('top', 'bottom') else 0)
+    if titles: assert '24px' in titles[0].styleSheet()
     height = 24 if edge in ('top', 'bottom') else 18
-    assert f'{height}px' in title.styleSheet()
     brand = next(label for label in labels if not label.pixmap().isNull())
     assert brand.pixmap().height() == height
     panel.close()

@@ -601,16 +601,35 @@ class _StopWorker(QThread):
     def __init__(self, engine):
         super().__init__()
         self._engine = engine
+        self._session_generation = getattr(engine, '_session_generation', None)
+        self._aborted = False
+    def abort(self):
+        """Ask the in-flight mux to stop treating its output as a successful save."""
+        self._aborted = True
     def run(self):
+        path = ''
         try:
-            # Phase 1: stop capture threads + close FFmpeg pipe (fast)
+            # Always release capture clients, even if Discard arrived before run.
             self._engine.stop_capture()
-            # Phase 2: mux audio+video into final file (slow)
-            path = self._engine.mux_and_save()
+            if not self._aborted:
+                path = self._engine.mux_and_save() or ''
         except Exception as exc:
-            print(f"[PillWidget] Save failed: {exc}")
             self._engine._last_error = str(exc)
-            path = ""
+            print(f'[PillWidget] Save failed: {exc}')
+        if self._aborted:
+            # One worker owns Stop -> mux -> discard. Never race input cleanup
+            # against an encoder or WAV writer in another thread.
+            if hasattr(self._engine, 'discard'):
+                if self._session_generation is None:
+                    self._engine.discard()
+                else:
+                    self._engine.discard(expected_generation=self._session_generation)
+            if path:
+                try:
+                    os.remove(path)
+                except OSError as exc:
+                    print(f'[PillWidget] Discarded output preserved: {exc}')
+            path = ''
         self.save_finished.emit(path)
 
 _microphone_list_workers = set()
@@ -644,6 +663,7 @@ class PillWidget(QWidget):
     stopped            = pyqtSignal(str)
     save_completed     = pyqtSignal(str)   # Emitted when background muxing finishes
     microphone_selected = pyqtSignal(str, str)
+    keycast_consent_changed = pyqtSignal(bool)
     start_requested    = pyqtSignal()
     annotate_requested = pyqtSignal()      # Toggle annotation (same as dock)
     annotation_toggled = pyqtSignal(bool)  # True = annotation ON
@@ -673,6 +693,8 @@ class PillWidget(QWidget):
         self._preparing = False
         self._user_positioned = False
         self._keycast_region = None
+        self._keycast_warning = None
+        self._keycast_confirmed = False
         from keycast import KeycastController
         self._keycast = KeycastController(self)
         self._keycast.failed.connect(self._on_keycast_failed)
@@ -701,6 +723,8 @@ class PillWidget(QWidget):
         # on Windows. Let the popup own the topmost position until it closes.
         menu = getattr(self, '_mic_menu', None)
         if menu is not None and menu.isVisible():
+            return
+        if self._keycast_warning is not None and self._keycast_warning.isVisible():
             return
         if self.isVisible() and not self.underMouse():
             if _user32:
@@ -900,15 +924,61 @@ class PillWidget(QWidget):
         self._sync_keycast()
 
     def _on_keycast_toggled(self, checked):
+        from enterprise_policy import disabled
+        if checked and disabled('Keycast'):
+            self._btn_keycast.setChecked(False)
+            self._btn_keycast.setToolTip('Keycast is disabled by your administrator')
+            return
+        if checked and not self._config.get('keycast_warning_dismissed', False) and not self._keycast_confirmed:
+            self._btn_keycast.blockSignals(True)
+            self._btn_keycast.setChecked(False)
+            self._btn_keycast.blockSignals(False)
+            self._request_keycast_consent()
+            return
+        self._keycast_confirmed = False
         self._btn_keycast.setToolTip(
             "Keycast on — keys and clicks are visible in the recording" if checked else
             "Keycast off — show keys and mouse clicks in the recording")
         self._sync_keycast()
 
+    def _request_keycast_consent(self):
+        if self._keycast_warning is not None:
+            self._keycast_warning.raise_()
+            return
+        box = QMessageBox(self)
+        box.setWindowTitle('Before enabling Keycast')
+        box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+        box.setText('Your keystrokes may be visible in the recording.')
+        box.setInformativeText('This includes passwords, private text, and typing outside the selected '
+                               'recording area. Anyone who watches or receives the recording may see '
+                               'that input. Enable Keycast only when it is appropriate to show your typing.')
+        remember = QCheckBox("Don't show this again", box)
+        box.setCheckBox(remember)
+        enable = box.addButton('Enable Keycast', QMessageBox.ButtonRole.AcceptRole)
+        box.addButton(QMessageBox.StandardButton.Cancel)
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
+        self._keycast_warning = box
+
+        def completed(_result):
+            self._keycast_warning = None
+            if box.clickedButton() is enable and not self._stopping:
+                if remember.isChecked():
+                    self._config['keycast_warning_dismissed'] = True
+                    self.keycast_consent_changed.emit(True)
+                self._keycast_confirmed = True
+                self._btn_keycast.setChecked(True)
+            box.deleteLater()
+
+        box.finished.connect(completed)
+        box.open()
+        _exclude_from_capture(int(box.winId()))
+
     def _sync_keycast(self):
         enabled = (self._btn_keycast.isChecked() and not self._pre_record and
                    not self._preparing and not self._stopping and self._keycast_region and
                    not self._engine.is_paused())
+        from enterprise_policy import disabled
+        enabled = enabled and not disabled('Keycast')
         if enabled and self._keycast.session is None:
             from display_geometry import qt_screen_transforms
             self._keycast.start(self._keycast_region, qt_screen_transforms(QApplication.screens()))
@@ -1161,6 +1231,8 @@ class PillWidget(QWidget):
         if self._stopping or self._preparing:
             return
         self._stopping = True
+        self._stop_worker = _StopWorker(self._engine)
+        self._stop_worker.save_finished.connect(self._on_save_done)
         self._keycast.stop()
         if hasattr(self, '_tick'): self._tick.stop()
         if hasattr(self, '_blink'): self._blink.stop()
@@ -1172,15 +1244,22 @@ class PillWidget(QWidget):
         # Hide pill IMMEDIATELY — user sees instant response
         self.hide()
 
-        # Tell main.py to clear border/overlay right now
+        # Establish ownership before emitting a signal that can re-enter Discard.
         self.stopped.emit("<SAVING>")
-
-        # Run capture stop + muxing in background
-        self._stop_worker = _StopWorker(self._engine)
-        self._stop_worker.save_finished.connect(self._on_save_done)
         self._stop_worker.start()
 
     def _initiate_discard(self, *, confirm: bool = True):
+        worker = getattr(self, "_stop_worker", None)
+        # A second discard after the save was already aborted is a no-op.
+        # A discard while mux is still running must abort that save instead of
+        # returning early and letting save_finished resurrect a "saved" file.
+        if getattr(self, "_save_aborted", False):
+            return
+        # Stop sets _stopping before the thread is actually running. Discard
+        # during that window must still abort, or save_finished publishes the file.
+        if self._stopping and worker is not None:
+            self._abort_in_flight_save()
+            return
         if self._stopping:
             return
         # Never call QMessageBox.exec() from closeEvent / teardown — nested
@@ -1215,13 +1294,51 @@ class PillWidget(QWidget):
 
         # Discard in background (fast — no muxing needed)
         import threading
+        self._discard_generation = getattr(self._engine, '_session_generation', None)
         threading.Thread(target=self._do_discard, daemon=True).start()
+
+    def _abort_in_flight_save(self):
+        """Discard wins over an in-progress Stop/mux. Late save_finished must not publish a file."""
+        self._save_aborted = True
+        self._discard_generation = getattr(self._stop_worker, '_session_generation', None)
+        self._stopping = True
+        worker = getattr(self, "_stop_worker", None)
+        if worker is not None:
+            worker.abort()
+        self._keycast.stop()
+        if hasattr(self, "_tick"):
+            self._tick.stop()
+        if hasattr(self, "_blink"):
+            self._blink.stop()
+        if hasattr(self, "_topmost_timer"):
+            self._topmost_timer.stop()
+        self.disable_annotation()
+        self.hide()
+        self.stopped.emit("<DISCARDED>")
 
     def _do_discard(self):
         if hasattr(self._engine, "discard"):
-            self._engine.discard()
+            generation = getattr(self, '_discard_generation', None)
+            if generation is None:
+                self._engine.discard()
+            else:
+                self._engine.discard(expected_generation=generation)
 
     def _on_save_done(self, filepath: str):
+        if getattr(self, "_save_aborted", False):
+            # A discard can arrive after the worker emitted its queued result.
+            # At this point mux no longer owns the output; cleanup is safe.
+            if filepath:
+                import threading
+                def cleanup():
+                    self._do_discard()
+                    try:
+                        os.remove(filepath)
+                    except OSError as exc:
+                        print(f'[PillWidget] Discarded output preserved: {exc}')
+                threading.Thread(target=cleanup, daemon=True).start()
+            self.close()
+            return
         self.save_completed.emit(filepath)
         self.close()
 
@@ -1487,7 +1604,7 @@ class SettingsWindow(QDialog):
             lay.addLayout(row)
             return chk
 
-        self._chk_sys = add_toggle_row(lay_def, "Record system audio by default", self._config.get("default_system_audio", True))
+        self._chk_sys = add_toggle_row(lay_def, "Record system audio by default", self._config.get("default_system_audio", False))
         self._chk_mic = add_toggle_row(lay_def, "Record microphone by default", self._config.get("default_mic", False))
         self._chk_boot = add_toggle_row(lay_def, "Start WWRecorder with Windows", self._config.get("start_on_boot", False))
         

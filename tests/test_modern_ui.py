@@ -74,9 +74,9 @@ def test_processing_is_indeterminate_and_stops_animation_when_hidden(app):
     QTest.qWait(100)
     assert popup._activity._angle!=before and popup._activity._timer.isActive()
     assert popup._status_lbl.text()=='Processing recording'
-    assert '%' not in popup._status_lbl.text() and 'Gallery' in popup._message.text()
+    assert '%' not in popup._status_lbl.text() and 'Recent Files' in popup._message.text()
     assert not hasattr(popup,'_movie')
-    popup._btn_hide.click();app.processEvents()
+    popup._btn_close.click();app.processEvents()
     assert not popup.isVisible() and not popup._activity._timer.isActive()
     popup.show_saving();app.processEvents();assert popup._activity._timer.isActive()
     popup.close();app.processEvents();assert not popup._activity._timer.isActive()
@@ -287,7 +287,7 @@ def test_compact_processing_notice_closes_without_cancelling_work(app):
     popup=ProcessingNotice();popup.show_saving();app.processEvents()
     assert popup.height()<100
     assert popup._stages.isHidden() and popup._message.isHidden()
-    assert popup._btn_hide.isVisible() and popup._btn_close.isVisible()
+    assert popup._btn_close.isVisible() and not hasattr(popup, "_btn_hide")
     popup._btn_close.click();app.processEvents()
     assert popup.isHidden() and not popup._activity._timer.isActive()
     popup.show_saving();app.processEvents();assert popup._activity._timer.isActive()

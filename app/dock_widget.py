@@ -1063,43 +1063,37 @@ class DockWidget(QWidget):
             p.setPen(QPen(CLR_BORDER, 1.0))
             p.drawPath(gp)
 
-            # Before first discovery, the complete affordance blinks on/off.
-            # Once discovered (including while recording), lines stay steady.
-            if self._is_first_launch and not self._blink_on:
-                p.setPen(Qt.PenStyle.NoPen)
-            elif self._is_first_launch:
-                p.setPen(QPen(CLR_RED, 1.5))
-            else:
-                p.setPen(QPen(QColor(200, 200, 200, 160), 1.5))
-            
-            cx = self.GRABBER_W // 2
-            cy = self.GRABBER_H // 2
-            for dy in [-7, 0, 7]:
-                p.drawLine(cx - 3, cy + dy, cx + 3, cy + dy)
-
-            # Red dots (top and bottom)
-            if self._is_recording:
-                if self._pulse_visible:
-                    p.setBrush(QColor(255, 59, 48))
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.drawEllipse(cx - 2, 6, 4, 4)
-                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
-            else:
-                # Startup dots blink fully on/off at one constant size.
-                if self._is_first_launch and self._blink_on:
-                    p.setBrush(CLR_RED_HVR)
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.drawEllipse(cx - 2, 6, 4, 4)
-                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
-                elif not self._is_first_launch:
-                    p.setBrush(CLR_RED)
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.drawEllipse(cx - 2, 6, 4, 4)
-                    p.drawEllipse(cx - 2, self.GRABBER_H - 10, 4, 4)
+            # Keep the original 12×48 handle; text follows the long axis.
+            p.resetTransform()
+            p.translate(self.width() / 2, self.height() / 2)
+            if self._edge in ('left', 'right'):
+                p.rotate(-90)
+            font = QFont('Segoe UI')
+            font.setPixelSize(10)
+            font.setWeight(QFont.Weight.Bold)
+            metrics = QFontMetrics(font)
+            start = -(metrics.horizontalAdvance('WW') + metrics.horizontalAdvance('Rec')) / 2
+            baseline = (metrics.ascent() - metrics.descent()) / 2
+            for index, text in enumerate(('WW', 'Rec')):
+                color = self._handle_text_color(index)
+                path = QPainterPath()
+                path.addText(QPointF(start, baseline), font, text)
+                if color.red() > color.green() * 1.5 and color.alpha():
+                    glow = QColor(color); glow.setAlpha(65)
+                    p.strokePath(path, QPen(glow, 1.2))
+                p.fillPath(path, color)
+                start += metrics.horizontalAdvance(text)
 
         p.end()
 
     # ── Recording state ──────────────────────────────────────────────────────
+
+    def _handle_text_color(self, segment):
+        if self._is_recording:
+            return QColor('#EEF1F6') if segment == 0 else QColor(255, 51, 71, 255 if self._pulse_visible else 0)
+        if self._is_first_launch:
+            return QColor(255, 51, 71, 255 if self._blink_on else 0)
+        return QColor('#EEF1F6')
 
     def set_recording_state(self, is_recording: bool):
         self._is_recording = is_recording
@@ -1370,13 +1364,16 @@ class SidebarPanel(QWidget):
             lbl_rest.setStyleSheet("color: #FFFFFF; font-size: 18px; font-weight: 900; font-family: 'Segoe UI Black', 'Impact';")
             heading_layout.addWidget(lbl_rest)
 
-        divider = QFrame()
-        divider.setFixedSize(1, 24 if self._horizontal_panel else 18)
-        divider.setStyleSheet("background: #343B48; border: none;")
-        heading_layout.addWidget(divider)
-        title = QLabel("Settings" if isinstance(self, SettingsSidebar) else "Gallery")
-        title.setStyleSheet(f"color: #A8AFBA; font: {24 if self._horizontal_panel else 18}px 'Segoe UI'; background: transparent;")
-        heading_layout.addWidget(title)
+        # Vertical headers reserve the narrow row for the brand and actions.
+        # Titles belong only in the wider horizontal panel.
+        if self._horizontal_panel:
+            divider = QFrame()
+            divider.setFixedSize(1, 24)
+            divider.setStyleSheet("background:#343B48;border:none;")
+            heading_layout.addWidget(divider)
+            title = QLabel("Settings" if isinstance(self, SettingsSidebar) else "Recent Files")
+            title.setStyleSheet("color:#A8AFBA;font:24px 'Segoe UI';background:transparent;")
+            heading_layout.addWidget(title)
         heading_layout.addStretch()
 
         # Optional extra buttons (e.g. settings gear in recent files)
@@ -1885,7 +1882,7 @@ class SettingsSidebar(SidebarPanel):
 
         # Recent files folder button for heading bar
         btn_files = QPushButton()
-        btn_files.setToolTip("Open Gallery")
+        btn_files.setToolTip("Open Recent Files")
         btn_files.setFixedSize(26, 26)
         btn_files.setCursor(Qt.CursorShape.PointingHandCursor)
         files_ico = _asset("folder.png")
@@ -1953,6 +1950,11 @@ class SettingsSidebar(SidebarPanel):
         card_capture._card_layout.addLayout(folder_row)
         
         self._chk_clip = self._add_toggle(card_capture._card_layout, "Auto-copy captures to clipboard", self._config.get("copy_to_clipboard", True))
+        from enterprise_policy import disabled
+        if disabled('AutomaticClipboard'):
+            self._chk_clip.setEnabled(False)
+            self._chk_clip.setToolTip('Automatic clipboard copying is disabled by your administrator')
+
 
         position_row = QHBoxLayout()
         position_label = QLabel("Dock position")

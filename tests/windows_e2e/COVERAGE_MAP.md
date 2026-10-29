@@ -78,3 +78,30 @@ unattended scrub coalescing and real decoded seek frame before release.
 700/1024/1440px, horizontal footer order, uniform selectors, dock hover-state
 icons, centered laser alpha profile and red Quit/annotation-only brush assets.
 `tests/test_keycast.py`: raw Windows/media/F-key mapping and held-Shift chord case.
+
+## Combined audit regressions (2026-10-28)
+
+`suites/test_57_combined_bug_audit.py` covers disabled endpoint acquisition,
+initialize/Start failures and warning suppression, independent preview/export
+mute, async rename acknowledgement, generation-bound discard and writer barriers,
+real FFmpeg mux abort ownership, late scrub completion after deleted windows,
+focused text Escape, capture pixel cropping, Qt hotkey delivery and updater
+redirect/byte-count/SHA-256/launch validation. The root selective-audio export
+matrix also decodes odd/even inputs with prefix/middle cuts. These are controlled
+functional checks, not physical endpoint or installed-edition acceptance.
+
+### Security audit remediation (suite 58)
+
+Actual Keycast warning acceptance/cancel/remembered state and admin policy;
+silent/hung/noisy/advancing/cancelled export processes with bounded cleanup;
+tampered/missing/legacy native codec rejection; approved standalone executable
+hash; Windows Qt media DLL hashes; crash-log rotation; bounded release metadata;
+exact-version advisory response handling. New warning is tested separately;
+existing armed-toggle matrices use a consented profile rather than bypassing
+first-use behavior in product code. Both editions share these controls.
+
+Suite 59: small single-dismiss notifications, Recent Files naming, all four panel
+headers, original dock dimensions, actual painted WW/Rec blink pixels, annotation
+bounds on compact/ultrawide/negative-origin screens, and Store identity staging.
+
+Validation: 976 portable tests passed (31 Windows-only skips); 1152 Windows tests passed (three desktop-only skips). Both package formats, frozen startup, dependency/media checks and unattended reports passed.

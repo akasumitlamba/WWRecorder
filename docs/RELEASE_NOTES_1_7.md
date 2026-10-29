@@ -1,11 +1,7 @@
-# WWRecorder 1.7 preview — changes since stable v1.6
+# WWRecorder v1.7.1 — changes since v1.6
 
-This is the cumulative 1.7 preview changelog relative to the published v1.6
-(1.6.3) release. Package revisions are replacements within the same preview;
-they do not define the scope of these notes. Include only implemented changes,
-reconcile merged contributors' work against source/tests, and update validation
-and download details after each build. Do not repeat fixes already listed in
-v1.6 unless a further defect was corrected.
+This is the cumulative 1.7 family changelog relative to the published v1.6
+(1.6.3) release. This release includes the features, interface improvements and fixes below.
 
 ## New features
 
@@ -46,8 +42,9 @@ v1.6 unless a further defect was corrected.
   title only. Editor uses Trim/Delete/Text/Audio sections and explicit Save/Save
   As/Cancel while retaining the functional multi-lane timeline.
 - Modern compact Processing/Saved/feedback notifications replace the cat GIF;
-  keep capture thumbnail, filename, status and useful actions with dismiss/hide
-  controls. Processing feedback stays responsive while work continues.
+  keep capture thumbnail, filename, status and useful actions with one small
+  dismiss control. Processing explicitly says Compressing video and audio and
+  stays responsive while work continues. Saved media is available in Recent Files.
 - Branded dark Windows installer with corrected checkbox spacing, welcome art,
   app logo and wordmark. Clear annotations uses a readable brush; Delete keeps
   its trash icon. Eraser and arrow tools use a plain crosshair cursor.
@@ -81,6 +78,34 @@ v1.6 unless a further defect was corrected.
 - Repaired incomplete packaged Qt dependencies that caused startup failures;
   validate native Qt files and frozen startup before either installer is built.
 
+- Kept preview speaker mute independent from Export Audio; disabled audio tracks
+  no longer open capture devices, and microphone recovery is reported only after
+  the device actually starts successfully.
+- Made file rename retries asynchronous and single-flight, retained edit state
+  across failures, and improved audio/export errors without discarding useful
+  diagnostics. Odd-sized source videos export safely with minimal even padding.
+- Serialized prepare/stop/mux/discard ownership, preserved recovery media when
+  workers cannot stop, and guarded cleanup against later recording sessions.
+- Preserved focused-text Escape cancellation in live and screenshot annotation.
+
+## Additional security and compact-layout improvements
+
+- Patched the standalone FFmpeg encoder and Qt's independent playback libraries;
+  build gates verify approved native binaries and locked dependencies.
+- Keycast retains full typing and adds a warning that input, including passwords
+  and typing outside the capture area, may be visible in the recording. Users
+  can remember their acknowledgement. Optional IT policy can disable Keycast or
+  automatic clipboard copying without changing ordinary users' defaults.
+- Added stalled-export supervision, bounded diagnostics, safer uninstall behavior
+  and release component inventories/provenance. Original recordings remain safe.
+- Saved notifications use one small dismiss action, retain thumbnails/actions and
+  identify Recent Files. Processing explicitly mentions video/audio compression.
+- Vertical panel headers no longer crowd section labels against the wordmark;
+  horizontal panels retain Recent Files/Settings headings. The same compact dock
+  now displays WWRec, with discovery and recording blink states distinguished.
+- Annotation strips retain responsive controls but cap length and thickness on
+  ultrawide displays, including the Close control.
+
 ## Testing and distribution
 
 - Expanded behavior-based Qt, state-machine, real FFmpeg export/decoder,
@@ -89,15 +114,30 @@ v1.6 unless a further defect was corrected.
   Markdown and JUnit reports. No test-time user input is required.
 - EXE and MSIX build from one validated sanitized payload. EXE uses the official
   GitHub update channel; MSIX does not query or launch the EXE updater.
-- This remains a prerelease. Physical microphones, installed Windows DPI,
-  multi-monitor gestures and native installer acceptance need Windows testing.
-  The downloadable MSIX kit uses a local-test certificate/identity, not a Store
-  production package. The direct EXE is unsigned.
+- The EXE is a direct Windows installer and remains unsigned. The production-identity
+  MSIX is a Store submission package, not a signed sideload installer; Microsoft
+  signs Store distribution after submission and certification. Store availability
+  must be verified independently. Historical preview MSIX kits are not this release.
 
-## Automated validation for the current preview
 
-- Windows: 1,062 tests passed; three desktop-only cases skipped in offscreen CI.
-- Linux portable/public-source suite: 888 passed; 29 Windows-only cases skipped.
-- Required compilation, unattended test bootstrap and report generation passed.
-- Frozen Qt payload/startup gates and both distribution builds passed.
-- Physical hardware and installed-desktop acceptance are separate from these checks.
+## Website and enterprise information
+
+- Published For enterprise guidance with administrator policies for Keycast and
+  automatic clipboard, data handling, recovery, deployment and update integrity.
+- Privacy policy covers recording visibility, EXE/MSIX storage and network
+  behavior, clipboard exposure, diagnostics and website requests.
+- A dismissible site notice links to the FFmpeg-patched 1.7.1 release.
+
+## Automated validation
+
+- Windows: 1,152 passed, three desktop-only cases skipped in offscreen CI.
+- Portable application suite: 976 passed, 31 Windows-only cases skipped.
+- Website: eight navigation/policy tests and eight real desktop/mobile browser
+  checks passed, including dismissal, blocked storage, release lookup failure,
+  exact installer selection and fingerprint feedback.
+- Required compilation, unattended bootstrap/report generation, frozen Qt/startup,
+  dependency/native-media integrity and EXE/MSIX packaging gates passed.
+- Physical hardware, installed-desktop acceptance and Store certification/delivery
+  remain separate from these automated checks.
+
+Final public-export validation: 984 portable tests passed (including eight website navigation/policy tests), 31 Windows-only skips, zero failures/errors. Eight browser interaction checks passed. Core/build source matched the validated installer source; staged privacy and secret scans passed.
