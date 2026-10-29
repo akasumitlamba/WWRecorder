@@ -9,12 +9,12 @@ WWRecorder is a lightweight desktop screen recorder and screenshot tool for Wind
 ## Version and download status
 
 **WWRecorder v1.7.1** is the current public release. It includes the FFmpeg
-security fix for recording/export and Qt's independent playback media libraries.
+security fix for recording/export and Qt's independent playback media libraries,
+plus corrected audio/video timing under capture load and installer/interface repairs.
 
 | Distribution | Download | Status |
 | --- | --- | --- |
-| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.0.exe) | Direct installer; unsigned. Verify the release SHA-256. |
-| Production MSIX 1.7.1.0 | [Store submission package](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_1.7.1.0_x64.msix) | Unsigned Store ingestion package; not a direct sideload installer. Microsoft signs Store distribution. |
+| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.1.exe) | Direct installer; unsigned. Verify the release SHA-256. |
 | Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Verify the version available in the Store; GitHub publication does not imply Store certification. |
 
 [Cumulative release notes since v1.6](docs/RELEASE_NOTES_1_7.md) ·
@@ -30,6 +30,8 @@ current FFmpeg patch. Linux is archived; this release updates Windows only.
 
 - Select a rectangular screen area and record H.264 video in an MKV container.
 - Capture computer sound, microphone audio, both, or neither, with source controls available during recording.
+- Select a microphone or follow the Windows default, and retain the choice for the take.
+- Enable **Keycast** to show keys, shortcuts, mouse clicks and scroll feedback inside the recording. Review the privacy warning before displaying sensitive typing.
 - Pause and resume within the same recording; stop to save or explicitly discard the session.
 - Keep a visible recording state through floating controls and the desktop dock.
 - Preserve temporary media when final processing fails, with feedback about the failure.
@@ -44,7 +46,7 @@ current FFmpeg patch. Linux is archived; this release updates Windows only.
 ### Playback and quick video edits
 
 - Play recordings with seeking, playback speed, volume, fullscreen controls, and still-frame capture.
-- Trim the beginning/end, remove sections, and add timed text overlays.
+- Trim the beginning/end, remove sections, add timed text overlays and mute multiple selected audio sections.
 - Include or remove sound from an exported video. The **Export Audio** switch controls sound inclusion; it is not an audio-only file exporter.
 - Use **Save As** to keep the original, or explicitly save a completed replacement.
 
@@ -128,9 +130,10 @@ See the [engineering overview](https://akasumitlamba.github.io/WWRecorder/specs.
 
 ## Source and development
 
-This public repository contains the website, downloads, and published application source files. **Its current source snapshot is not a complete checkout of the latest development build.** The root source still reports 1.6.3, while the 1.7.0 Store package is published separately under `downloads/1.7`.
-
-Some runtime modules, dependency manifests, tests, and current packaging scripts are not present here. Cloning this repository alone is therefore not a supported way to run or rebuild 1.7.0. Use the published installers to try the application. This README does not imply that package uploads also updated all public source files.
+This repository contains the current Windows application source, tests, dependency
+locks, build definitions and website. Shared runtime source is in `app/`;
+packaging is in `packaging/` and `scripts/`. Historical Linux work is archived
+separately and is not updated by this Windows release.
 
 ## Privacy and file safety
 
@@ -162,7 +165,7 @@ The maintained Windows application source is under `app/`. Install `requirements
 
 See [architecture](docs/AI_CONTEXT.md), [QA and manual checks](docs/QA_AUDIT.md), [project guide](docs/project.md) and [EXE/MSIX build contract](docs/DISTRIBUTION.md). Windows packaging requires PyInstaller, Inno Setup, Windows SDK tools and a trusted FFmpeg executable for the shared bundle. Run `scripts/build-distributions.ps1 -Format Both`.
 
-The current test installers remain on the [existing microphone preview prerelease](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.0-microphone-preview.1). These local-test packages are not a production Store submission.
+The current stable installer is on [WWRecorder v1.7.1](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1). Use Microsoft Store for Store-managed installation.
 
 For development and regression tests on Windows, install `requirements-dev.txt` (includes runtime dependencies, pytest and PyInstaller).
 
@@ -174,4 +177,4 @@ runs all regression/E2E modules sequentially and opens the HTML report. Reports
 are saved to `artifacts/windows_e2e/` as HTML, JSON, Markdown and JUnit XML. Tests
 supply their own expected dialog responses; unexpected dialogs fail instead of
 waiting for input. Native desktop cases skipped in headless CI run automatically
-on a normal Windows desktop. Current preview package revision is **1.7.0.12**.
+on a normal Windows desktop. Current Windows installer revision is **1.7.1.1**.

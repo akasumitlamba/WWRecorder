@@ -2,10 +2,10 @@
 import os
 import sys
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QPixmap, QBitmap, QRegion
+from PyQt6.QtGui import QPixmap, QBitmap, QRegion, QGuiApplication
 
 ALIASES = {
-    've_play': 'play', 've_pause': 'pause', 've_close': 'close',
+    'screenshot': 've_screenshot', 've_play': 'play', 've_pause': 'pause', 've_close': 'close',
     've_delete': 'clear_all', 'delete': 'clear_all', 'copy': 'copyicon',
     've_save': 'save', 'panel-reset': 'reset', 'panel-share': 'share',
     'panel-power': 'power', 'panel-search': 'search',
@@ -46,4 +46,7 @@ def wordmark_pixmap(height):
     mask = QBitmap.fromImage(image.createAlphaMask())
     bounds = QRegion(mask).boundingRect()
     if not bounds.isEmpty(): image = image.copy(bounds)
-    return QPixmap.fromImage(image).scaledToHeight(height, Qt.TransformationMode.SmoothTransformation)
+    ratio = max([2.] + [screen.devicePixelRatio() for screen in QGuiApplication.screens()])
+    pixmap = QPixmap.fromImage(image).scaledToHeight(round(height * ratio), Qt.TransformationMode.SmoothTransformation)
+    pixmap.setDevicePixelRatio(ratio)
+    return pixmap

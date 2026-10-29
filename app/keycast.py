@@ -608,6 +608,7 @@ class InputSession:
             if self.factory is None:
                 from pynput import keyboard, mouse
 
+                from keycast_touchpad import WindowsTouchpadListener
                 factory = lambda **kw: (
                     keyboard.Listener(on_press=kw["press"], on_release=kw["release"],
                                       win32_event_filter=kw["keyboard_filter"]),
@@ -616,7 +617,7 @@ class InputSession:
                         on_scroll=kw["scroll"],
                         win32_event_filter=kw["wheel_filter"],
                     ),
-                )
+                ) + ((WindowsTouchpadListener(kw["touchpad_scroll"]),) if sys.platform == "win32" else ())
             else:
                 factory = self.factory
 
@@ -704,6 +705,7 @@ class InputSession:
                     release=release,
                     click=click,
                     scroll=scroll,
+                    touchpad_scroll=lambda kind,x,y,at:self._put(("mouse",kind,x,y,at)),
                     wheel_filter=wheel_filter,
                     keyboard_filter=keyboard_filter,
                 )

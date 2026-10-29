@@ -152,5 +152,5 @@ def test_header_brand_and_label_are_compact_only_on_vertical(app, tmp_path, edge
     if titles: assert '24px' in titles[0].styleSheet()
     height = 24 if edge in ('top', 'bottom') else 18
     brand = next(label for label in labels if not label.pixmap().isNull())
-    assert brand.pixmap().height() == height
+    assert brand.pixmap().deviceIndependentSize().height() == height
     panel.close()

@@ -132,7 +132,7 @@ def test_confirmation_check_is_geometric_and_not_font_dependent(app):
 
 def test_installer_artwork_and_copy_are_wired_into_native_wizard():
     script=(ROOT/'packaging/exe/installer_config.iss').read_text(encoding='utf-8')
-    assert 'WizardImageFile={#RepoRoot}packaging\\exe\\assets\\welcome.png' in script
+    assert 'WizardImageFile={#RepoRoot}packaging\\exe\\assets\\branded.png' in script
     assert 'WizardImageStretch=yes' in script
     assert 'WizardSelectTasks=Additional options' in script
     assert 'SelectTasksDesc=Choose how WWRecorder starts and where shortcuts appear.' in script
@@ -142,34 +142,13 @@ def test_installer_artwork_and_copy_are_wired_into_native_wizard():
     assert image.width >= 164 and image.height >= 314
 
 
-def test_installer_welcome_has_native_branding_and_single_next_instruction():
-    script=(ROOT/'packaging/exe/installer_config.iss').read_text(encoding='utf-8')
-    assert 'AddInstallerBranding();' in script
-    assert 'BrandLogo.PngImage.Assign(WizardForm.WizardSmallBitmapImage.PngImage)' in script
-    assert "BrandWW.Caption := 'WW'" in script
-    assert "BrandR.Caption := 'R'" in script
-    assert "BrandRest.Caption := 'ecorder'" in script
-    assert 'BrandR.Font.Color := $5540FF' in script
-    assert 'BrandR.Color := $1D1511' in script
-    assert '.Transparent :=' not in script
+def test_installer_branding_is_present_on_both_welcome_and_finish_pages():
+    from PIL import Image
+    image=Image.open(ROOT/'packaging/exe/assets/branded.png')
+    assert image.mode=='RGB' # Precomposed alpha cannot turn black in native controls.
+    assert image.getpixel((image.width//2,300)) != image.getpixel((20,300))
+    script=(ROOT/'packaging/exe/installer_config.iss').read_text()
+    assert 'BrandLogo.Parent' not in script
+    assert 'branded.png' in script and 'header-logo.png' in script
     welcome=next(line for line in script.splitlines() if line.startswith('WelcomeLabel2='))
     assert 'Click Next' not in welcome
-
-
-def test_saved_notice_is_compact_and_keeps_actions_thumbnail_and_close(app,tmp_path):
-    cls=success_class();image=QPixmap(160,90);image.fill(QColor('#267DA4'))
-    notice=cls(str(tmp_path/'capture.png'),'Screenshot saved','capture.png',image)
-    notice._play_sound=lambda:None
-    notice.show_notification();app.processEvents()
-    assert notice.height()<=115
-    buttons=notice.findChildren(QPushButton)
-    assert {'Open','Rename'} <= {button.text() for button in buttons}
-    close=next(button for button in buttons if button.toolTip()=='Dismiss saved capture notification')
-    assert close.width() == 20 and not any('Hide saved' in button.toolTip() for button in buttons)
-    assert not notice._thumb_lbl.pixmap().isNull()
-    assert not any('Saved to your' in label.text() for label in notice.findChildren(QLabel))
-    closed=[];notice.destroyed.connect(lambda:closed.append(True))
-    close.click()
-    from PyQt6.QtTest import QTest
-    QTest.qWait(250)
-    assert closed

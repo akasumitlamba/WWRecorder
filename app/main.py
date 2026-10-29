@@ -97,6 +97,28 @@ def _screen_for_anchor(anchor: QPoint | None):
     return (QApplication.screenAt(anchor) if anchor is not None else None) or QApplication.primaryScreen()
 
 
+class _InstallerBridge(QWidget):
+    """A same-session native close request goes through the normal safe Quit path."""
+    shutdown_requested = pyqtSignal()
+    def __init__(self):
+        super().__init__(None, Qt.WindowType.Tool)
+        self.setWindowTitle('WWRecorder Update Bridge')
+        self.winId()  # Hidden top-level HWND is discoverable by Setup.
+
+    def nativeEvent(self, event_type, message):
+        if sys.platform == 'win32':
+            import ctypes
+            from ctypes import wintypes
+            native = wintypes.MSG.from_address(int(message))
+            if native.message == 0x8047:
+                self.shutdown_requested.emit()
+                return True, 0
+        # Explicitly pass unhandled messages back to Qt. Calling the PyQt base
+        # nativeEvent trampoline while winId() creates this hidden HWND crashes
+        # in the Windows backend; no QWidget-specific handling is needed here.
+        return False, 0
+
+
 def _acquire_single_instance_mutex(kernel32=None):
     """Return (handle, already_running) without requiring elevation."""
     if sys.platform != 'win32' and kernel32 is None:
@@ -701,6 +723,8 @@ class WWRecorderApp:
         from distribution import application_icon_path
         self.app.setWindowIcon(QIcon(application_icon_path()))
         self.app.setQuitOnLastWindowClosed(False)
+        self._installer_bridge = _InstallerBridge()
+        self._installer_bridge.shutdown_requested.connect(lambda: QTimer.singleShot(0, self._quit))
 
         from PyQt6.QtGui import QFont
         self.app.setFont(QFont("Segoe UI", 10))

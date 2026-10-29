@@ -454,6 +454,8 @@ class CaptureBorderWidget(QWidget):
         _exclude_from_capture(int(self.winId()))
 
     def _enforce_topmost(self):
+        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+            return
         if self.isVisible() and _user32:
             HWND_TOPMOST = -1
             SWP_NOSIZE = 0x0001
@@ -719,6 +721,8 @@ class PillWidget(QWidget):
         _exclude_from_capture(int(self.winId()))
 
     def _enforce_topmost(self):
+        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+            return
         # Raising the owner above its active popup hides the microphone choices
         # on Windows. Let the popup own the topmost position until it closes.
         menu = getattr(self, '_mic_menu', None)
@@ -941,6 +945,14 @@ class PillWidget(QWidget):
             "Keycast off — show keys and mouse clicks in the recording")
         self._sync_keycast()
 
+    def _center_capture_dialog(self, box):
+        box.adjustSize()
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen:
+            box.move(screen.availableGeometry().center() - box.rect().center())
+        box.raise_()
+        box.activateWindow()
+
     def _request_keycast_consent(self):
         if self._keycast_warning is not None:
             self._keycast_warning.raise_()
@@ -948,10 +960,12 @@ class PillWidget(QWidget):
         box = QMessageBox(self)
         box.setWindowTitle('Before enabling Keycast')
         box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-        box.setText('Your keystrokes may be visible in the recording.')
-        box.setInformativeText('This includes passwords, private text, and typing outside the selected '
-                               'recording area. Anyone who watches or receives the recording may see '
-                               'that input. Enable Keycast only when it is appropriate to show your typing.')
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setText('Show keys and clicks in your recording?')
+        box.setInformativeText('Keycast helps viewers follow your typing and mouse actions.\n\n'
+                               'Passwords, private text and typing in other windows can also appear '
+                               'in the video. Turn Keycast off before entering sensitive information.\n\n'
+                               'This warning is about what viewers of the recording can see.')
         remember = QCheckBox("Don't show this again", box)
         box.setCheckBox(remember)
         enable = box.addButton('Enable Keycast', QMessageBox.ButtonRole.AcceptRole)
@@ -971,6 +985,7 @@ class PillWidget(QWidget):
 
         box.finished.connect(completed)
         box.open()
+        self._center_capture_dialog(box)
         _exclude_from_capture(int(box.winId()))
 
     def _sync_keycast(self):
@@ -1265,6 +1280,9 @@ class PillWidget(QWidget):
         # Never call QMessageBox.exec() from closeEvent / teardown — nested
         # modal loops on the GUI thread deadlock or freeze Windows shutdown.
         if confirm and not self._pre_record:
+            if getattr(self, '_discard_dialog', None) is not None:
+                self._discard_dialog.raise_()
+                return
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.Warning)
             box.setWindowTitle("Discard Recording?")
@@ -1275,10 +1293,19 @@ class PillWidget(QWidget):
             )
             box.setDefaultButton(QMessageBox.StandardButton.Cancel)
             box.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
-            box.show()
+            self._discard_dialog = box
+            def completed(_result):
+                self._discard_dialog = None
+                discard = box.standardButton(box.clickedButton()) == QMessageBox.StandardButton.Discard
+                box.deleteLater()
+                if discard and not self._stopping:
+                    self._initiate_discard(confirm=False)
+            box.finished.connect(completed)
+            box.setWindowModality(Qt.WindowModality.ApplicationModal)
+            box.open()
+            self._center_capture_dialog(box)
             _exclude_from_capture(int(box.winId()))
-            if box.exec() != QMessageBox.StandardButton.Discard:
-                return
+            return
         self._stopping = True
         self._keycast.stop()
         if hasattr(self, '_tick'): self._tick.stop()

@@ -485,12 +485,16 @@ def get_tool_cursor(tool: str, color: QColor, thickness: str = 'normal') -> QCur
 
 def _paint_laser_path(p, path, color, width, opacity):
     p.setBrush(Qt.BrushStyle.NoBrush)
-    for extra, alpha in ((6, 0.025), (4, 0.045), (2, 0.10), (0, 0.95)):
+    for extra, alpha in ((12, .035), (10, .05), (8, .075), (6, .12), (4, .20), (2, .38), (0, .95)):
         tint = QColor(color)
         tint.setAlphaF(max(0.0, min(1.0, opacity * alpha)))
         p.setPen(QPen(tint, max(2.0, width * 0.8) + extra,
                       Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         p.drawPath(path)
+    core = QColor(color).lighter(180)
+    core.setAlphaF(max(0., min(1., opacity * .9)))
+    p.setPen(QPen(core, max(1., width * .28), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+    p.drawPath(path)
 
 
 def draw_annotation_item(p: QPainter, item: dict):
