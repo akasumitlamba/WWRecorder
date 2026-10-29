@@ -1,151 +1,53 @@
-# WWRecorder v1.7.1 — changes since v1.6
+# WWRecorder 1.7.1
 
-This is the cumulative 1.7 family changelog relative to the published v1.6
-(1.6.3) release. This release includes the features, interface improvements and fixes below.
+Changes since v1.6 (installer 1.6.3), including Windows installer revision 1.7.1.1.
+
+## Security update — update older installations
+
+This release addresses **CVE-2026-8461** in FFmpeg's MagicYUV decoder. A specially crafted video can crash an application or, in some circumstances, run malicious code when decoded by vulnerable libraries. Both recording/export (FFmpeg 9.0.2) and playback (FFmpeg 9.0.1 through Qt 6.12.0) components are updated.
+
+Versions before 1.7.1 do not include this security update. Install the EXE attached to this release before opening untrusted videos. Store users should check Microsoft Store for updates and review their installed version.
+
+References: [FFmpeg security advisories](https://ffmpeg.org/security.html), [Ubuntu CVE notice](https://ubuntu.com/security/CVE-2026-8461).
 
 ## New features
 
-- Choose a real microphone from the recording pill, or use **Same as Windows**.
-  Remember the choice, report an unavailable device by name, and keep a named
-  microphone selected throughout a take. USB/Bluetooth microphone capture uses
-  native device formats and avoids Windows SoundCard's broken mono path.
-- **Keycast**, an optional recording control, displays recent keys and shortcuts
-  inside the capture and mouse-button/scroll feedback near the pointer. It
-  preserves letter case, groups modifier chords, handles Windows/media/function
-  keys, and observes two-finger precision-touchpad scrolling through passive
-  HID input as well as ordinary mouse-wheel events. Feedback fades and adapts
-  to narrow areas. Hardware Fn keys without Windows events cannot be observed.
-- Position the dock on any screen edge. Top/bottom panels use a horizontal
-  gallery and two-column Settings; left/right retain a vertical panel. Expanded
-  dock actions remain accessible alongside the panel. Optionally hide the panel
-  while dragging files.
-- Add multiple independent audio-mute sections in the editor. Yellow timeline
-  bands, fields and mute indicators stay synchronized; preview and exported
-  audio respect the sections together with trim/delete operations.
-- Shared Windows application available as both EXE and full-trust MSIX, with
-  equivalent recording, screenshots, annotation, playback and editing features.
-  Install/update/startup/storage integrations follow each distribution model.
+- Choose a microphone or follow the Windows default; keep that choice throughout a take.
+- Show keys, shortcuts, mouse clicks and scroll feedback with optional Keycast. Its activation warning explains that passwords and typing outside the recording area may be visible. Keycast does not mask passwords.
+- Administrators can disable Keycast or automatic clipboard copying using `DisableKeycast` and `DisableAutomaticClipboard`, introduced in 1.7.1. [Policy instructions](https://akasumitlamba.github.io/WWRecorder/enterprise.html#managed-controls).
+- Place the dock on any screen edge.
+- Mute multiple sections of a video alongside trimming, cuts and timed captions.
+- Windows EXE and Microsoft Store editions provide the same recording and editing features.
 
-## Interface and usability
+## Interface improvements
 
-- Refreshed recording pill, microphone split button, menus, settings controls,
-  dock, gallery, annotation/player/editor artwork and Windows application icon.
-  Settings moves off the pill; Annotate remains alongside Keycast and audio.
-- Compact, responsive gallery cards retain thumbnail, name, size and actions.
-  Search and Explorer sit beside Settings; internal Gallery navigation remains
-  distinct from opening Windows File Explorer. Context action is Open in Editor.
-- Settings groups Dock & Appearance, Capture & Output, Shortcuts, Audio Defaults
-  and Advanced settings meaningfully. Changes apply on Save. Horizontal footer
-  puts secondary actions left and Save right. Vertical Advanced can scroll with
-  comfortable spacing; vertical branding is compact.
-- Cleaner player controls, centered Play/Pause, compact speedometer rate selector,
-  stable speaker geometry with three volume arcs, and filename in the native
-  title only. Editor uses Trim/Delete/Text/Audio sections and explicit Save/Save
-  As/Cancel while retaining the functional multi-lane timeline.
-- Modern compact Processing/Saved/feedback notifications replace the cat GIF;
-  keep capture thumbnail, filename, status and useful actions with one small
-  dismiss control. Processing explicitly says Compressing video and audio and
-  stays responsive while work continues. Saved media is available in Recent Files.
-- Branded dark Windows installer with corrected checkbox spacing, welcome art,
-  app logo and wordmark. Clear annotations uses a readable brush; Delete keeps
-  its trash icon. Eraser and arrow tools use a plain crosshair cursor.
+- Refreshed recording, playback, editing and annotation controls.
+- Compact Recent Files cards, clearer file actions and reorganized Settings.
+- Smaller processing and saved notifications with thumbnails and useful actions.
+- Annotation controls fit more screen sizes.
+- Updated Windows installer artwork and icons.
 
-## Capture and editing fixes
+## Fixes
 
-- Preserved audio/video event timing during uneven capture load by holding the
-  previous screen in missed frame slots, rather than stretching the entire video.
-- Restored the original dots-and-lines dock handle; added visible blue thumbnail
-  play indicators, camera screenshot artwork and crisp high-DPI header branding.
-- Centered discard confirmations and kept them above recording controls; clarified
-  the Keycast recording-visibility warning with explicit Enable and Cancel actions.
-- Repaired installer/application Windows icons and retained welcome branding on
-  the completion page. Updating requests a normal, media-safe application quit.
-  Older installed builds without this integration may need to be quit once manually.
+- Fixed audio/video timing during uneven capture load by holding the previous screen image during missed frame slots.
+- Fixed microphone selection changing unexpectedly, unavailable-device feedback and some USB/Bluetooth recording failures.
+- Fixed recording-area movement, selection outlines and click-through controls.
+- Fixed dock position changes after settings refreshes or interrupted drags.
+- Fixed annotation text placement, erasing when zoomed, lingering drawings and laser rendering.
+- Fixed trim summaries and movement of trim, cut, caption and mute sections.
+- Fixed slow timeline previews and missing final playback frames.
+- Fixed deleted captions remaining visible and paused caption edits not updating.
+- Fixed failed saves losing recovery files and overlapping actions affecting another recording.
+- Fixed startup failures on some Windows installations.
+- Fixed rename failures losing edits, and exports failing on odd-sized videos.
+- Fixed installer shutdown handling. Quit older running versions manually once before updating if prompted.
 
-- Improved text/detail recording quality and preserved native lossless PNG
-  screenshots. Avoided redundant capture-frame copies.
-- Fixed recording-area movement before Start, click-through interactions,
-  inconsistent selection handles and outline visibility; use thin visible red
-  indicators without a dark selected-area surround.
-- Fixed microphone menu ownership/topmost behavior, explicit-device failures,
-  mono/left-channel handling and automatic default-device switching overriding
-  the chosen microphone. Bluetooth hands-free quality changes remain controlled
-  by Windows and are explained as a hint.
-- Fixed dock position drift after stale settings refreshes, interrupted gestures,
-  work-area changes and panel transitions. Stop artwork updates during recording.
-- Fixed annotation text caret/commit alignment, zoomed eraser hit testing, huge
-  highlighter erasing, stale translucent drawing backing and laser rendering.
-- Fixed trim summary clicks resetting the range and stale numeric summaries.
-  Unified trim/delete/text/mute snapping, duration-preserving region movement,
-  zoom-dependent precision and Alt bypass.
-- Fixed continuous seekbar preview starvation and retained the final video frame
-  at end of playback. Source switches clear old frame state.
-- Fixed caption Edit/Delete controls scaling with text, deleted captions leaving
-  preview remnants, and paused caption-time changes not updating visibility.
-- Fixed lingering button outlines, inconsistent dropdowns, multiple gallery menu
-  highlights and screenshot-editor controls wrapping into separate rows.
-- Preserved asynchronous recording finalization on pill closure, bounded worker
-  shutdown, safe temporary media on failure and export/source protection.
-- Repaired incomplete packaged Qt dependencies that caused startup failures;
-  validate native Qt files and frozen startup before either installer is built.
+## Installation
 
-- Kept preview speaker mute independent from Export Audio; disabled audio tracks
-  no longer open capture devices, and microphone recovery is reported only after
-  the device actually starts successfully.
-- Made file rename retries asynchronous and single-flight, retained edit state
-  across failures, and improved audio/export errors without discarding useful
-  diagnostics. Odd-sized source videos export safely with minimal even padding.
-- Serialized prepare/stop/mux/discard ownership, preserved recovery media when
-  workers cannot stop, and guarded cleanup against later recording sessions.
-- Preserved focused-text Escape cancellation in live and screenshot annotation.
+Download `WWRecorder_Setup_1.7.1.1.exe` and compare its SHA-256 with the attached checksum. The standalone EXE is unsigned.
 
-## Additional security and compact-layout improvements
+Microsoft Store installs update through the Store; the standalone EXE updates from GitHub. This release is currently labeled prerelease on GitHub. Store users can check the [Store listing](https://apps.microsoft.com/detail/9PBS5VDWFXND) for their available version.
 
-- Patched the standalone FFmpeg encoder and Qt's independent playback libraries;
-  build gates verify approved native binaries and locked dependencies.
-- Keycast retains full typing and adds a warning that input, including passwords
-  and typing outside the capture area, may be visible in the recording. Users
-  can remember their acknowledgement. Optional IT policy can disable Keycast or
-  automatic clipboard copying without changing ordinary users' defaults.
-- Added stalled-export supervision, bounded diagnostics, safer uninstall behavior
-  and release component inventories/provenance. Original recordings remain safe.
-- Saved notifications use one small dismiss action, retain thumbnails/actions and
-  identify Recent Files. Processing explicitly mentions video/audio compression.
-- Vertical panel headers no longer crowd section labels against the wordmark;
-  horizontal panels retain Recent Files/Settings headings. The compact dock uses
-  the original dots-and-lines handle with its recording and discovery feedback.
-- Annotation strips retain responsive controls but cap length and thickness on
-  ultrawide displays, including the Close control.
+SHA-256: `0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd`
 
-## Testing and distribution
-
-- Expanded behavior-based Qt, state-machine, real FFmpeg export/decoder,
-  capture/audio, settings, geometry, icon and packaging regressions.
-- Windows one-click test entrypoint runs unattended and generates HTML, JSON,
-  Markdown and JUnit reports. No test-time user input is required.
-- EXE and MSIX build from one validated sanitized payload. EXE uses the official
-  GitHub update channel; MSIX does not query or launch the EXE updater.
-- Download the Windows installer from this release, or use Microsoft Store for
-  Store-managed installation and updates. The direct-download EXE remains
-  unsigned; check the version available in your chosen distribution channel.
-
-
-## Website and enterprise information
-
-- Published For enterprise guidance with administrator policies for Keycast and
-  automatic clipboard, data handling, recovery, deployment and update integrity.
-- Privacy policy covers recording visibility, EXE/MSIX storage and network
-  behavior, clipboard exposure, diagnostics and website requests.
-- A dismissible site notice links to the FFmpeg-patched 1.7.1 release.
-
-## Automated validation
-
-- Windows: 1,177 passed, three desktop-only cases skipped in offscreen CI.
-- Portable application suite: 999 passed, 33 Windows-only cases skipped.
-- Website: eight navigation/policy tests and nine real desktop/mobile browser
-  checks passed, including dismissal, blocked storage, release lookup failure,
-  exact installer selection and fingerprint feedback.
-- Required compilation, unattended bootstrap/report generation, frozen Qt/startup,
-  dependency/native-media integrity and EXE/MSIX packaging gates passed.
-- Physical hardware, installed-desktop acceptance and Store certification/delivery
-  remain separate from these automated checks.
+[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/87ef8f48eda24ee5844a6c0701b5061e90ba7896). The release tag identifies the original release source; this installer revision uses the linked source.
