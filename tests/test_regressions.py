@@ -292,10 +292,15 @@ def test_annotation_toolbar_keeps_readable_icons_and_action_tooltips(app):
     pill._screen_geometry = lambda point=None: QRect(0, 0, 1920, 1040)
     pill._apply_orientation("horizontal")
 
-    assert pill._tool_btns["pencil"].iconSize().width() == 29
+    # Density is bounded on wide screens instead of growing with monitor width.
+    pencil = pill._tool_btns["pencil"]
+    assert 20 <= pencil.width() <= 36
+    assert pencil.iconSize().width() == max(16, round(pencil.width() * 0.72))
+    assert pill.width() <= 720
+    assert 28 <= pill.height() <= 44
     assert not pill._tool_btns["laser"].icon().isNull()
     assert "transient" in pill._tool_btns["laser"].toolTip().lower()
-    assert pill._btn_pin.width() == 40
+    assert pill._btn_pin.width() == pencil.width()
     assert "Pause annotation" in pill._btn_pause.toolTip()
     assert pill._btn_clear.toolTip() == "Clear all annotations"
     assert "Undo" in pill._btn_undo.toolTip()
@@ -556,7 +561,7 @@ def test_engine_runtime_audio_errors_are_delivered_once():
     assert engine.drain_runtime_events() == []
 
 
-def test_audio_disconnect_event_is_shown_to_user(monkeypatch):
+def test_audio_error_event_is_shown_without_assuming_disconnection(monkeypatch):
     class Engine:
         def drain_runtime_events(self):
             return [('audio_error', 'Microphone failed — USB microphone. Recording continues without this microphone.')]
@@ -568,7 +573,7 @@ def test_audio_disconnect_event_is_shown_to_user(monkeypatch):
     owner.engine = Engine(); owner.tray = Tray()
     WWRecorderApp._poll_engine_events(owner)
     assert len(owner.tray.messages) == 1
-    assert owner.tray.messages[0][0] == 'Audio device disconnected'
+    assert owner.tray.messages[0][0] == 'Audio capture issue'
     assert 'USB microphone' in owner.tray.messages[0][1]
 
 

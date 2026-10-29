@@ -116,7 +116,7 @@ def test_packaged_update_checker_delegates_store_without_network(updater, monkey
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, *_args):
             return json.dumps(payload).encode()
 
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: pytest.fail("MSIX queried GitHub"))

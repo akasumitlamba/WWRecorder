@@ -280,7 +280,13 @@ def _audio_filter_graph(has_sys: bool, has_mic: bool) -> str:
 def get_ffmpeg_path():
     base = os.path.dirname(os.path.abspath(__file__))
     ffmpeg = os.path.join(base, "ffmpeg.exe")
-    return ffmpeg if os.path.isfile(ffmpeg) else "ffmpeg"
+    if os.path.isfile(ffmpeg):
+        return ffmpeg
+    if sys.platform == 'win32':
+        raise FileNotFoundError('The verified video tool is missing. Repair WWRecorder or run '
+                                'python scripts/prepare_media_runtime.py for a source checkout.')
+    return "ffmpeg"  # Portable test host only; Windows never searches PATH/CWD.
+
 
 
 def _unique_media_path(folder: str, prefix: str, suffix: str) -> str:
@@ -557,6 +563,38 @@ class _MicNoiseProcessor:
         return data
 
 
+class _StartedAudioRecorder:
+    """Open before reporting success; keep exactly one owner of client shutdown."""
+    def __init__(self, context):
+        self._context = context
+        self.channelmap = getattr(context, 'channelmap', [0, 1])
+        self._closed = False
+        self._stream = context.__enter__()
+
+    def __enter__(self):
+        return self._stream
+
+    def __exit__(self, *args):
+        if not self._closed:
+            self._closed = True
+            return self._context.__exit__(*args)
+
+    def close(self):
+        self.__exit__(None, None, None)
+
+
+def _serialized_finalization(method):
+    from functools import wraps
+    @wraps(method)
+    def guarded(self, *args, **kwargs):
+        lock = getattr(self, '_finalization_lock', None)
+        if lock is None:
+            lock = self._finalization_lock = threading.RLock()
+        with lock:
+            return method(self, *args, **kwargs)
+    return guarded
+
+
 class RecordingEngine:
     def __init__(self):
         self._state_lock = threading.RLock()
@@ -601,6 +639,9 @@ class RecordingEngine:
         # removed a second time during final muxing.
         self._capture_mode = "raw_frames_pause_omitted"
         self._runtime_events: queue.Queue = queue.Queue()
+        self._finalization_lock = threading.RLock()
+        self._session_generation = 0
+        self._audio_writer_threads = {}
         self._sys_audio_discontinuities = 0
         self._mic_audio_discontinuities = 0
 
@@ -669,6 +710,17 @@ class RecordingEngine:
             except queue.Empty:
                 return events
 
+    def _active_elapsed(self, now=None):
+        now = time.perf_counter() if now is None else now
+        with self._state_lock:
+            start = self._capture_clock_start
+            if start is None:
+                return 0.0
+            paused = sum(max(0.0, end - begin) for begin, end in self._pause_intervals)
+            if self._pause_started_at is not None:
+                paused += max(0.0, now - self._pause_started_at)
+            return max(0.0, now - start - paused)
+
     def get_mic(self) -> bool:
         return self._mic_audio_enabled
 
@@ -717,25 +769,27 @@ class RecordingEngine:
             raise RuntimeError("The screenshot could not be written to disk.")
         return out_path
 
+    @_serialized_finalization
     def prepare(self, region, output_folder, audio_config=None):
         """
         Background initialization: Finds FFmpeg, opens audio streams,
-        and starts threads in a PAUSED state. This eliminates lag when 
+        and starts threads in a PAUSED state. This eliminates lag when
         the user finally clicks 'Start'.
         """
         with self._state_lock:
             if self._running or self._preparing or self._finalizing:
                 return False
             self._preparing = True
+            self._session_generation = getattr(self, '_session_generation', 0) + 1
             self._last_error = ""
             self._mic_fallback = False
             self._microphone_failed = False
 
         if audio_config:
-            self._sys_audio_enabled = audio_config.get("system_audio", True)
+            self._sys_audio_enabled = audio_config.get("system_audio", False)
             self._mic_audio_enabled = audio_config.get("mic", False)
 
-        # ✅ FORCE EVEN DIMENSIONS 
+        # ✅ FORCE EVEN DIMENSIONS
         w = int(region.get("width", 0))
         h = int(region.get("height", 0))
         if w < 32 or h < 32:
@@ -800,7 +854,7 @@ class RecordingEngine:
             self._mic_audio_discontinuities = 0
             self._sys_audio_ready.clear()
             self._mic_audio_ready.clear()
-        
+
         try:
             temp_dir = _recording_temp_dir(output_folder)
         except Exception as e:
@@ -888,7 +942,8 @@ class RecordingEngine:
         for label, ready_event in (
             ("System", self._sys_audio_ready), ("Mic", self._mic_audio_ready)
         ):
-            if not ready_event.wait(timeout=3.0):
+            enabled = self._sys_audio_enabled if label == 'System' else self._mic_audio_enabled
+            if enabled and not ready_event.wait(timeout=3.0):
                 print(f"[WWRecorder] {label} audio did not become ready before recording start")
 
         self._prepared = True
@@ -902,7 +957,7 @@ class RecordingEngine:
         # Always start clean — discard any stale pre-warm or prior state
         if self.is_recording() or self.is_prewarming():
             self.discard()
-            
+
         if not self.prepare(region, output_folder, audio_config):
             return False
         with self._state_lock:
@@ -910,8 +965,9 @@ class RecordingEngine:
         self.resume()
         return True
 
+    @_serialized_finalization
     def stop_capture(self):
-        """Phase 1: Stop all capture threads and close FFmpeg pipe. Fast — safe to call from UI."""
+        """Phase 1: stop capture clients on an owned worker, never the GUI thread."""
         stopped_at = time.perf_counter()
         with self._state_lock:
             if not self._running:
@@ -978,9 +1034,12 @@ class RecordingEngine:
             except Exception as kill_err:
                 print(f"[WWRecorder] Forced FFmpeg kill failed: {kill_err}")
 
-        if not frame_thread_stopped or not audio_threads_stopped:
+        audio_threads_stopped = audio_threads_stopped and not any(
+            worker.is_alive() for worker in tuple(getattr(self, '_audio_writer_threads', {}).values()))
+        process_stopped = self._ffmpeg_proc is None or self._ffmpeg_proc.poll() is not None
+        if not frame_thread_stopped or not audio_threads_stopped or not process_stopped:
             with self._state_lock:
-                self._finalizing = False
+                self._finalizing = True  # Preserve session ownership until all writers exit.
             raise RuntimeError(
                 "Capture workers did not stop safely. Recovery files were preserved."
             )
@@ -1004,6 +1063,7 @@ class RecordingEngine:
                 f"{effective_fps:.2f} captured fps"
             )
 
+    @_serialized_finalization
     def mux_and_save(self) -> str:
         """Phase 2: Mux audio+video into final compressed file.
 
@@ -1126,58 +1186,34 @@ class RecordingEngine:
         self.stop_capture()
         return self.mux_and_save()
 
-    def discard(self):
-        with self._state_lock:
-            if not self._running:
-                return "<DISCARDED>"
-            self._running = False
-            self._is_prewarming = False
-            self._preparing = False
-            self._pause_event.set()
-
-        if self._frame_thread:
-            self._frame_thread.join(timeout=THREAD_JOIN_TIMEOUT)
-            if self._frame_thread.is_alive():
-                print("[WWRecorder] Frame thread did not stop cleanly during discard.")
-        
-        if self._sys_thread:
-            self._sys_thread.join(timeout=2)
-            
-        if self._mic_thread:
-            self._mic_thread.join(timeout=2)
-
-        try:
-            if self._ffmpeg_proc:
-                if self._ffmpeg_proc.stdin:
-                    self._ffmpeg_proc.stdin.close()
-                try:
-                    self._ffmpeg_proc.wait(timeout=3)
-                except subprocess.TimeoutExpired:
-                    pass
-                # Always kill on discard - we don't need the output
-                try:
-                    self._ffmpeg_proc.kill()
-                    self._ffmpeg_proc.wait(timeout=2)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[WWRecorder] Discard failed: {e}")
+    @_serialized_finalization
+    def discard(self, expected_generation=None):
+        """Delete only after all session writers and the encoder have stopped."""
+        if expected_generation is not None and expected_generation != self._session_generation:
+            return '<DISCARDED>'  # A late cleanup must never stop a newer take.
+        if self._running:
             try:
-                if self._ffmpeg_proc:
-                    self._ffmpeg_proc.kill()
-            except Exception as kill_err:
-                print(f"[WWRecorder] Forced FFmpeg kill failed: {kill_err}")
-
-        # Cleanup temporary files
-        for p in [self._temp_vid_path, self._sys_wav_path, self._mic_wav_path]:
-            if p:
-                _remove_file_later(p)
-
+                self.stop_capture()
+            except Exception as exc:
+                self._last_error = str(exc)
+        workers = [self._frame_thread, self._sys_thread, self._mic_thread]
+        workers += list(getattr(self, '_audio_writer_threads', {}).values())
+        busy = any(worker is not None and worker.is_alive() for worker in workers)
+        proc = self._ffmpeg_proc
+        busy = busy or (proc is not None and proc.poll() is None)
+        if busy:
+            self._last_error = 'Capture workers are still stopping. Temporary media was preserved; restart the app before another take.'
+            with self._state_lock:
+                self._finalizing = True  # Never reuse paths still owned by a writer.
+            self._report_runtime_event('capture_error', self._last_error)
+            return False
+        for path in (self._temp_vid_path, self._sys_wav_path, self._mic_wav_path):
+            if path:
+                _remove_file_later(path)
         with self._state_lock:
-            self._is_prewarming = False
-            self._finalizing = False
+            self._is_prewarming = self._preparing = self._finalizing = False
         self._prepared = False
-        return "<DISCARDED>"
+        return '<DISCARDED>'
 
     def pause(self):
         with self._state_lock:
@@ -1219,7 +1255,7 @@ class RecordingEngine:
                                 _remove_file_later(str(path), attempts=1)
                 except Exception as e:
                     print(f"[WWRecorder] Cleanup error in {temp_dir}: {e}")
-        
+
         t = threading.Thread(target=_cleanup, daemon=True)
         t.start()
         return t
@@ -1307,25 +1343,31 @@ class RecordingEngine:
             except Exception:
                 pass  # Non-fatal: soundcard may still work via CFFI
         try:
-            native_rate = self._get_native_samplerate(is_system)
-            if not is_system and self._microphone_id:
-                # Only a missing endpoint at take start falls back. An endpoint
-                # that exists but cannot open must fail visibly, not substitute.
-                try:
-                    available = self.list_microphones()
-                    if self._microphone_id not in {i for i, _ in available}:
-                        self._mic_fallback = True
-                        self._report_runtime_event('audio_reconnected',
-                            f"{self._microphone_name} is unavailable. Using the Windows default microphone for this take.")
-                except Exception:
-                    pass
+            enabled = self._sys_audio_enabled if is_system else self._mic_audio_enabled
+            native_rate = self._get_native_samplerate(is_system) if enabled else 48000
+            selection_checked = False
 
             def _open_current_device(required_rate=None):
+                nonlocal selection_checked
+                if not selection_checked:
+                    selection_checked = True
+                    if not is_system and self._microphone_id:
+                        # A missing endpoint on this take's first open falls back.
+                        # An existing endpoint that cannot open fails visibly.
+                        try:
+                            available = self.list_microphones()
+                            if self._microphone_id not in {i for i, _ in available}:
+                                self._mic_fallback = True
+                                self._report_runtime_event('audio_reconnected',
+                                    f"{self._microphone_name} is unavailable. Using the Windows default microphone for this take.")
+                        except Exception:
+                            pass
+
                 device = self._resolve_audio_device(is_system)
                 if not is_system:
                     from microphone_capture import native_microphone_recorder
                     opened, rate = native_microphone_recorder(device, AUDIO_DEVICE_BUFFER_SECONDS)
-                    return device, opened, rate
+                    return device, _StartedAudioRecorder(opened), rate
                 last_error = None
                 candidates = (
                     ((required_rate, 2), (required_rate, None))
@@ -1338,14 +1380,15 @@ class RecordingEngine:
                             samplerate=rate, channels=channels,
                             blocksize=max(1024, int(rate * AUDIO_DEVICE_BUFFER_SECONDS)),
                         )
-                        return device, opened, rate
+                        return device, _StartedAudioRecorder(opened), rate
                     except Exception as exc:
                         last_error = exc
                 raise RuntimeError(f"Cannot open {label.lower()} endpoint: {last_error}")
 
             mic_device = recorder = None
             try:
-                mic_device, recorder, native_rate = _open_current_device()
+                if enabled:
+                    mic_device, recorder, native_rate = _open_current_device()
             except Exception as initial_error:
                 print(f"[WWRecorder] {label} endpoint unavailable at start: {initial_error}")
 
@@ -1378,6 +1421,7 @@ class RecordingEngine:
                     write_done.set()
 
             wav_thread = threading.Thread(target=_wav_writer, daemon=False)
+            self._audio_writer_threads[is_system] = wav_thread
             wav_thread.start()
 
             def _enqueue_audio(raw_bytes: bytes):
@@ -1400,6 +1444,18 @@ class RecordingEngine:
                 ready_event.set()
 
                 while self._running:
+                    enabled = self._sys_audio_enabled if is_system else self._mic_audio_enabled
+                    if not enabled:
+                        # Keep timing bookkeeping, but never open/hold a disabled
+                        # endpoint. Enabling later reuses the fixed WAV timeline.
+                        if self._pause_event.is_set():
+                            if unavailable_since is None:
+                                unavailable_since = time.perf_counter()
+                        else:
+                            unavailable_since = None
+                        unavailable_notified = False
+                        time.sleep(0.05)
+                        continue
                     if recorder is None:
                         # Preparation and user-paused time is removed from both
                         # video and audio. Measure replacement silence only
@@ -1409,18 +1465,6 @@ class RecordingEngine:
                                 unavailable_since = time.perf_counter()
                         else:
                             unavailable_since = None
-                        if not unavailable_notified:
-                            enabled = self._sys_audio_enabled if is_system else self._mic_audio_enabled
-                            if enabled:
-                                self._report_runtime_event(
-                                    'audio_error',
-                                    (f"Microphone failed — {self._microphone_name}. Recording continues with computer audio."
-                                     if not is_system else
-                                     "System audio device disconnected. Waiting for a Windows default device."),
-                                )
-                            unavailable_notified = True
-                        if not is_system:
-                            self._microphone_failed = True
                         time.sleep(0.35)
                         try:
                             mic_device, recorder, replacement_rate = _open_current_device(native_rate)
@@ -1432,7 +1476,7 @@ class RecordingEngine:
                             if not is_system:
                                 self._microphone_failed = False
                             if unavailable_since is not None and self._pause_event.is_set():
-                                gap_frames = max(0, int((time.perf_counter() - unavailable_since) * native_rate))
+                                gap_frames = max(0, int(self._active_elapsed() * native_rate) - total_frames_written)
                                 if gap_frames:
                                     _enqueue_audio(np.zeros((gap_frames, actual_channels), dtype=np.float32).tobytes())
                                     total_frames_written += gap_frames
@@ -1449,12 +1493,29 @@ class RecordingEngine:
                             next_default_check = time.perf_counter() + 1.0
                         except Exception:
                             recorder = None
+                        if recorder is None:
+                            if not unavailable_notified:
+                                enabled = self._sys_audio_enabled if is_system else self._mic_audio_enabled
+                                if enabled:
+                                    self._report_runtime_event(
+                                        'audio_error',
+                                        (f"Microphone failed — {self._microphone_name}. Recording continues without this microphone."
+                                         if not is_system else
+                                         "System audio device disconnected. Waiting for a Windows default device."),
+                                    )
+                                unavailable_notified = True
+                            if not is_system:
+                                self._microphone_failed = True
                         continue
 
                     switch_to_default = False
                     try:
                         with recorder as mic:
                             while self._running:
+                                if not (self._sys_audio_enabled if is_system else self._mic_audio_enabled):
+                                    switch_to_default = True
+                                    unavailable_since = time.perf_counter()
+                                    break
                                 try:
                                     data, glitches = _read_audio_chunk(mic, chunk_frames)
                                     discontinuity_count += glitches
@@ -1511,7 +1572,7 @@ class RecordingEngine:
                         recorder = None
                     if switch_to_default:
                         print(f"[WWRecorder] {label} Windows default endpoint changed; reopening capture.")
-                        unavailable_notified = True
+                        unavailable_notified = False
 
             finally:
                 if is_system:
@@ -1536,9 +1597,15 @@ class RecordingEngine:
             if not is_system:
                 self._microphone_failed = True
             if enabled:
-                self._report_runtime_event('audio_error', f"{label} audio error ({self._microphone_name if not is_system else label}): {e}")
+                self._report_runtime_event('audio_error', f"{label} audio error ({self._microphone_name if not is_system else label}): {e}. Recording continues with any remaining audio.")
             traceback.print_exc()
         finally:
+            pending = locals().get('recorder')
+            if isinstance(pending, _StartedAudioRecorder):
+                try:
+                    pending.close()
+                except Exception as exc:
+                    self._report_runtime_event('audio_error', f'{label} audio cleanup failed: {exc}')
             # Never strand prepare() if a device is absent or fails to open.
             ready_event.set()
             _leave_audio_mmcss(mmcss_registration)

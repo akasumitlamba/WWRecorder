@@ -163,7 +163,7 @@ def test_packaged_update_checker_never_queries_github(monkeypatch, qapp):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, *_args):
             return json.dumps(payload).encode()
 
     opened = []
@@ -211,7 +211,7 @@ def test_exe_update_checker_returns_download_url(monkeypatch, qapp):
         def __exit__(self, *a):
             return False
 
-        def read(self):
+        def read(self, *_args):
             return json.dumps(payload).encode()
 
     monkeypatch.setattr(updater.urllib.request, "urlopen", lambda *a, **k: FakeResp())

@@ -1,6 +1,6 @@
 """Non-modal recording finalization feedback; no capture/worker ownership."""
 from PyQt6.QtCore import Qt, QTimer, QRect, QRectF, QPoint
-from PyQt6.QtGui import QColor, QPainter, QPen
+from PyQt6.QtGui import QColor, QPainter, QPen, QIcon
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout
 
 
@@ -73,21 +73,22 @@ class ProcessingNotice(QWidget):
         labels = QVBoxLayout()
         labels.setSpacing(3)
         self._status_lbl = QLabel('Processing recording')
-        self._status_lbl.setWordWrap(False)
+        self._status_lbl.setWordWrap(True)
         self._status_lbl.setStyleSheet("color:#F7F7FA;font:600 14px 'Segoe UI';border:none;background:transparent;")
         labels.addWidget(self._status_lbl)
-        self._sub_lbl = QLabel('Finalizing video and audio')
+        self._sub_lbl = QLabel('Compressing video and audio')
+        self._sub_lbl.setWordWrap(True)
         labels.addWidget(self._sub_lbl)
         heading.addLayout(labels, 1)
-        self._btn_hide = QPushButton('−')
-        self._btn_hide.setFixedSize(28, 28)
-        self._btn_hide.setToolTip('Hide notification — processing continues')
-        self._btn_hide.setAccessibleName('Hide processing notification')
-        self._btn_hide.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._btn_hide.clicked.connect(self.hide_saving)
-        heading.addWidget(self._btn_hide, 0, Qt.AlignmentFlag.AlignTop)
-        self._btn_close = QPushButton('×')
-        self._btn_close.setFixedSize(28, 28)
+        self._btn_close = QPushButton()
+        from icon_theme import asset_path
+        from PyQt6.QtCore import QSize
+        self._btn_close.setIcon(QIcon(asset_path('close.png')))
+        self._btn_close.setIconSize(QSize(12, 12))
+        self._btn_close.setFixedSize(20, 20)
+        self._btn_close.setAccessibleName('Dismiss processing notification')
+        self._btn_close.setStyleSheet('QPushButton {background:transparent;border:none;border-radius:4px;} '
+                                     'QPushButton:hover {background:#343E50;}')
         self._btn_close.setToolTip('Dismiss notification — processing continues')
         self._btn_close.clicked.connect(self.hide_saving)
         heading.addWidget(self._btn_close, 0, Qt.AlignmentFlag.AlignTop)
@@ -96,7 +97,7 @@ class ProcessingNotice(QWidget):
         self._stages.setText('<span style="color:#53D3A0">Recorded</span> <span style="color:#657185">›</span> '
                              '<span style="color:#FF7382">Finalizing</span> <span style="color:#657185">› Ready</span>')
         self._stages.hide()
-        self._message = QLabel('Your video will appear in Gallery when ready.')
+        self._message = QLabel('Your video will appear in Recent Files when ready.')
         self._message.setWordWrap(False)
         self._message.hide()
         self.setFixedWidth(370)

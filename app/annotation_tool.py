@@ -888,6 +888,13 @@ class AnnotationCanvas(QWidget):
             self.close_requested.emit()
 
     def keyPressEvent(self, event):
+        # Escape must cancel an in-progress text edit even when the canvas,
+        # not the text field, owns keyboard focus. Swallowing it left the
+        # editor open and blocked the second-Escape exit.
+        if event.key() == Qt.Key.Key_Escape:
+            self._on_esc_pressed()
+            event.accept()
+            return
         if self._text_input_active:
             super().keyPressEvent(event)
             return
@@ -3049,6 +3056,13 @@ class _DrawingArea(QWidget):
     # ── Keyboard (text tool) ──────────────────────────────────────────────────
 
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Escape:
+            # Same priority as the live canvas: cancel the edit before crop,
+            # deselect, or closing the window. A bare return accepts the key
+            # and the photo editor never leaves text-entry mode.
+            self._on_esc_pressed()
+            event.accept()
+            return
         if self._text_input_active:
             # Let _text_edit handle its own key events directly; do NOT call sendEvent (prevents recursion crash)
             return
@@ -5012,7 +5026,11 @@ class AnnotationPill(QWidget):
         self._orientation = orientation
         sg = available_geometry or self._screen_geometry()
         available_length = sg.width() if orientation == 'horizontal' else sg.height()
-        self._apply_control_density(available_length)
+        horizontal = orientation == 'horizontal'
+        # Logical-pixel bounds stay comfortable on ultrawide and high-DPI screens.
+        limit = min(720 if horizontal else 840, max(240, available_length - 16))
+        density_length = min(available_length, 750 if horizontal else 900)
+        self._apply_control_density(density_length)
         direction = (
             QBoxLayout.Direction.LeftToRight
             if orientation == 'horizontal'
@@ -5028,13 +5046,23 @@ class AnnotationPill(QWidget):
             self._pill.adjustSize()
         self.layout().activate()
         hint = self.sizeHint()
+        # Shrink controls, never clip tools behind a fixed maximum size.
+        current = self._sized_buttons[0].width()
+        while (hint.width() if horizontal else hint.height()) > limit and current > 20:
+            current -= 1
+            self._apply_control_density(density_length, control_limit=current)
+            self._pill_layout.invalidate()
+            self._pill_layout.activate()
+            self._pill.adjustSize()
+            self.layout().activate()
+            hint = self.sizeHint()
         self.setFixedSize(hint)
 
-    def _apply_control_density(self, available_length: int) -> None:
+    def _apply_control_density(self, available_length: int, control_limit=36) -> None:
         """Use comfortable controls normally and a laptop-safe density only when needed."""
         # A single strip occupies at most roughly 90% of its screen edge. Scale both
         # dimensions continuously, with comfortable bounds for logical pixels.
-        control_size = max(22, min(40, round(available_length * 0.04)))
+        control_size = max(20, min(control_limit, max(22, round(available_length * 0.04))))
         icon_size = max(16, round(control_size * 0.72))
         color_size = max(18, round(control_size * 0.86))
         self._separator_length = max(18, control_size - 5)
@@ -5223,6 +5251,7 @@ class AnnotationPill(QWidget):
             QToolButton:hover { background: #DC2626; color: white; }
         """)
         self._btn_close.clicked.connect(self.close_requested.emit)
+        self._sized_buttons.append(self._btn_close)
         layout.addWidget(self._btn_close, 0, Qt.AlignmentFlag.AlignCenter)
 
         root.addWidget(self._pill)

@@ -11,6 +11,8 @@ Push-Location $repoRoot
 $originalPath = $env:PATH
 try {
     $pythonExe = (Get-Command python.exe).Source
+    # Resolve the trusted build tool before intentionally restricting PATH.
+    $gitExe = (Get-Command git.exe).Source
     $pythonRoot = Split-Path $pythonExe
     $env:PATH = "$pythonRoot;$pythonRoot\Scripts;$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\Wbem;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
     $versionMatch = (Get-Content (Join-Path $repoRoot 'app/main.py') | Where-Object { $_ -match 'APP_VERSION\s*=\s*["'']([^"'']+)["'']' } | Select-Object -First 1)
@@ -23,12 +25,18 @@ try {
     # selected build interpreter to actually have Qt before analysis begins.
     & $pythonExe -c "from PyQt6 import QtCore, QtGui, QtWidgets, QtMultimedia, QtMultimediaWidgets; import mss, numpy, PIL; print('Build Qt:', QtCore.QT_VERSION_STR)"
     if ($LASTEXITCODE) { throw 'Build interpreter is missing mandatory runtime dependencies' }
+    & $pythonExe scripts/prepare_media_runtime.py
+    if ($LASTEXITCODE) { throw 'Approved encoder preparation failed' }
     if (-not $SkipBuild) {
         & $pythonExe -m PyInstaller --clean --noconfirm --distpath work/payloads/dual --workpath work/build/dual packaging/shared/wwrecorder.spec
         if ($LASTEXITCODE) { throw 'PyInstaller build failed' }
     }
     & $pythonExe scripts/validate_payload.py $payload
     if ($LASTEXITCODE) { throw 'Frozen runtime validation failed; no installers will be produced' }
+    & $pythonExe scripts/audit_dependencies.py
+    if ($LASTEXITCODE) { throw 'Dependency advisory gate failed; see security evidence' }
+    & $pythonExe scripts/security_release.py $payload --output work/build/security-evidence --git-executable $gitExe
+    if ($LASTEXITCODE) { throw 'Security media/dependency gate failed; no installers will be produced' }
     $smokeReceipt = Join-Path $repoRoot 'work\build\distribution-smoke.json'
     Remove-Item -LiteralPath $smokeReceipt -ErrorAction SilentlyContinue
     $smokeExe = Join-Path $payload 'WWRecorder.exe'
@@ -107,6 +115,8 @@ try {
         if ($LASTEXITCODE) { throw 'EXE installer build failed' }
     }
     Get-ChildItem -LiteralPath $output -Recurse -File | Where-Object { $_.Extension -in @('.exe','.msix','.cer') } | Get-FileHash -Algorithm SHA256 | Select-Object @{n='file';e={$_.Path.Substring($output.Length + 1).Replace('\', '/')}},Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'SHA256.json') -Encoding UTF8
+    Copy-Item -Recurse -Force work/build/security-evidence (Join-Path $output 'security-evidence')
+    Copy-Item -LiteralPath (Join-Path $output 'SHA256.json') -Destination (Join-Path $output 'security-evidence/artifact-hashes.json')
     Write-Host "Artifacts: $output"
 } finally {
     $env:PATH = $originalPath

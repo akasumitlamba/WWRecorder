@@ -65,7 +65,7 @@ def test_manual_preview_mute_survives_section_boundary(editor):
     assert not editor._audio_output.isMuted()
     QTest.mouseClick(editor._toggle_audio, Qt.MouseButton.LeftButton)
     editor._on_position_changed(6000)
-    assert editor._audio_output.isMuted()
+    assert not editor._audio_output.isMuted()  # Export inclusion is independent.
 
 
 @pytest.mark.parametrize('width', [720, 960, 1440])

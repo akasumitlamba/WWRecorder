@@ -66,8 +66,8 @@ def test_default_dock_edge_is_right(main_mod):
     assert_eq(main_mod.DEFAULT_CONFIG["dock_edge"], "right", because="historical default edge")
 
 
-def test_app_version_is_1_7_0(main_mod):
-    assert_eq(main_mod.APP_VERSION, "1.7.0", because="active application version per AI_CONTEXT")
+def test_app_version_is_1_7_1(main_mod):
+    assert_eq(main_mod.APP_VERSION, "1.7.1", because="active application version per AI_CONTEXT")
 
 
 @pytest.mark.parametrize(
