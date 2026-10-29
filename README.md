@@ -8,16 +8,16 @@ WWRecorder is a lightweight desktop screen recorder and screenshot tool for Wind
 
 ## Version and download status
 
-**WWRecorder v1.7.1** is the current public release. It includes the FFmpeg
-security fix for recording/export and Qt's independent playback media libraries,
-plus corrected audio/video timing under capture load and installer/interface repairs.
+**WWRecorder v1.7.1** includes the update for [CVE-2026-8461](https://akasumitlamba.github.io/WWRecorder/release-notes.html#security), covering both recording/export and playback media components. Update older installations before opening untrusted videos.
+
+GitHub currently labels v1.7.1 as a **prerelease** and v1.6 as **Latest**. Use the explicit v1.7.1 download below for this security update.
 
 | Distribution | Download | Status |
 | --- | --- | --- |
 | Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.1.exe) | Direct installer; unsigned. Verify the release SHA-256. |
-| Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Verify the version available in the Store; GitHub publication does not imply Store certification. |
+| Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Open the Store listing to check the available version and updates. |
 
-[Cumulative release notes since v1.6](docs/RELEASE_NOTES_1_7.md) ·
+[Release notes and security advisory](https://akasumitlamba.github.io/WWRecorder/release-notes.html) ·
 [For enterprise](https://akasumitlamba.github.io/WWRecorder/enterprise.html) ·
 [Privacy policy](https://akasumitlamba.github.io/WWRecorder/privacy-policy.html)
 
@@ -82,16 +82,16 @@ Both global shortcuts can be changed in Settings. Captures default to `%USERPROF
 
 ## Windows EXE and MSIX
 
-The current distribution design uses **one shared application** for EXE and full-trust MSIX. Capture, audio, annotation, playback, editing, and settings controls are shared. Installation-specific integrations differ:
+EXE and full-trust MSIX provide **the same Windows application**. Capture, audio, annotation, playback, editing, and settings controls are shared. Installation-specific integrations differ:
 
 | Integration | EXE | MSIX |
 | --- | --- | --- |
-| Updates | Checks the official GitHub stable-release feed and opens the release page | Managed through Microsoft Store; does not query the EXE update feed |
+| Updates | Checks the official GitHub stable-release feed and opens the release page | Managed through Microsoft Store |
 | Startup | Windows user startup registration | Windows StartupTask |
 | Settings | `%APPDATA%\WWRecorder` | Package-private `LocalState\WWRecorder` |
 | Initial preferences | Uses existing EXE settings | Can import existing EXE settings once when no packaged configuration exists |
 
-After the initial import, preferences are independent. Saved media remains in the selected output folder. A local-test MSIX identity is separate from the production Store product.
+After the initial import, preferences are independent. Saved media remains in the selected output folder.
 
 ## Linux Flatpak preview
 
@@ -104,7 +104,6 @@ Current Wayland preview limitations:
 - Live desktop drawing and a global capture border are unavailable.
 - Recording controls are not automatically excluded from monitor captures. Move them outside the selected crop or share a target window.
 - Saved-image annotation and video text editing remain available.
-- Real KDE permission, shortcut, device-switching, multi-monitor, and long-recording acceptance testing remains necessary.
 
 Linux startup is opt-in. This is a preview, not a claim of full Windows feature parity or an available Flathub release. Installation instructions will accompany a published Linux bundle.
 
@@ -124,7 +123,7 @@ Saved recording → Recent Files → playback / editing / export
 
 The application uses Python and PyQt6 for the desktop interface, MSS and NumPy for Windows/X11 screen frames, SoundCard/WASAPI for Windows audio, and FFmpeg for media processing. The Wayland preview uses desktop portals, PipeWire, and GStreamer for authorized capture.
 
-Slow work runs outside the GUI thread. Recording preparation, pause, stop, finalization, and recovery have explicit lifecycle handling. Mixed-DPI screen regions are mapped per monitor rather than using one scale factor for the whole desktop.
+Capture and processing run in the background. Recording supports multiple monitors with different display scaling.
 
 See the [engineering overview](https://akasumitlamba.github.io/WWRecorder/specs.html) for more background.
 
@@ -139,7 +138,7 @@ separately and is not updated by this Windows release.
 
 Recording, screenshots, annotation, and editing are processed locally. WWRecorder does not require an account and does not include advertising or usage-analytics telemetry. EXE update checks contact GitHub over HTTPS; Store delivery and opened external links use their respective services.
 
-In the current implementation, recording work files are kept in `.wwr_temp` under the selected output folder. If saving fails, preserve the reported recovery files and recover useful media promptly; temporary-file cleanup is not permanent archival storage.
+Recovery files are kept in `.wwr_temp` under the selected output folder. If saving fails, preserve the reported recovery files and recover useful media promptly; temporary-file cleanup is not permanent archival storage.
 
 See the [Privacy Policy](https://akasumitlamba.github.io/WWRecorder/privacy-policy.html) for local storage, settings, diagnostics, update checks, and retention details.
 
@@ -159,22 +158,24 @@ Do not attach private recordings, screenshots, audio, access tokens, or unreview
 See [LICENSE](LICENSE) and the [legal notices](https://akasumitlamba.github.io/WWRecorder/legal.html) for application-source, website, and third-party terms. The WWRecorder name, logo, and other marks do not grant permission to imply endorsement or affiliation. Bundled third-party components retain their own licenses.
 
 
-## Current Windows source
+## Run from source on Windows
 
-The maintained Windows application source is under `app/`. Install `requirements.txt`, then run `python app/main.py`. Tests use `pytest.ini` to resolve app imports: run `python -m pytest`. The historical Linux preview is separate from this Windows source.
+Use Windows CPython 3.13 x64:
 
-See [architecture](docs/AI_CONTEXT.md), [QA and manual checks](docs/QA_AUDIT.md), [project guide](docs/project.md) and [EXE/MSIX build contract](docs/DISTRIBUTION.md). Windows packaging requires PyInstaller, Inno Setup, Windows SDK tools and a trusted FFmpeg executable for the shared bundle. Run `scripts/build-distributions.ps1 -Format Both`.
+```powershell
+git clone https://github.com/akasumitlamba/WWRecorder.git
+cd WWRecorder
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --require-hashes -r requirements-windows.lock
+python scripts/prepare_media_runtime.py
+python app/main.py
+```
 
-The current stable installer is on [WWRecorder v1.7.1](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1). Use Microsoft Store for Store-managed installation.
+The media preparation command downloads and verifies the approved FFmpeg encoder. `Run-WWRecorder.cmd` also prepares it before startup. Windows does not use an arbitrary FFmpeg from PATH.
 
-For development and regression tests on Windows, install `requirements-dev.txt` (includes runtime dependencies, pytest and PyInstaller).
+Contributors can run `python -m pytest`; the lock file includes test dependencies. See the [architecture](docs/AI_CONTEXT.md) and [build guide](docs/DISTRIBUTION.md) for implementation and packaging details.
 
-## Automated checks
+## Administrator controls
 
-With Python 3.13 installed, double-click **RUN_TESTS.cmd** from this source tree.
-It creates/reuses a virtual environment, installs dependencies without prompts,
-runs all regression/E2E modules sequentially and opens the HTML report. Reports
-are saved to `artifacts/windows_e2e/` as HTML, JSON, Markdown and JUnit XML. Tests
-supply their own expected dialog responses; unexpected dialogs fail instead of
-waiting for input. Native desktop cases skipped in headless CI run automatically
-on a normal Windows desktop. Current Windows installer revision is **1.7.1.1**.
+Version 1.7.1 adds machine policies to disable Keycast or automatic clipboard copying. See [administrator instructions](https://akasumitlamba.github.io/WWRecorder/enterprise.html#managed-controls) for `DisableKeycast` and `DisableAutomaticClipboard`.

@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08090c">
+  <meta name="description" content="WWRecorder release notes, fixes and instructions for the CVE-2026-8461 security update.">
+  <meta property="og:title" content="For enterprise | WWRecorder"><meta property="og:url" content="https://akasumitlamba.github.io/WWRecorder/enterprise.html">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/release-notes.html"><link rel="icon" type="image/png" href="icons/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=17">
+  <title>Release notes | WWRecorder</title>
+</head>
+<body class="inner-page" data-page="release-notes">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" data-header><a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button><nav id="site-nav" aria-label="Primary navigation">
+      <a href="index.html#features">How it works</a>
+      <a href="index.html#fit">Is it for me?</a>
+      <a href="index.html#under-the-hood">Under the hood</a>
+      <a href="install-help.html">Install help</a>
+      <a href="specs.html">Technical specs</a>
+      <a href="enterprise.html">For enterprise</a>
+      <button class="nav-download js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Download</button>
+    </nav></header>
+
+  <main class="inner-main" id="main">
+    <header class="inner-hero"><span class="eyebrow">Updates and security</span><h1>Release notes.<br><em>What changed for you.</em></h1><p class="inner-lead">Windows updates, fixes and security guidance. GitHub currently labels v1.7.1 as a prerelease; v1.6 is still marked Latest.</p></header>
+    <div class="doc-layout"><aside class="doc-toc" aria-label="Release contents"><strong>ON THIS PAGE</strong><div class="doc-toc-links"><a href="#security">Security advisory</a><a href="#v1-7-1">Version 1.7.1</a><a href="#v1-6">Version 1.6</a><a href="#older">Older releases</a></div></aside><article class="doc-content">
+    <section class="content-card" id="security"><h2>Security advisory: CVE-2026-8461</h2><p><strong>Update older WWRecorder installations to 1.7.1 before opening untrusted videos.</strong> Versions before 1.7.1 do not include this security update.</p><p>A flaw in FFmpeg’s MagicYUV decoder can let a specially crafted video crash an application or, in some circumstances, run malicious code. Exposure depends on whether vulnerable media libraries decode the file.</p><p>WWRecorder 1.7.1 updates both the recording/export encoder (FFmpeg 9.0.2) and playback libraries (FFmpeg 9.0.1 through Qt 6.12.0). For older installations, avoid opening media from untrusted sources until updated.</p><p><a href="download.html?version=v1.7.1">Download the patched 1.7.1 EXE</a> and <a href="install-help.html#verify-installer">verify its SHA-256</a>. The EXE is unsigned. Store users should check Microsoft Store for updates and review the installed version. The website cannot check your installed app or confirm a Store rollout.</p><p>References: <a href="https://ffmpeg.org/security.html">FFmpeg security advisories</a> and <a href="https://ubuntu.com/security/CVE-2026-8461">Ubuntu’s CVE description</a>.</p></section>
+    <section class="content-card" id="v1-7-1"><h2>Version 1.7.1 — 29 October 2026</h2><p>Changes since the v1.6 release, including Windows installer revision 1.7.1.1.</p><h3>Added</h3><ul><li>Choose a microphone, or follow the Windows default.</li><li>Keycast shows keys, shortcuts, clicks and scrolling in recordings. Before enabling it, a warning explains that passwords and typing outside the selected area can appear in the video.</li><li>Administrator policies <code>DisableKeycast</code> and <code>DisableAutomaticClipboard</code>, added in 1.7.1. See <a href="enterprise.html#managed-controls">deployment instructions</a>.</li><li>Dock placement on any screen edge and multiple audio-mute sections in the editor.</li></ul><h3>Fixed</h3><ul><li>Fixed: audio/video timing during uneven capture load by holding the previous screen image during missed frame slots.</li><li>Fixed: microphone selection changing unexpectedly and some USB/Bluetooth microphone recording problems.</li><li>Fixed: dock position moving after settings changes or interrupted drags.</li><li>Fixed: incorrect annotation text placement, erasing at zoom and lingering drawings.</li><li>Fixed: slow timeline previews, missing final playback frames and captions remaining after deletion.</li><li>Fixed: trim and cut ranges changing unexpectedly during editing.</li><li>Fixed: exports failing for videos with odd pixel dimensions.</li><li>Fixed: saving failures losing access to recovery media and overlapping recording actions affecting another take.</li><li>Fixed: startup failures on some Windows installations and incorrect installer icons.</li></ul><p><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1">Installer and checksums</a>.</p></section>
+    <section class="content-card" id="v1-6"><h2>Version 1.6 — 8 September 2026</h2><p>The v1.6 release includes installer version 1.6.3. It predates the security update above.</p><ul><li>Fixed: edited screenshots being left partially saved after a write failure.</li><li>Fixed: overlapping cuts causing brief playback stutters or audio drift.</li><li>Fixed: captions exporting with different sizing or formatting from the preview.</li><li>Fixed: export errors leaving caption temporary files behind.</li><li>Fixed: more than one copy of WWRecorder running at a time.</li><li>Fixed: recordings overwriting captures with the same timestamp.</li><li>Fixed: audio gaps caused by ordinary scheduling delays.</li></ul></section>
+    <section class="content-card" id="older"><h2>Older releases</h2><p>Historical installers are retained in <a href="https://github.com/akasumitlamba/WWRecorder/releases">GitHub release history</a>. Use 1.7.1 for the security update described above.</p></section>
+    </article></div>
+  </main>
+
+      <footer class="site-footer">
+    <div class="footer-brand">
+      <a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a>
+      <p class="footer-credit">Designed and developed by <a class="author-name" href="https://github.com/akasumitlamba" target="_blank" rel="noopener">Sumit Kumar Lamba</a>.</p>
+      <p class="footer-copyright">© <span data-current-year></span> Sumit Kumar Lamba · Application source licensed under MIT.</p>
+    </div>
+    <div class="footer-columns">
+      <div>
+        <strong>Product</strong>
+        <a href="index.html#features">How it works</a>
+        <a href="index.html#fit">Is it for me?</a>
+        <a href="specs.html">Technical specs</a>
+        <a href="download.html">Download choices</a>
+        <a href="ms-windows-store://pdp/?productid=9PBS5VDWFXND">Microsoft Store</a>
+      </div>
+      <div>
+        <strong>Install &amp; Safety</strong>
+        <a href="install-help.html">Installation help</a>
+        <a href="install-help.html#verify-installer">Check SHA-256 hash</a>
+        <a href="install-help.html#edge-warning">Edge download warning</a>
+        <a href="install-help.html#smartscreen-warning">Windows SmartScreen</a>
+        <a href="install-help.html#smart-app-control">Smart App Control</a>
+      </div>
+      <div>
+        <strong>Project &amp; Code</strong>
+        <a href="release-notes.html">Release notes &amp; security</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Request a feature</a>
+      </div>
+      <div>
+        <strong>Legal &amp; Trust</strong>
+        <a href="privacy-policy.html">Privacy policy</a>
+        <a href="enterprise.html">For enterprise</a>
+        <a href="legal.html">Legal</a>
+        <a href="legal.html#third-party">Third-party notices</a>
+        <a href="privacy-policy.html#network">Data and network activity</a>
+      </div>
+    </div>
+  </footer>
+  <script src="script.js?v=9" defer></script>
+</body>
+</html>

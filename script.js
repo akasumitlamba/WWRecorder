@@ -29,12 +29,17 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Install the patched 1.7.1</strong>
-      <p>Includes the FFmpeg security fix and recording synchronization improvements. Install the updated release.</p>
-      <div><a href="download.html?version=v1.7.1">Get patched version</a><a href="enterprise.html#media-security">Security details</a></div>`;
-    notice.querySelector('button').addEventListener('click', () => {
+      <p>FFmpeg security fix (CVE-2026-8461). Update before opening untrusted videos. GitHub labels 1.7.1 as prerelease.</p>
+      <div><a href="download.html?version=v1.7.1">Get patched version</a><a href="release-notes.html#security">Security details</a></div>`;
+    const dismissNotice = () => {
       notice.remove();
       try { sessionStorage.setItem(noticeKey, 'dismissed'); } catch (_) { /* Dismiss still works. */ }
-    });
+    };
+    notice.querySelector('button').addEventListener('click', dismissNotice);
+    // Auto-dismiss 5000ms after page load even if the visitor does nothing.
+    const dismissAfterLoad = () => window.setTimeout(dismissNotice, 5000);
+    if (document.readyState === 'complete') dismissAfterLoad();
+    else window.addEventListener('load', dismissAfterLoad, { once: true });
     document.body.append(notice);
   }
 
@@ -133,7 +138,7 @@
       releasePromise = fetch(RELEASES_API, { headers: { Accept: 'application/vnd.github+json' } })
         .then((response) => response.ok ? response.json() : Promise.reject(new Error('Release lookup failed')))
         .then((releases) => releases
-          .filter((release) => !release.draft && !release.prerelease)
+          .filter((release) => !release.draft && (!release.prerelease || release.tag_name === 'v1.7.1'))
           .map((release) => ({
             name: release.name || release.tag_name,
             tag: release.tag_name,
