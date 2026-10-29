@@ -15,6 +15,7 @@ import sys
 import time
 from typing import List, Optional
 
+from window_layers import transient_is_visible, prepare_dialog
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QBoxLayout, QSizePolicy, QMessageBox,
@@ -942,7 +943,7 @@ class AnnotationCanvas(QWidget):
             self.show()
             
             # Use native Windows API to enforce topmost if possible, to avoid Qt layer issues
-            if getattr(sys, 'platform', '') == 'win32' and _user32:
+            if not transient_is_visible() and getattr(sys, 'platform', '') == 'win32' and _user32:
                 HWND_TOPMOST = -1
                 SWP_NOSIZE = 0x0001
                 SWP_NOMOVE = 0x0002
@@ -4981,7 +4982,7 @@ class AnnotationPill(QWidget):
         try:
             # Do not raise the bar over its own thickness menu, active popups,
             # or when a tooltip is visible or when the cursor is hovering the toolbar.
-            if self._has_active_popup():
+            if transient_is_visible() or self._has_active_popup():
                 return
             if self.isVisible() and not self.underMouse() and not (self._pill and self._pill.underMouse()):
                 if getattr(sys, 'platform', '') == 'win32' and _user32:

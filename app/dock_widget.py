@@ -18,6 +18,7 @@ from datetime import datetime
 from collections import OrderedDict
 from typing import Optional
 
+from window_layers import transient_is_visible, prepare_dialog
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QToolButton,
     QHBoxLayout, QVBoxLayout, QBoxLayout, QGridLayout, QScrollArea, QLineEdit,
@@ -480,7 +481,7 @@ class DockWidget(QWidget):
             self.position_changed.emit()
 
     def _enforce_topmost(self):
-        if QApplication.activeModalWidget() or QApplication.activePopupWidget():
+        if transient_is_visible():
             return
         if self.isVisible() and not self._expanded:
             if _user32:
@@ -3920,19 +3921,63 @@ class RecentFilesSidebar(SidebarPanel):
         # Delegate to app-level handler so it can release any player lock first
         self.rename_needed.emit(old, new)
 
+    def _show_file_dialog(self, title, text, icon, buttons, default, completed=None):
+        existing = getattr(self, '_file_dialog', None)
+        if existing is not None:
+            existing.raise_()
+            existing.activateWindow()
+            return existing
+        box = QMessageBox(self)
+        box.setWindowTitle(title)
+        box.setText(text)
+        box.setIcon(icon)
+        box.setStandardButtons(buttons)
+        box.setDefaultButton(default)
+        self._file_dialog = box
+
+        def finished(_result):
+            if getattr(self, '_file_dialog', None) is not box:
+                return
+            self._file_dialog = None
+            choice = box.standardButton(box.clickedButton())
+            box.deleteLater()
+            if completed is not None:
+                completed(choice)
+
+        box.finished.connect(finished)
+        # Return to the menu's event handler instead of nesting a modal loop.
+        # The sidebar is a topmost Tool window, so its owned dialog must also
+        # be topmost before Windows creates its native handle.
+        menu = getattr(self, '_active_file_menu', None)
+        if menu is not None:
+            menu.close()
+        prepare_dialog(box)
+        box.show()
+        box.raise_()
+        box.activateWindow()
+        return box
+
     def _delete_file(self, fp):
-        reply = QMessageBox.question(
-            self, "Delete File", f"Permanently delete\n{os.path.basename(fp)}?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
-        )
-        if reply == QMessageBox.StandardButton.Yes:
+        def completed(choice):
+            if choice != QMessageBox.StandardButton.Yes:
+                return
             try:
                 os.remove(fp)
                 self._load_files()
-            except Exception as e:
+            except Exception as error:
                 from user_messages import friendly_error
-                QMessageBox.warning(self, "Could Not Delete File", friendly_error(e))
+                self._show_file_dialog(
+                    "Could Not Delete File", friendly_error(error),
+                    QMessageBox.Icon.Warning, QMessageBox.StandardButton.Ok,
+                    QMessageBox.StandardButton.Ok,
+                )
+
+        return self._show_file_dialog(
+            "Delete File", f"Permanently delete\n{os.path.basename(fp)}?",
+            QMessageBox.Icon.Question,
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No, completed,
+        )
 
     def _open_folder(self):
         if os.path.isdir(self._output_folder):

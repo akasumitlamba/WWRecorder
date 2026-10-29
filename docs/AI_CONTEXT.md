@@ -174,3 +174,12 @@ drags do not produce scroll feedback. Windows scrolling direction is respected.
 Registration is serialized across stop/restart; input is never suppressed or
 injected. No contacts or typing are written to a log. Native registration and
 shutdown are tested independently of physical gesture acceptance.
+
+
+## Floating-window layering
+
+Shared window_layers.py keeps dialogs, dropdowns, menus and tooltips above the
+floating controls. Native file dialogs use the same topmost policy. Controls
+yield while a transient window is visible. Delete confirmation is nonblocking,
+owned by Recent Files and defaults to No; Cancel/Escape/close preserve the file.
+Delete errors remain visible. The same code is used in EXE and MSIX editions.
