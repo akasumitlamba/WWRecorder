@@ -1,8 +1,8 @@
 # WWRecorder 1.7.1
 
-Changes since v1.6 (installer 1.6.3), including Windows installer revision 1.7.1.2.
+Changes since v1.6 (installer 1.6.3), including Windows installer revision 1.7.1.3.
 
-**Updated installer:** [Download 1.7.1.2](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.2.exe).
+**Updated installer:** [Download 1.7.1.3](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.3.exe).
 
 ## Security update — update older installations
 
@@ -32,6 +32,8 @@ References: [FFmpeg security advisories](https://ffmpeg.org/security.html), [Ubu
 
 ## Fixes
 
+- Remember a connected microphone; after it disconnects, keep the current take on that input and use Windows default for the next take. Newly connected microphones appear when you reopen the microphone list.
+
 - Fixed confirmations, dropdowns and tooltips appearing behind floating controls, including Delete File and Discard Recording.
 
 - Fixed audio/video timing during uneven capture load by holding the previous screen image during missed frame slots.
@@ -49,10 +51,10 @@ References: [FFmpeg security advisories](https://ffmpeg.org/security.html), [Ubu
 
 ## Installation
 
-Download `WWRecorder_Setup_1.7.1.2.exe` and compare its SHA-256 with the attached checksum. The standalone EXE is unsigned.
+Download `WWRecorder_Setup_1.7.1.3.exe` and compare its SHA-256 with the attached checksum. The standalone EXE is unsigned.
 
 Microsoft Store installs update through the Store; the standalone EXE updates from GitHub. This release is currently labeled prerelease on GitHub. Store users can check the [Store listing](https://apps.microsoft.com/detail/9PBS5VDWFXND) for their available version.
 
-SHA-256: `9d2a11b7164d4ce90ddd825949ef48c42e8bfeec9fa28959a9d20a7f51436b61`
+SHA-256: `6688a562751a4359cb99778049ef9054ceb3f37116194d122f7020f24674b7f5`
 
-[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/59e85ada403eee6c610f155845385f74282c47e2). The release tag identifies the original release source; this installer revision uses the linked source.
+[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/300eab96205e7f2ea4d1511e5beb086bef0a4cfb). The release tag identifies the original release source; this installer revision uses the linked source.
