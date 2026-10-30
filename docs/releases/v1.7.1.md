@@ -65,4 +65,4 @@ SHA-256:
 - MSIX: `ac38b7ed8054c8593e9f9fb318f7dc8c1f60ed40ead64bc82ef35644cc4be000`
 - MSIX install kit: `29b6037de10af6b2c151f7496170f0e0067cebf1ca0037a56ba93ce2b6702152`
 
-[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/ee02ae907dca33ebd8ec0dcbe656add09557ebc8). The release tag identifies the original release source; this installer revision uses the linked source.
+[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/dd0848b201e1a899cbfeb1f388ef75b6d899c8f3). The release tag identifies the original release source; this installer revision uses the linked source.
