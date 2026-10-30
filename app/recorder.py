@@ -718,8 +718,24 @@ class RecordingEngine:
 
     @staticmethod
     def list_microphones():
-        return [(str(d.id), d.name) for d in sc.all_microphones(include_loopback=False)
-                if not getattr(d, 'isloopback', False)]
+        devices = []
+        seen = set()
+        for device in sc.all_microphones(include_loopback=False):
+            if getattr(device, 'isloopback', False):
+                continue
+            try:
+                device_id = str(device.id)
+            except Exception:
+                continue  # One disappearing endpoint must not hide other inputs.
+            if device_id in seen:
+                continue
+            try:
+                name = device.name
+            except Exception:
+                name = "Microphone (name temporarily unavailable)"
+            devices.append((device_id, name))
+            seen.add(device_id)
+        return devices
 
     def _report_runtime_event(self, kind: str, message) -> None:
         self._runtime_events.put((kind, str(message)))

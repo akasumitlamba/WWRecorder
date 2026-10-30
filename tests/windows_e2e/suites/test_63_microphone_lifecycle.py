@@ -119,3 +119,65 @@ def test_new_mic_is_listed_when_menu_reopened_during_recording(qapp, engine):
     finally:
         if pill._mic_menu: pill._mic_menu.close()
         pill._stopping = True; pill.close()
+
+
+def test_one_wireless_name_failure_does_not_hide_other_inputs(engine, monkeypatch):
+    rec = import_app('recorder')
+    class Connecting:
+        id = 'connecting'
+        @property
+        def name(self): raise OSError('Endpoint properties still arriving')
+    monkeypatch.setattr(rec.sc, 'all_microphones', lambda **_: [endpoint('first'), Connecting(), endpoint('second'), endpoint('first')])
+    assert engine.list_microphones() == [('first', 'first'), ('connecting', 'Microphone (name temporarily unavailable)'), ('second', 'second')]
+
+
+def test_open_menu_refreshes_in_place_and_preserves_selection(qapp, engine):
+    ui = import_app('ui_elements'); engine.set_microphone('first', 'First')
+    pill = ui.PillWidget(engine, {}, pre_record=False); pill.show()
+    try:
+        pill._open_microphone_menu([('first', 'First')], '')
+        menu = pill._mic_menu; action = menu._microphone_actions[1]
+        menu.setActiveAction(action)
+        assert pill._mic_refresh_timer.isActive()
+        pill._apply_microphone_refresh(menu, [('first', 'First'), ('wireless', 'New wireless')], '')
+        assert pill._mic_menu is menu and menu.isVisible()
+        assert [a.data() for a in menu._microphone_actions] == ['', 'first', 'wireless']
+        assert menu._microphone_actions[1].isChecked()
+        assert menu.activeAction().data() == 'first'
+        assert engine._microphone_id == 'first'
+        pill._apply_microphone_refresh(menu, [], 'Temporarily busy')
+        assert [a.data() for a in menu._microphone_actions] == ['', 'first', 'wireless']
+        assert menu._microphone_error is not None
+        pill._apply_microphone_refresh(menu, [('first', 'First')], '')
+        assert menu._microphone_error is None
+        menu.close()
+        assert not pill._mic_refresh_timer.isActive()
+        pill._apply_microphone_refresh(menu, [('late', 'Late callback')], '')
+        assert pill._mic_menu is None
+    finally:
+        pill._stopping = True; pill.close()
+
+
+def test_async_refresh_lists_delayed_wireless_input_without_bt_settings(qapp, engine, monkeypatch):
+    from PyQt6.QtTest import QTest
+    # Finish the preceding popup's queued hide/deletion before opening another.
+    QTest.qWait(30)
+    ui = import_app('ui_elements'); calls = []
+    def enumerate_inputs():
+        calls.append(threading.get_ident())
+        return [('first', 'First'), ('wireless', 'Delayed wireless')]
+    monkeypatch.setattr(engine, 'list_microphones', enumerate_inputs)
+    pill = ui.PillWidget(engine, {}, pre_record=False); pill.show()
+    QTest.qWait(30)  # A real click occurs after the owner has activated.
+    try:
+        pill._open_microphone_menu([('first', 'First')], '')
+        menu = pill._mic_menu
+        pill._refresh_microphone_menu()
+        deadline = time.monotonic()+3
+        while len(menu._microphone_actions) != 3 and time.monotonic()<deadline: QTest.qWait(10)
+        assert [a.data() for a in menu._microphone_actions] == ['', 'first', 'wireless']
+        assert calls and all(identifier != threading.get_ident() for identifier in calls)
+        menu.close()
+        pill._mic_menu_worker.wait(2000)
+    finally:
+        pill._stopping = True; pill.close()
