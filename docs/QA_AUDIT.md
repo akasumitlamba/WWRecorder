@@ -216,3 +216,10 @@ floating controls. Native file dialogs use the same topmost policy. Controls
 yield while a transient window is visible. Delete confirmation is nonblocking,
 owned by Recent Files and defaults to No; Cancel/Escape/close preserve the file.
 Delete errors remain visible. The same code is used in EXE and MSIX editions.
+
+## Wireless input discovery
+
+Synthetic endpoint regressions cover delayed wireless discovery through the real
+background worker, in-place menu refresh, selected/hovered ID retention, partial
+property failures, duplicate endpoint IDs, enumeration errors and late callbacks.
+Physical Bluetooth driver/profile behavior requires real Windows hardware.

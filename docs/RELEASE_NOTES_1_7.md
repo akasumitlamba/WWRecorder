@@ -1,8 +1,8 @@
 # WWRecorder 1.7.1
 
-Changes since v1.6 (installer 1.6.3), including Windows installer revision 1.7.1.3.
+Changes since v1.6 (installer 1.6.3), including Windows installer revision 1.7.1.4.
 
-**Updated installer:** [Download 1.7.1.3](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.3.exe).
+**Prerelease downloads:** [EXE installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.4.exe) · [MSIX package](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_1.7.1.4_x64.msix) · [MSIX install kit](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_MSIX_Install_Kit_1.7.1.4.zip).
 
 ## Security update — update older installations
 
@@ -32,7 +32,9 @@ References: [FFmpeg security advisories](https://ffmpeg.org/security.html), [Ubu
 
 ## Fixes
 
-- Remember a connected microphone; after it disconnects, keep the current take on that input and use Windows default for the next take. Newly connected microphones appear when you reopen the microphone list.
+- Fixed a stale microphone list when wireless devices connect. The list now refreshes while open, and a missing device name no longer hides other inputs.
+
+- Remember a connected microphone; after it disconnects, keep the current take on that input and use Windows default for the next take. The microphone list refreshes automatically while open, including during recording.
 
 - Fixed confirmations, dropdowns and tooltips appearing behind floating controls, including Delete File and Discard Recording.
 
@@ -51,10 +53,16 @@ References: [FFmpeg security advisories](https://ffmpeg.org/security.html), [Ubu
 
 ## Installation
 
-Download `WWRecorder_Setup_1.7.1.3.exe` and compare its SHA-256 with the attached checksum. The standalone EXE is unsigned.
+Download `WWRecorder_Setup_1.7.1.4.exe` and compare its SHA-256 with the attached checksum. The standalone EXE is unsigned.
+
+For MSIX sideloading, download and extract the install kit, then run `Install-Test.cmd`. It verifies the package signature and asks permission to trust the included public certificate. This preview uses the separate **WWRecorder (MSIX Test)** identity and is not a certified Microsoft Store package. No private signing key is included. Use the EXE for the normal standalone installation.
 
 Microsoft Store installs update through the Store; the standalone EXE updates from GitHub. This release is currently labeled prerelease on GitHub. Store users can check the [Store listing](https://apps.microsoft.com/detail/9PBS5VDWFXND) for their available version.
 
-SHA-256: `6688a562751a4359cb99778049ef9054ceb3f37116194d122f7020f24674b7f5`
+SHA-256:
 
-[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/300eab96205e7f2ea4d1511e5beb086bef0a4cfb). The release tag identifies the original release source; this installer revision uses the linked source.
+- EXE: `d0c7cf976cd9656c60b9e938e9abc11f72990afd610495b28f845643bea3fdf0`
+- MSIX: `ac38b7ed8054c8593e9f9fb318f7dc8c1f60ed40ead64bc82ef35644cc4be000`
+- MSIX install kit: `29b6037de10af6b2c151f7496170f0e0067cebf1ca0037a56ba93ce2b6702152`
+
+[Source matching this installer](https://github.com/akasumitlamba/WWRecorder/tree/ee02ae907dca33ebd8ec0dcbe656add09557ebc8). The release tag identifies the original release source; this installer revision uses the linked source.
