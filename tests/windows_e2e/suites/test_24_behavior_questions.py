@@ -7,6 +7,7 @@ and governing docs. These tests lock the chosen behaviors.
 from __future__ import annotations
 
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 
@@ -94,7 +95,8 @@ def test_parse_github_release_exe_includes_download_url():
     assert available is True
     assert version == "v1.8.0"
     assert download.endswith("WWRecorder_Setup_1.8.0.exe")
-    assert "github.com" in action
+    action_host = urlparse(action).hostname
+    assert action_host == "github.com" or (action_host is not None and action_host.endswith(".github.com"))
 
 
 def test_parse_github_release_msix_has_store_action_no_download(monkeypatch):
