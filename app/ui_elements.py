@@ -25,7 +25,7 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import (
     QPainter, QColor, QBrush, QPen, QFont, QFontMetrics,
-    QPainterPath, QLinearGradient, QIcon, QCursor, QActionGroup,
+    QPainterPath, QLinearGradient, QIcon, QCursor, QAction, QActionGroup,
     QPixmap, QImage, QRegion,
 )
 
@@ -881,6 +881,9 @@ class PillWidget(QWidget):
         self._mic_status_timer = QTimer(self)
         self._mic_status_timer.timeout.connect(self._update_microphone_tooltip)
         self._mic_status_timer.start(250)
+        self._mic_refresh_timer = QTimer(self)
+        self._mic_refresh_timer.setInterval(1000)
+        self._mic_refresh_timer.timeout.connect(self._refresh_microphone_menu)
         self._update_microphone_tooltip()
         row.addWidget(self._audio_group)
 
@@ -1074,19 +1077,12 @@ class PillWidget(QWidget):
             QMenu::indicator:checked { background: #FF5264; border: 2px solid #FFD2D8; }
             QMenu::separator { height: 1px; background: #353D4B; margin: 5px 7px; }
         """)
-        group = QActionGroup(menu)
-        group.setExclusive(True)
-        selected = getattr(self._engine, '_microphone_id', '')
-        for device_id, name in [("", "Same as Windows")] + devices:
-            display_name = QFontMetrics(menu.font()).elidedText(name, Qt.TextElideMode.ElideRight, 280)
-            action = menu.addAction(display_name)
-            action.setToolTip(name)
-            group.addAction(action)
-            action.setCheckable(True)
-            action.setChecked(device_id == selected)
-            action.triggered.connect(lambda checked=False, i=device_id, n=name: self._select_microphone(i, n))
-        if error:
-            menu.addAction("Could not list microphones").setEnabled(False)
+        menu._microphone_actions = []
+        menu._microphone_group = QActionGroup(menu)
+        menu._microphone_group.setExclusive(True)
+        menu._microphone_devices = None
+        menu._microphone_error = None
+        self._populate_microphone_actions(menu, devices, error)
         menu.addSeparator()
         hint = QLabel("Using a Bluetooth mic may reduce headset playback quality.")
         hint.setWordWrap(True)
@@ -1119,6 +1115,66 @@ class PillWidget(QWidget):
         if _user32:
             _user32.SetWindowPos(int(menu.winId()), -1, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
         menu.raise_()
+        self._mic_refresh_timer.start()
+
+    def _populate_microphone_actions(self, menu, devices, error):
+        selected = getattr(self._engine, '_microphone_id', '')
+        snapshot = (tuple(devices), selected, bool(error))
+        if menu._microphone_devices == snapshot:
+            return
+        menu._microphone_devices = snapshot
+        active = menu.activeAction()
+        active_id = active.data() if active else None
+        for action in menu._microphone_actions:
+            menu.removeAction(action)
+            menu._microphone_group.removeAction(action)
+            action.deleteLater()
+        menu._microphone_actions = []
+        if menu._microphone_error is not None:
+            menu.removeAction(menu._microphone_error)
+            menu._microphone_error.deleteLater()
+            menu._microphone_error = None
+        anchor = menu.actions()[0] if menu.actions() else None
+        for device_id, name in [("", "Same as Windows")] + list(devices):
+            label = QFontMetrics(menu.font()).elidedText(name, Qt.TextElideMode.ElideRight, 280)
+            action = QAction(label, menu)
+            action.setData(device_id)
+            action.setToolTip(name)
+            menu._microphone_group.addAction(action)
+            action.setCheckable(True)
+            action.setChecked(device_id == selected)
+            action.triggered.connect(lambda checked=False, i=device_id, n=name: self._select_microphone(i, n))
+            menu.insertAction(anchor, action)
+            menu._microphone_actions.append(action)
+            if active is not None and device_id == active_id:
+                menu.setActiveAction(action)
+        if error:
+            action = QAction("Could not refresh microphones — retrying", menu)
+            action.setEnabled(False)
+            menu.insertAction(anchor, action)
+            menu._microphone_error = action
+
+    def _refresh_microphone_menu(self):
+        menu = getattr(self, '_mic_menu', None)
+        if menu is None or not menu.isVisible() or self._preparing or self._stopping:
+            self._mic_refresh_timer.stop()
+            return
+        worker = getattr(self, '_mic_menu_worker', None)
+        if worker is not None and worker.isRunning():
+            return
+        self._mic_menu_worker = _MicrophoneListWorker(self._engine, self)
+        self._mic_menu_worker.loaded.connect(lambda devices, error, owner=menu:
+            self._apply_microphone_refresh(owner, devices, error))
+        self._mic_menu_worker.start()
+
+    def _apply_microphone_refresh(self, menu, devices, error):
+        if (getattr(self, '_mic_menu', None) is not menu or self._preparing
+                or self._stopping or not menu.isVisible()):
+            return
+        if error:
+            # A transient enumeration failure is not proof every mic vanished.
+            devices = list(menu._microphone_devices[0])
+        self._populate_microphone_actions(menu, devices, error)
 
     def _set_microphone_menu_open(self, opened):
         self._btn_mic_menu.setProperty("menuOpen", opened)
@@ -1130,6 +1186,7 @@ class PillWidget(QWidget):
     def _release_microphone_menu(self, menu):
         if getattr(self, '_mic_menu', None) is menu:
             self._mic_menu = None
+            self._mic_refresh_timer.stop()
             self._set_microphone_menu_open(False)
         if hasattr(menu, "_fade"):
             menu._fade.stop()
@@ -1401,6 +1458,10 @@ class PillWidget(QWidget):
             self._initiate_discard(confirm=False)
         if hasattr(self, '_topmost_timer'):
             self._topmost_timer.stop()
+        self._mic_refresh_timer.stop()
+        menu = getattr(self, '_mic_menu', None)
+        if menu is not None:
+            menu.close()
         self._keycast.stop()
         super().closeEvent(event)
 
