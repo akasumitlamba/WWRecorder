@@ -183,3 +183,10 @@ floating controls. Native file dialogs use the same topmost policy. Controls
 yield while a transient window is visible. Delete confirmation is nonblocking,
 owned by Recent Files and defaults to No; Cancel/Escape/close preserve the file.
 Delete errors remain visible. The same code is used in EXE and MSIX editions.
+
+Microphone menus refresh active Windows endpoints every second while open. The
+retained enumeration worker never opens streams or changes the selected device.
+GUI updates preserve the checked/hovered endpoint ID and menu ownership; stale
+results are ignored after close/preparing/stopping. An endpoint name failure uses
+a temporary label rather than hiding the remaining endpoints. Scan failures keep
+the last list until a successful retry.

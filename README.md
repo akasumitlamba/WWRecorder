@@ -14,7 +14,8 @@ GitHub currently labels v1.7.1 as a **prerelease** and v1.6 as **Latest**. Use t
 
 | Distribution | Download | Status |
 | --- | --- | --- |
-| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.3.exe) | Direct installer; unsigned. Verify the release SHA-256. |
+| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.4.exe) | Direct installer; unsigned. Verify the release SHA-256. |
+| MSIX sideload prerelease | [Install kit](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_MSIX_Install_Kit_1.7.1.4.zip) · [MSIX](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_1.7.1.4_x64.msix) | Self-signed preview; use the kit to trust its public certificate. Separate MSIX Test identity. |
 | Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Open the Store listing to check the available version and updates. |
 
 [Release notes and security advisory](https://akasumitlamba.github.io/WWRecorder/release-notes.html) ·
