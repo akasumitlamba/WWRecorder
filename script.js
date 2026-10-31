@@ -32,7 +32,7 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Media security update</strong>
-      <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on GitHub release v1.7. That file is the current non-prerelease installer.</p>
+      <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on the current GitHub latest release (tag v1.7). Version 1.6 does not include this fix.</p>
       <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>`;
     const dismissNotice = () => {
       notice.remove();
