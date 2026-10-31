@@ -8,7 +8,7 @@ WWRecorder is a lightweight desktop screen recorder and screenshot tool for Wind
 
 ## Version and download status
 
-**WWRecorder 1.7.1** includes the update for [CVE-2026-8461](https://akasumitlamba.github.io/WWRecorder/release-notes.html#security). Recording and export use FFmpeg 9.0.2. Playback uses FFmpeg 9.0.1 from Qt 6.12.0. Source builds must use those versions; they are recorded in `packaging/shared/media-security.json`. Update older installations before opening untrusted videos.
+**WWRecorder 1.7.1** includes the update for [CVE-2026-8461](https://akasumitlamba.github.io/WWRecorder/release-notes.html#security). Recording and export use FFmpeg 9.0.2. Playback uses FFmpeg 9.0.1 through Qt 6.12.0. Source builds must use those versions; they are recorded in `packaging/shared/media-security.json`. Update older installations before opening untrusted videos.
 
 The patched files are attached to GitHub release tag **v1.7**, which is the current non-prerelease release. There is no GitHub Release named v1.7.1. Version 1.6 does not include this fix. The EXE updater compares the release tag `1.7` with the installed version, so an installation that already reports 1.7.1 is not offered tag 1.7. See the [enterprise update notes](https://akasumitlamba.github.io/WWRecorder/enterprise.html#deployment).
 
@@ -87,7 +87,7 @@ EXE and full-trust MSIX provide **the same Windows application**. Capture, audio
 
 | Integration | EXE | MSIX |
 | --- | --- | --- |
-| Updates | Checks the official GitHub stable-release feed and opens the release page | Managed through Microsoft Store |
+| Updates | Checks GitHub’s latest non-prerelease release. The current tag is v1.7 and the Setup file is WWRecorder_Setup_1.7.1.4.exe. An app that already reports 1.7.1 will not see that tag as newer. | Managed through Microsoft Store |
 | Startup | Windows user startup registration | Windows StartupTask |
 | Settings | `%APPDATA%\WWRecorder` | Package-private `LocalState\WWRecorder` |
 | Initial preferences | Uses existing EXE settings | Can import existing EXE settings once when no packaged configuration exists |
@@ -175,7 +175,7 @@ python app/main.py
 
 The media preparation command downloads and verifies the approved FFmpeg encoder. `Run-WWRecorder.cmd` also prepares it before startup. Windows does not use an arbitrary FFmpeg from PATH.
 
-Contributors can run `python -m pytest`; the lock file includes test dependencies. See the [architecture](docs/AI_CONTEXT.md) and [build guide](docs/DISTRIBUTION.md) for implementation and packaging details.
+From that environment, `python -m pytest` runs the tests. The lock file includes pytest.
 
 ## Administrator controls
 
