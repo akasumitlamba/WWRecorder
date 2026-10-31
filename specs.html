@@ -74,7 +74,7 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
       <div class="tech-note-grid">
         <article class="tech-note reveal"><span>WASAPI</span><h3>Windows audio</h3><p>System sound and the microphone are captured through WASAPI, the Windows audio interface, and mixed on this PC at 48 kHz.</p></article>
         <article class="tech-note reveal"><span>OPUS</span><h3>Saved audio</h3><p>The mixed sound is saved as Opus audio at 112 kbps inside the MKV file.</p></article>
-        <article class="tech-note reveal"><span>LIVE TOGGLES</span><h3>Timeline stays continuous</h3><p>Turn system sound or microphone audio on and off without starting a new recording.</p></article>
+        <article class="tech-note reveal"><span>WHILE RECORDING</span><h3>Timeline stays continuous</h3><p>Turn system sound or microphone audio on and off without starting a new recording.</p></article>
       </div>
     </section>
 
@@ -88,7 +88,7 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
           <tr><th>Cursor</th><td>Windows pointer</td><td>The recording can include the Windows pointer and keeps its appearance.</td></tr>
         </tbody></table></section>
 
-        <section class="spec-card reveal"><div class="spec-card-title"><span>CONCURRENCY</span><h2>Controls and responsiveness</h2></div><table class="spec-table"><tbody>
+        <section class="spec-card reveal"><div class="spec-card-title"><span>CONTROLS</span><h2>Controls and responsiveness</h2></div><table class="spec-table"><tbody>
           <tr><th>Background processing</th><td>Capture, saving and previews</td><td>Continue using the controls while media is processed.</td></tr>
           <tr><th>Recording controls</th><td>Start, pause, resume and stop</td><td>The controls show the current capture state.</td></tr>
           <tr><th>Audio sources</th><td>System sound and microphone</td><td>Choose either source or record both together.</td></tr>
@@ -97,7 +97,7 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
           <tr><th>Processing errors</th><td>On-screen feedback</td><td>Errors explain what failed and whether your recording can be recovered.</td></tr>
         </tbody></table></section>
 
-        <section class="spec-card reveal" id="recovery"><div class="spec-card-title"><span>RECOVERY</span><h2>File-safety contract</h2></div><table class="spec-table"><tbody>
+        <section class="spec-card reveal" id="recovery"><div class="spec-card-title"><span>RECOVERY</span><h2>Saving and recovery</h2></div><table class="spec-table"><tbody>
           <tr><th>If saving fails</th><td>Recovery files kept</td><td>You can save or discard a recording. If saving fails, temporary files stay in the recovery folder and the message says where they are.</td></tr>
           <tr><th>Recovery folder</th><td><code>&lt;output&gt;\.wwr_temp</code></td><td>Temporary recording files stay on your selected output drive.</td></tr>
           <tr><th>Recovery retention</th><td>Seven days</td><td>Older temporary recordings are eligible for cleanup. Recover a failed recording promptly.</td></tr>
