@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#050505">
   <meta name="description" content="Technical specifications for WWRecorder recording, audio, file formats, editing and Windows support.">
+  <meta property="og:title" content="WWRecorder technical specifications"><meta property="og:url" content="https://akasumitlamba.github.io/WWRecorder/specs.html">
   <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/specs.html"><link rel="icon" type="image/png" href="icons/icon.png"><link rel="stylesheet" href="style.css?v=17">
   <title>WWRecorder technical specifications</title>
 </head>
@@ -24,11 +25,11 @@
         <p class="section-kicker">Technical specifications</p>
         <h1>Screen and sound.<br><em>Saved on your PC.</em></h1>
         <p>Recording formats, audio options, editing tools and Windows requirements in one place.</p>
-        <div class="spec-chips" aria-label="Core technologies"><code>PyQt6</code><code>MSS</code><code>NumPy BGRA</code><code>Win32 GDI</code><code>WASAPI</code><code>FFmpeg</code></div>
+        <div class="spec-chips" aria-label="Core technologies"><code>PyQt6</code><code>MSS</code><code>Screen pixels</code><code>Windows graphics</code><code>Windows audio</code><code>FFmpeg</code></div>
       </div>
       <aside class="runtime-card" aria-label="Runtime summary">
-        <span class="runtime-status"><i></i> LOCAL PIPELINE</span>
-        <dl><div><dt>Target cadence</dt><dd>30 FPS</dd></div><div><dt>Audio working format</dt><dd>float32 / 48 kHz final</dd></div><div><dt>Final video</dt><dd>H.264 / yuv420p</dd></div><div><dt>Final audio</dt><dd>Opus / 112 kbps</dd></div><div><dt>Container</dt><dd>Matroska / .mkv</dd></div></dl>
+        <span class="runtime-status"><i></i> ON THIS PC</span>
+        <dl><div><dt>Target cadence</dt><dd>30 FPS</dd></div><div><dt>Audio working format</dt><dd>48 kHz</dd></div><div><dt>Final video</dt><dd>H.264 / yuv420p</dd></div><div><dt>Final audio</dt><dd>Opus / 112 kbps</dd></div><div><dt>Container</dt><dd>Matroska / .mkv</dd></div></dl>
       </aside>
     </header>
 
@@ -63,16 +64,16 @@ Hold the previous image during capture delays</code></pre><p>Capture resumes wit
         <article class="code-card reveal"><header><span>Simplified save flow</span><i></i></header><pre><code>Remove paused intervals
 Combine video and selected audio
 Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the saved recording.</p></article>
-        <article class="metric-stack reveal"><div><span>Capture clock</span><strong><b>30 FPS</b> recording timeline</strong></div><div><span>Overload policy</span><strong><b>Hold image</b> until capture resumes</strong></div><div><span>Pause model</span><strong><b>Pause / resume</b> in the same recording</strong></div><div><span>Tail policy</span><strong><b>Last image</b> retained to the end</strong></div></article>
+        <article class="metric-stack reveal"><div><span>Timeline</span><strong><b>30 FPS</b> recording timeline</strong></div><div><span>If capture slows</span><strong><b>Hold image</b> until capture resumes</strong></div><div><span>Pause</span><strong><b>Pause / resume</b> in the same recording</strong></div><div><span>End of the file</span><strong><b>Last image</b> retained to the end</strong></div></article>
       </div>
     </section>
 
     <section class="audio-lab section-pad" id="audio">
-      <div class="spec-section-heading reveal"><p class="section-kicker">03 / Audio graph</p><h2>Short reads, resilient endpoints, voice-first mix.</h2><p>System playback and microphone capture run independently. Choose a microphone or select Same as Windows. A selected microphone stays selected throughout the recording.</p></div>
-      <div class="audio-flow reveal" aria-label="Audio processing flow"><span>WASAPI loopback</span><span>WASAPI microphone</span><i>Independent audio sources</i><strong>48 kHz output</strong><strong>Microphone voice processing</strong><strong>Combined audio → Opus 112 kbps</strong></div>
+      <div class="spec-section-heading reveal"><p class="section-kicker">03 / Audio</p><h2>System sound and microphone, mixed on this PC.</h2><p>System sound and the microphone are recorded separately and mixed on the PC. Choose a microphone or follow the Windows default. A chosen microphone stays selected for that recording.</p></div>
+      <div class="audio-flow reveal" aria-label="Audio processing flow"><span>System sound</span><span>Microphone</span><i>Independent audio sources</i><strong>48 kHz output</strong><strong>Microphone voice processing</strong><strong>Combined audio → Opus 112 kbps</strong></div>
       <div class="tech-note-grid">
-        <article class="tech-note reveal"><span>MMCSS</span><h3>Priority where it matters</h3><p>Audio recording uses Windows WASAPI for system sound and microphone capture.</p></article>
-        <article class="tech-note reveal"><span>DISCONTINUITY</span><h3>Continuous sound</h3><p>Brief scheduling delays no longer create unnecessary silent gaps in recorded audio. See the <a href="release-notes.html">release notes</a>.</p></article>
+        <article class="tech-note reveal"><span>WASAPI</span><h3>Windows audio</h3><p>System sound and the microphone are captured through WASAPI, the Windows audio interface, and mixed on this PC at 48 kHz.</p></article>
+        <article class="tech-note reveal"><span>OPUS</span><h3>Saved audio</h3><p>The mixed sound is saved as Opus audio at 112 kbps inside the MKV file.</p></article>
         <article class="tech-note reveal"><span>LIVE TOGGLES</span><h3>Timeline stays continuous</h3><p>Turn system sound or microphone audio on and off without starting a new recording.</p></article>
       </div>
     </section>
@@ -81,12 +82,10 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
       <div class="spec-section-heading reveal"><p class="section-kicker">04 / Specifications</p><h2>Formats, controls and storage.</h2><p>Find recording, editing and installation details below.</p></div>
       <div class="spec-groups">
         <section class="spec-card reveal"><div class="spec-card-title"><span>CAPTURE</span><h2>Pixel and encode path</h2></div><table class="spec-table"><tbody>
-          <tr><th>Source acquisition</th><td><code>mss</code> + NumPy</td><td>Monitor intersections are captured as BGRA and assembled into a single output canvas.</td></tr>
-          <tr><th>Coordinate domains</th><td>Qt logical / Win32 physical / image-local</td><td>Supports monitors positioned to the left or above the main screen and mixed display scaling.</td></tr>
-          <tr><th>Video input</th><td>BGRA frames</td><td>The selected screen area is encoded locally.</td></tr>
+          <tr><th>Screen capture</th><td>MSS</td><td>The selected part of each monitor is combined into one image, including monitors to the left of or above the main screen and mixed display scaling.</td></tr>
           <tr><th>Temporary video</th><td>H.264 / x264</td><td>Temporary video is kept while the recording is processed.</td></tr>
           <tr><th>Final video</th><td>H.264 / yuv420p</td><td>The saved video uses H.264 compression.</td></tr>
-          <tr><th>Cursor composition</th><td>Win32 <code>DrawIconEx</code></td><td>Preserves the Windows pointer’s appearance.</td></tr>
+          <tr><th>Cursor</th><td>Windows pointer</td><td>The recording can include the Windows pointer and keeps its appearance.</td></tr>
         </tbody></table></section>
 
         <section class="spec-card reveal"><div class="spec-card-title"><span>CONCURRENCY</span><h2>Controls and responsiveness</h2></div><table class="spec-table"><tbody>
@@ -99,17 +98,16 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
         </tbody></table></section>
 
         <section class="spec-card reveal" id="recovery"><div class="spec-card-title"><span>RECOVERY</span><h2>File-safety contract</h2></div><table class="spec-table"><tbody>
-          <tr><th>Recording outcome</th><td>Save, discard or recover</td><td>Choose to save or discard; failed saves keep recovery files.</td></tr>
+          <tr><th>If saving fails</th><td>Recovery files kept</td><td>You can save or discard a recording. If saving fails, temporary files stay in the recovery folder and the message says where they are.</td></tr>
           <tr><th>Recovery folder</th><td><code>&lt;output&gt;\.wwr_temp</code></td><td>Temporary recording files stay on your selected output drive.</td></tr>
           <tr><th>Recovery retention</th><td>Seven days</td><td>Older temporary recordings are eligible for cleanup. Recover a failed recording promptly.</td></tr>
-          <tr><th>Failed saves</th><td>Recovery files kept</td><td>A failed save keeps temporary media for recovery.</td></tr>
           <tr><th>Capture filenames</th><td>Numbered copies</td><td>Captures with the same timestamp receive distinct filenames.</td></tr>
           <tr><th>Screenshot saving</th><td>PNG</td><td>Save the edited image or choose Save As for a separate copy.</td></tr>
         </tbody></table></section>
 
         <section class="spec-card reveal" id="windows"><div class="spec-card-title"><span>WINDOWS</span><h2>Native integration</h2></div><table class="spec-table"><tbody>
           <tr><th>Recording controls</th><td>Windows 10 2004+</td><td>The recording pill is excluded from supported screen captures. Live drawings appear in the recording.</td></tr>
-          <tr><th>Audio backend</th><td>Windows WASAPI</td><td>Record system playback and a chosen microphone, or follow the Windows default.</td></tr>
+          <tr><th>Audio</th><td>WASAPI (Windows audio)</td><td>Record system sound and a chosen microphone, or follow the Windows default.</td></tr>
           <tr><th>Application window</th><td>One running instance</td><td>Launching WWRecorder again returns to the running app.</td></tr>
           <tr><th>Start with Windows</th><td>Optional</td><td>Enable or disable startup in Settings.</td></tr>
           <tr><th>Playback output</th><td>Qt Multimedia + current default device</td><td>The player follows Windows default-output changes while retaining mute and volume state.</td></tr>
@@ -139,7 +137,7 @@ Save an H.264 / Opus MKV file</code></pre><p>Paused time is left out of the save
     <section class="state-contract section-pad reveal" id="state">
       <p class="section-kicker">05 / Recording workflow</p><h2>From selection to saved file.</h2>
       <div class="state-line" aria-label="Recording state sequence"><span>idle</span><i>→</i><span>selecting</span><i>→</i><span>ready</span><i>→</i><span>preparing</span><i>→</i><span class="active">recording</span><i>↔</i><span>paused</span><i>→</i><span>stopping</span><i>→</i><span>saving</span><i>→</i><span>idle</span></div>
-      <p>Select an area, start, pause or resume, then save or discard. If saving fails, the error explains where recovery files are kept.</p>
+      <p>Select an area, start, pause or resume, then save or discard.</p>
     </section>
 
     <section class="closing reveal"><h2>Prefer the visual tour?</h2><p>Return to the product page to see these systems through the current WWRecorder interface.</p><div class="hero-actions"><a class="button button-secondary" href="index.html#features">View features</a><button class="button button-primary js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Choose download</button></div></section>
