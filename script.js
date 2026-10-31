@@ -32,7 +32,7 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Media security update</strong>
-      <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on GitHub release v1.7. That file is the current non-prerelease installer, not a separate preview download.</p>
+      <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on GitHub release v1.7. That file is the current non-prerelease installer.</p>
       <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>`;
     const dismissNotice = () => {
       notice.remove();
@@ -321,7 +321,7 @@
         releases.forEach((release, index) => {
           const option = document.createElement('option');
           option.value = release.asset.browser_download_url;
-          option.textContent = `${release.tag}${release.latest ? ' (latest stable)' : ''} · ${formatReleaseDate(release.published)}`;
+          option.textContent = `${release.tag}${release.latest ? ' (latest release)' : ''} · ${formatReleaseDate(release.published)}`;
           option.selected = release.asset.browser_download_url === activeUrl;
           versionSelect.append(option);
         });
@@ -335,8 +335,8 @@
       }
       window.setTimeout(startDownload, 900);
     } catch (error) {
-      if (statusTitle) statusTitle.textContent = 'Open the latest stable release';
-      if (statusText) statusText.textContent = 'The live installer lookup is unavailable. Open GitHub’s latest stable release to choose its installer.';
+      if (statusTitle) statusTitle.textContent = 'Open the latest GitHub release';
+      if (statusText) statusText.textContent = 'The installer list is unavailable. Open the latest GitHub release to choose its installer.';
       if (manualLink) {
         manualLink.href = RELEASES_FALLBACK;
         manualLink.textContent = 'Open GitHub releases';
@@ -349,7 +349,7 @@
   
   document.querySelector('[data-copy-cmd]')?.addEventListener('click', async () => {
     const btn = document.querySelector('[data-copy-cmd]');
-    const cmdText = document.querySelector('[data-powershell-cmd]')?.textContent || 'Get-FileHash -Algorithm SHA256 "C:\\path\\to\\WWRecorder_Setup.exe"';
+    const cmdText = document.querySelector('[data-powershell-cmd]')?.textContent || 'Get-FileHash -Algorithm SHA256 "C:\\path\\to\\WWRecorder_Setup_1.7.1.4.exe"';
     try {
       await navigator.clipboard.writeText(cmdText);
       if (btn) {
