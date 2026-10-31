@@ -8,14 +8,14 @@ WWRecorder is a lightweight desktop screen recorder and screenshot tool for Wind
 
 ## Version and download status
 
-**WWRecorder v1.7.1** includes the update for [CVE-2026-8461](https://akasumitlamba.github.io/WWRecorder/release-notes.html#security), covering both recording/export and playback media components. Update older installations before opening untrusted videos.
+**WWRecorder 1.7.1** includes the update for [CVE-2026-8461](https://akasumitlamba.github.io/WWRecorder/release-notes.html#security). Recording and export use FFmpeg 9.0.2. Playback uses FFmpeg 9.0.1 through Qt 6.12.0. Source builds must use those versions; they are recorded in `packaging/shared/media-security.json`. Update older installations before opening untrusted videos.
 
-GitHub currently labels v1.7.1 as a **prerelease** and v1.6 as **Latest**. Use the explicit v1.7.1 download below for this security update.
+The security fix is on the current GitHub latest release, tag **v1.7**, installer `WWRecorder_Setup_1.7.1.4.exe`. There is no separate GitHub Release named v1.7.1. Version 1.6 does not include this fix. The EXE checks that latest release and compares tag `1.7` with the installed version. An installation below 1.7, including 1.6, can be offered tag v1.7 and would download that installer. An installation that already reports 1.7.1 is not offered tag v1.7, because 1.7 is a lower version number. See the [enterprise update notes](https://akasumitlamba.github.io/WWRecorder/enterprise.html#deployment).
 
 | Distribution | Download | Status |
 | --- | --- | --- |
-| Windows EXE 1.7.1 | [Official installer](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_Setup_1.7.1.4.exe) | Direct installer; unsigned. Verify the release SHA-256. |
-| MSIX sideload prerelease | [Install kit](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_MSIX_Install_Kit_1.7.1.4.zip) · [MSIX](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7.1/WWRecorder_1.7.1.4_x64.msix) | Self-signed preview; use the kit to trust its public certificate. Separate MSIX Test identity. |
+| Windows EXE 1.7.1 | [WWRecorder_Setup_1.7.1.4.exe](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7/WWRecorder_Setup_1.7.1.4.exe) on [release v1.7](https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7) | Unsigned. SHA-256 `d0c7cf976cd9656c60b9e938e9abc11f72990afd610495b28f845643bea3fdf0`. |
+| MSIX sideload | [Install kit](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7/WWRecorder_MSIX_Install_Kit_1.7.1.4.zip) · [MSIX](https://github.com/akasumitlamba/WWRecorder/releases/download/v1.7/WWRecorder_1.7.1.4_x64.msix) | Separate WWRecorder (MSIX Test) identity. Not the Microsoft Store package. |
 | Microsoft Store | [Production product](https://apps.microsoft.com/detail/9PBS5VDWFXND) | Open the Store listing to check the available version and updates. |
 
 [Release notes and security advisory](https://akasumitlamba.github.io/WWRecorder/release-notes.html) ·
@@ -87,7 +87,7 @@ EXE and full-trust MSIX provide **the same Windows application**. Capture, audio
 
 | Integration | EXE | MSIX |
 | --- | --- | --- |
-| Updates | Checks the official GitHub stable-release feed and opens the release page | Managed through Microsoft Store |
+| Updates | Checks GitHub’s latest release. The current tag is v1.7 and the Setup file is WWRecorder_Setup_1.7.1.4.exe. An installation below 1.7, including 1.6, can be offered that release. An app that already reports 1.7.1 will not see tag 1.7 as newer. | Managed through Microsoft Store |
 | Startup | Windows user startup registration | Windows StartupTask |
 | Settings | `%APPDATA%\WWRecorder` | Package-private `LocalState\WWRecorder` |
 | Initial preferences | Uses existing EXE settings | Can import existing EXE settings once when no packaged configuration exists |
@@ -175,7 +175,7 @@ python app/main.py
 
 The media preparation command downloads and verifies the approved FFmpeg encoder. `Run-WWRecorder.cmd` also prepares it before startup. Windows does not use an arbitrary FFmpeg from PATH.
 
-Contributors can run `python -m pytest`; the lock file includes test dependencies. See the [architecture](docs/AI_CONTEXT.md) and [build guide](docs/DISTRIBUTION.md) for implementation and packaging details.
+From that environment, `python -m pytest` runs the tests. The lock file includes pytest.
 
 ## Administrator controls
 

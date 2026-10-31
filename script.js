@@ -12,7 +12,7 @@
     Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.3)', filename: 'WWRecorder_Setup_1.7.1.3.exe', sha256: '6688a562751a4359cb99778049ef9054ceb3f37116194d122f7020f24674b7f5', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.2)', filename: 'WWRecorder_Setup_1.7.1.2.exe', sha256: '9d2a11b7164d4ce90ddd825949ef48c42e8bfeec9fa28959a9d20a7f51436b61', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.7.1', filename: 'WWRecorder_Setup_1.7.1.1.exe', sha256: '0d7e75e3b9723478117afed3f17b77f2fa05dfd5ab39e0e62eddc3d602eac7cd', mediaSecurityUpdate: true }),
-    Object.freeze({ releaseName: 'WWRecorder 1.6.3', filename: 'WWRecorder_Setup_1.6.3.exe', sha256: 'ec30b53e4f0ce2ac57ffac66d3f9c90340b4dca5c7ca9e6391926e6a82720eb9' }),
+    Object.freeze({ releaseName: 'WWRecorder 1.6.3', filename: 'WWRecorder_Setup_1.6.3.exe', sha256: '78210044cfa3d36a048760a4ea69b9ce912a256b03883e4c4dc39adf6d802e3b' }),
     Object.freeze({ releaseName: 'WWRecorder v1.6.0 Public Beta', filename: 'WWRecorder_Setup_1.6.exe', sha256: 'caa0cc1d8741a81937933ab1105510397305913bff516cef7e5c9287636e1694' }),
     Object.freeze({ releaseName: 'WWRecorder v1.5.0', filename: 'WWRecorder_Setup_1.5.exe', sha256: 'caf5d2afaa366f503453f8ac09211ce47af8b457163eafd853bb24dbd7a4a687' }),
     Object.freeze({ releaseName: 'WWRecorder v1.4.0', filename: 'WWRecorder_Setup_1.4.exe', sha256: '79606df1d4401fdb1b1a81efea358799d2e9bb1d231a127fa770d81a8f4d30c0' }),
@@ -32,8 +32,8 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Media security update</strong>
-      <p>FFmpeg security fix (CVE-2026-8461) is available in the 1.7.1 preview. Default downloads use the latest stable release.</p>
-      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7.1">Preview release</a></div>`;
+      <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on the current GitHub latest release (tag v1.7). Version 1.6 does not include this fix.</p>
+      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>`;
     const dismissNotice = () => {
       notice.remove();
       try { sessionStorage.setItem(noticeKey, 'dismissed'); } catch (_) { /* Dismiss still works. */ }
@@ -194,11 +194,11 @@
               <span class="choice-text">
                 <small>STANDALONE</small>
                 <strong>Installer</strong>
-                <em>Latest stable release from GitHub</em>
+                <em>Latest GitHub release</em>
               </span>
             </a>
           </div>
-          <details class="release-picker"><summary>Published installers</summary><div class="release-list" data-release-list><span>Loading published releases…</span></div></details>
+          <details class="release-picker"><summary>Published installers</summary><div class="release-list" data-release-list><span>Published installers appear here after the page contacts GitHub.</span></div></details>
           <a class="modal-help" href="install-help.html">Having trouble downloading or installing? View help →</a>
         </section>
       </div>`);
@@ -225,7 +225,7 @@
         const title = document.createElement('span');
         title.textContent = `${release.tag} · ${release.asset.name}`;
         const meta = document.createElement(index === 0 ? 'b' : 'small');
-        meta.textContent = release.latest ? 'Latest stable' : formatReleaseDate(release.published);
+        meta.textContent = release.latest ? 'Latest release' : formatReleaseDate(release.published);
         link.append(title, meta);
         list.append(link);
       });
@@ -321,7 +321,7 @@
         releases.forEach((release, index) => {
           const option = document.createElement('option');
           option.value = release.asset.browser_download_url;
-          option.textContent = `${release.tag}${release.latest ? ' (latest stable)' : ''} · ${formatReleaseDate(release.published)}`;
+          option.textContent = `${release.tag}${release.latest ? ' (latest release)' : ''} · ${formatReleaseDate(release.published)}`;
           option.selected = release.asset.browser_download_url === activeUrl;
           versionSelect.append(option);
         });
@@ -335,8 +335,8 @@
       }
       window.setTimeout(startDownload, 900);
     } catch (error) {
-      if (statusTitle) statusTitle.textContent = 'Open the latest stable release';
-      if (statusText) statusText.textContent = 'The live installer lookup is unavailable. Open GitHub’s latest stable release to choose its installer.';
+      if (statusTitle) statusTitle.textContent = 'Open the latest GitHub release';
+      if (statusText) statusText.textContent = 'The installer list is unavailable. Open the latest GitHub release to choose its installer.';
       if (manualLink) {
         manualLink.href = RELEASES_FALLBACK;
         manualLink.textContent = 'Open GitHub releases';
@@ -349,7 +349,7 @@
   
   document.querySelector('[data-copy-cmd]')?.addEventListener('click', async () => {
     const btn = document.querySelector('[data-copy-cmd]');
-    const cmdText = document.querySelector('[data-powershell-cmd]')?.textContent || 'Get-FileHash -Algorithm SHA256 "C:\\path\\to\\WWRecorder_Setup.exe"';
+    const cmdText = document.querySelector('[data-powershell-cmd]')?.textContent || 'Get-FileHash -Algorithm SHA256 "C:\\path\\to\\WWRecorder_Setup_1.7.1.4.exe"';
     try {
       await navigator.clipboard.writeText(cmdText);
       if (btn) {
