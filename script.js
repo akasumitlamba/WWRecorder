@@ -33,16 +33,27 @@
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Media security update</strong>
       <p>CVE-2026-8461 is fixed in WWRecorder_Setup_1.7.1.4.exe on the current GitHub latest release (tag v1.7). Version 1.6 does not include this fix.</p>
-      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>`;
+      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>
+      <span class="security-notice-bar" aria-hidden="true"></span>`;
+    let dismissTimer = 0;
     const dismissNotice = () => {
+      window.clearTimeout(dismissTimer);
       notice.remove();
       try { sessionStorage.setItem(noticeKey, 'dismissed'); } catch (_) { /* Dismiss still works. */ }
     };
     notice.querySelector('button').addEventListener('click', dismissNotice);
-    // Auto-dismiss 5000ms after page load even if the visitor does nothing.
-    const dismissAfterLoad = () => window.setTimeout(dismissNotice, 5000);
-    if (document.readyState === 'complete') dismissAfterLoad();
-    else window.addEventListener('load', dismissAfterLoad, { once: true });
+    notice.querySelector('.security-notice-bar').addEventListener('animationend', (event) => {
+      if (event.animationName === 'security-notice-countdown') dismissNotice();
+    });
+    // The bar empties over 10s after load; then the notice is removed.
+    const startCountdown = () => {
+      window.requestAnimationFrame(() => {
+        notice.classList.add('is-counting');
+        dismissTimer = window.setTimeout(dismissNotice, 10000);
+      });
+    };
+    if (document.readyState === 'complete') startCountdown();
+    else window.addEventListener('load', startCountdown, { once: true });
     document.body.append(notice);
   }
 
