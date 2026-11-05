@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=9.0.3,<10
+pyinstaller>=6.22.3,<7
+pytest-timeout>=2.3,<3

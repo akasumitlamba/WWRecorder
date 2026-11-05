@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#08090c">
+  <meta name="description" content="WWRecorder enterprise deployment: administrator policies, local data handling, Keycast disclosure, media security and Microsoft Store trust.">
+  <meta property="og:title" content="For enterprise | WWRecorder"><meta property="og:url" content="https://akasumitlamba.github.io/WWRecorder/enterprise.html">
+  <link rel="canonical" href="https://akasumitlamba.github.io/WWRecorder/enterprise.html"><link rel="icon" type="image/png" href="icons/icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=17">
+  <title>For enterprise | WWRecorder</title>
+</head>
+<body class="inner-page" data-page="enterprise">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header" data-header><a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a><button class="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="site-nav"><span></span><span></span></button><nav id="site-nav" aria-label="Primary navigation">
+      <a href="index.html#features">How it works</a>
+      <a href="index.html#fit">Is it for me?</a>
+      <a href="index.html#under-the-hood">Under the hood</a>
+      <a href="install-help.html">Install help</a>
+      <a href="specs.html">Technical specs</a>
+      <a href="enterprise.html">For enterprise</a>
+      <button class="nav-download js-download-open" type="button"><img class="download-icon" src="icons/download-tray.svg" alt="" aria-hidden="true">Download</button>
+    </nav></header>
+
+  <main class="inner-main" id="main">
+    <header class="inner-hero enterprise-hero">
+      <h1>For enterprise</h1>
+      <p class="inner-lead">Deploy screen recording on managed Windows devices with local media storage, machine-level controls and defined update channels.</p>
+      <div class="hero-actions"><a class="button button-primary" href="#managed-controls">Administrator controls</a><a class="button button-secondary" href="#deployment">Deployment guidance</a></div>
+    </header>
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="Enterprise contents"><strong>On this page</strong><div class="doc-toc-links">
+        <a href="#data-handling">Data handling</a><a href="#managed-controls">Administrator controls</a><a href="#keycast">Keycast disclosure</a><a href="#media-security">Media security</a><a href="#deployment">Deployment and updates</a><a href="#recovery">Recovery and diagnostics</a><a href="#assessment">Security assessment</a>
+      </div></aside>
+      <article class="doc-content">
+        <section class="content-card" id="data-handling"><h2>Media stays with your organization</h2><p>Recording, screenshots, annotation and editing run on the user’s Windows device. WWRecorder has no account requirement, capture-upload service, advertising SDK or usage-analytics service. It does not send screen content, audio or Keycast input to the developer.</p><p>Captures are ordinary PNG and MKV files in the chosen output folder. Apply your Windows permissions, disk encryption, retention and data-loss-prevention policies to completed captures and recovery media. WWRecorder does not encrypt those files itself. Network shares and synchronized folders follow your organization’s and storage provider’s policies.</p><p>Clipboard copying, manual sharing and drag-and-drop can send content to another application. Windows clipboard history, sync and remote-desktop redirection require their own endpoint policies.</p></section>
+        <section class="content-card" id="managed-controls"><h2>Administrator controls</h2><p>Available in version 1.7.1, both EXE and MSIX editions read the same optional machine policy. Administrators can deploy DWORD values under the <strong>64-bit</strong> registry key:</p><pre class="enterprise-code"><code>HKEY_LOCAL_MACHINE\SOFTWARE\Policies\WWRecorder</code></pre>
+          <div class="enterprise-table-wrap"><table class="enterprise-table"><thead><tr><th scope="col">Policy value</th><th scope="col">When set to 1</th></tr></thead><tbody><tr><td><code>DisableKeycast</code></td><td>Blocks Keycast activation and checks the restriction when users try to enable it.</td></tr><tr><td><code>DisableAutomaticClipboard</code></td><td>Stops automatic copying after captures and player-frame screenshots. Manual Copy remains available as an explicit user action.</td></tr></tbody></table></div>
+          <p>Deploy through your approved device-management or registry mechanism, protect the key from ordinary-user writes, and restart WWRecorder. An absent value or DWORD 0 leaves the normal user-controlled behavior available. These are application controls; use endpoint DLP and clipboard policy for organization-wide restrictions.</p>
+        </section>
+        <section class="content-card" id="keycast"><h2>Keyboard input and sensitive information</h2><p>Keycast can display recent keys, shortcut combinations, mouse clicks and scrolling inside the recorded area. Before activation, users see a warning that <strong>passwords, private text and typing outside the selected recording area may be visible in the recording</strong>. They can cancel or enable it and choose whether to remember the acknowledgement.</p><p>Keycast does not detect or mask passwords. Disable it with the <code>DisableKeycast</code> machine policy on devices that handle sensitive input. Keyboard input is not sent to the developer or stored in a separate typing-history file.</p></section>
+        <section class="content-card" id="media-security"><h2>Media security and download verification</h2><p>WWRecorder 1.7.1 updates its recording/export encoder and playback libraries to address <strong>CVE-2026-8461</strong>, a flaw in FFmpeg’s MagicYUV decoder. Opening a specially crafted video with a vulnerable decoder can crash an application or, in some circumstances, run malicious code. <a href="release-notes.html#security">Read the advisory and update instructions</a>.</p><p>Version 1.7.1 includes FFmpeg 9.0.2 for recording/export and FFmpeg 9.0.1 through Qt 6.12.0 for playback. Update older WWRecorder installations before opening untrusted media.</p><p>Compare the installer’s SHA-256 with the published checksum before deployment. The EXE updater checks the download’s expected size and SHA-256, then verifies the downloaded file again before launch.</p></section>
+        <section class="content-card" id="deployment"><h2>Deployment and update management</h2>
+          <p>EXE and full-trust MSIX editions provide the same recording features and defaults. Capture runs under a standard Windows user account. The MSIX edition is a full-trust desktop application, not an AppContainer sandbox.</p>
+          <div class="enterprise-table-wrap"><table class="enterprise-table"><thead><tr><th scope="col">Distribution channel</th><th scope="col">Deployment considerations</th><th scope="col">Updates</th></tr></thead><tbody>
+            <tr><td>Direct-download EXE</td><td>The installer is unsigned. Review it through the organization’s software-approval process and verify its SHA-256 against the release checksum before deployment.</td><td>The application checks GitHub for the latest stable release. Prereleases are excluded from automatic update checks.</td></tr>
+            <tr><td>Microsoft Store</td><td>Approve the Store product and available version through the organization’s application-management process. Packages delivered through the Store are signed by Microsoft.</td><td>Microsoft Store manages updates. The packaged application does not use the EXE updater.</td></tr>
+            <tr><td>MSIX test package on GitHub</td><td>For evaluation only. This package uses a separate test identity and certificate; it is not the production Store package.</td><td>Does not transition into the production Store installation. Deploy the approved Store product separately.</td></tr>
+          </tbody></table></div>
+          <p>Validate the approved package on a pilot group before broad deployment. Apply the machine policies above, confirm capture and audio permissions, and test the organization’s output-folder, clipboard and network restrictions.</p>
+          <p>Windows startup restrictions remain in effect. Settings are stored separately by edition after the initial settings import.</p>
+          <div class="hero-actions"><a class="button button-secondary" href="https://apps.microsoft.com/detail/9PBS5VDWFXND" target="_blank" rel="noopener">Microsoft Store product</a><a class="button button-secondary" href="https://github.com/akasumitlamba/WWRecorder/releases/latest" target="_blank" rel="noopener">Latest stable release and checksums</a></div>
+        </section>
+        <section class="content-card" id="recovery"><h2>Recovery, diagnostics and retention</h2><p>If saving fails, WWRecorder keeps the recording in its recovery folder and reports the error. Closing a processing notice lets saving continue in the background.</p><p>Recovery media is stored in <code>.wwr_temp</code> on the selected output drive. Eligible recorder temporary files older than seven days can be cleaned from known locations; this does not scan every historical folder or securely erase SSDs, backups or cloud copies. Finished captures remain until deleted or removed by storage policy.</p><p>EXE settings/logs use <code>%APPDATA%\WWRecorder</code>; MSIX uses package-private LocalState storage. Application logs rotate at 2 MiB with three backups. Native crash logs rotate on the next launch at 2 MiB with one backup. Diagnostic paths and error context may identify users or files. Restrict access and review logs before sharing them.</p></section>
+        <section class="content-card" id="assessment"><h2>Support for your security review</h2><p>Application source, tests, build definitions, dependency versions and release checksums are public.</p><p>Evaluate deployment trust, permissions, clipboard/DLP, proxy or denied-egress behavior, recovery handling and your chosen media destinations before broad rollout. Use the controls above to configure the app for your organization.</p><div class="hero-actions"><a class="button button-primary" href="privacy-policy.html">Read the privacy policy</a><a class="button button-secondary" href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Ask a deployment question</a></div><p>Do not attach private recordings, credentials, signing keys or unreviewed logs to a public issue.</p></section>
+      </article>
+    </div>
+  </main>
+
+      <footer class="site-footer">
+    <div class="footer-brand">
+      <a class="brand" href="index.html" aria-label="WWRecorder home"><img class="brand-icon" src="icons/icon.png" alt="" aria-hidden="true"><img class="brand-wordmark" src="icons/wwrecorder.png" alt="WWRecorder"></a>
+      <p class="footer-credit">Designed and developed by <a class="author-name" href="https://github.com/akasumitlamba" target="_blank" rel="noopener">Sumit Kumar Lamba</a>.</p>
+      <p class="footer-copyright">© <span data-current-year></span> Sumit Kumar Lamba · Application source licensed under MIT.</p>
+    </div>
+    <div class="footer-columns">
+      <div>
+        <strong>Product</strong>
+        <a href="index.html#features">How it works</a>
+        <a href="index.html#fit">Is it for me?</a>
+        <a href="specs.html">Technical specs</a>
+        <a href="download.html">Download choices</a>
+        <a href="ms-windows-store://pdp/?productid=9PBS5VDWFXND">Microsoft Store</a>
+      </div>
+      <div>
+        <strong>Install &amp; Safety</strong>
+        <a href="install-help.html">Installation help</a>
+        <a href="install-help.html#verify-installer">Check SHA-256 hash</a>
+        <a href="install-help.html#edge-warning">Edge download warning</a>
+        <a href="install-help.html#smartscreen-warning">Windows SmartScreen</a>
+        <a href="install-help.html#smart-app-control">Smart App Control</a>
+      </div>
+      <div>
+        <strong>Project &amp; Code</strong>
+        <a href="release-notes.html">Release notes &amp; security</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder" target="_blank" rel="noopener">Source code</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/releases" target="_blank" rel="noopener">Release history</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues" target="_blank" rel="noopener">Report an issue</a>
+        <a href="https://github.com/akasumitlamba/WWRecorder/issues/new" target="_blank" rel="noopener">Request a feature</a>
+      </div>
+      <div>
+        <strong>Legal &amp; Trust</strong>
+        <a href="privacy-policy.html">Privacy policy</a>
+        <a href="enterprise.html">For enterprise</a>
+        <a href="legal.html">Legal</a>
+        <a href="legal.html#third-party">Third-party notices</a>
+        <a href="privacy-policy.html#network">Data and network activity</a>
+      </div>
+    </div>
+  </footer>
+  <script src="script.js?v=13" defer></script>
+</body>
+</html>
