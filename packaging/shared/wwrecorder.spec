@@ -82,6 +82,9 @@ a = Analysis(
         "pynput.mouse._win32",
         "pynput._util",
         "pynput._util.win32",
+        # App modules imported lazily inside functions
+        "mic_loopback_removal",
+        "smart_cut",
         # stdlib
         "subprocess",
         "wave",

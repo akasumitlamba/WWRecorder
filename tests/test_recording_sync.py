@@ -14,7 +14,8 @@ def test_sample_clock_holds_old_screen_without_moving_next_event():
     assert list(clock.append(b'dark',1.1))==[b'flash']*2+[b'dark']
 
 
-def test_saved_system_and_microphone_events_match_screen_after_uneven_stalls(tmp_path,monkeypatch):
+@pytest.mark.parametrize('single_pass',[False,True])
+def test_saved_system_and_microphone_events_match_screen_after_uneven_stalls(tmp_path,monkeypatch,single_pass):
     recorder=import_app('recorder')
     ffmpeg=shutil.which('ffmpeg') or str(Path(__file__).resolve().parents[1]/'app/ffmpeg.exe')
     if not Path(ffmpeg).is_file():pytest.skip('Real encoder unavailable')
@@ -55,7 +56,11 @@ def test_saved_system_and_microphone_events_match_screen_after_uneven_stalls(tmp
     assert abs(first/len(samples)*4-1.2)>.2
     source=tmp_path/'frames.rgb';source.write_bytes(b''.join(frames))
     video=tmp_path/'capture.mkv'
-    run(['-f','rawvideo','-pix_fmt','bgra','-s','96x64','-r','30','-i',str(source),'-c:v','libx264','-preset','ultrafast','-crf','18',str(video)])
+    # Single pass: the live encoder already writes final quality and saving
+    # copies it. Otherwise the light live encode is re-encoded when saving.
+    live_args,is_final=recorder._live_video_encoder(96,64) if single_pass else (['-c:v','libx264','-preset','ultrafast','-crf','18'],False)
+    assert is_final==single_pass
+    run(['-f','rawvideo','-pix_fmt','bgra','-s','96x64','-r','30','-i',str(source),*live_args,str(video)])
     paths=[];rate=48000
     for label,start,frequency in [('sys',1.2,1000),('mic',2.8,700)]:
         audio=np.zeros(rate*4,np.float32);start_i=round(start*rate);count=round(.18*rate)
@@ -65,11 +70,14 @@ def test_saved_system_and_microphone_events_match_screen_after_uneven_stalls(tmp
             wav.setnchannels(2);wav.setsampwidth(2);wav.setframerate(rate)
             wav.writeframes(np.repeat((audio*32767).astype('<i2')[:,None],2,axis=1).tobytes())
         paths.append(path)
-    engine._finalizing=True
+    engine._finalizing=True;engine._video_is_final=single_pass
     engine._temp_vid_path=str(video);engine._sys_wav_path=str(paths[0]);engine._mic_wav_path=str(paths[1]);engine._output_path=str(tmp_path/'saved.mkv')
     engine._capture_clock_start=100;engine._capture_stopped_at=105.5
     engine._pause_intervals=[(0,1),(2.5,3)];engine._captured_frames=len(samples)
     monkeypatch.setattr(recorder,'get_ffmpeg_path',lambda:ffmpeg)
+    def frame_hashes(path):
+        return [line.split(',')[-1] for line in run(['-i',str(path),'-map','0:v','-c','copy','-f','framecrc','-']).decode().splitlines() if line and not line.startswith('#')]
+    live_hashes=frame_hashes(video)
     saved=engine.mux_and_save();assert Path(saved).is_file()
     pixels=np.frombuffer(run(['-i',saved,'-an','-f','rawvideo','-pix_fmt','gray','pipe:1']),np.uint8).reshape(-1,64,96)
     visible=np.mean(pixels,axis=(1,2))>100
@@ -79,3 +87,14 @@ def test_saved_system_and_microphone_events_match_screen_after_uneven_stalls(tmp
     sound_onsets=np.flatnonzero(energy & ~np.r_[False,energy[:-1]])*.01
     assert len(visual_onsets)==len(sound_onsets)==2,(visual_onsets,sound_onsets)
     assert np.max(np.abs(visual_onsets-sound_onsets))<.05,(visual_onsets,sound_onsets)
+    if single_pass:
+        # The saved video stream is the live stream, bit for bit (no second encode).
+        assert frame_hashes(saved)==live_hashes and not video.exists()
+
+
+def test_live_encoder_is_final_up_to_1440p_and_light_above():
+    recorder=import_app('recorder')
+    args,final=recorder._live_video_encoder(2560,1440)
+    assert final and args[args.index('-preset')+1]=='veryfast' and args[args.index('-crf')+1]==str(recorder.FINAL_VIDEO_CRF)
+    args,final=recorder._live_video_encoder(3840,2160)
+    assert not final and args[args.index('-preset')+1]=='ultrafast' and args[args.index('-crf')+1]==str(recorder.TEMP_VIDEO_CRF)

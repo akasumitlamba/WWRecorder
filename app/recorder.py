@@ -29,6 +29,11 @@ from capture_frames import capture_bgra_frame
 
 TEMP_VIDEO_CRF = 20
 FINAL_VIDEO_CRF = 25
+# Capture areas up to 1440p are encoded once, live, with the final settings;
+# finalization then copies the video instead of decoding and re-encoding it.
+# Larger areas keep the lighter live encoder plus a final compression pass so
+# slower PCs can sustain real-time capture.
+SINGLE_PASS_MAX_PIXELS = 2560 * 1440
 TARGET_FPS = 30
 FRAME_INTERVAL = 1.0 / TARGET_FPS
 CURSOR_CANVAS_SIZE = 512
@@ -270,6 +275,15 @@ def _video_timing_filter(
     return ",".join(stages)
 
 
+def _live_video_encoder(width: int, height: int) -> tuple[list[str], bool]:
+    """Live x264 arguments and whether that output is already final quality."""
+    if width * height <= SINGLE_PASS_MAX_PIXELS:
+        return ["-c:v", "libx264", "-preset", "veryfast",
+                "-crf", str(FINAL_VIDEO_CRF), "-pix_fmt", "yuv420p"], True
+    return ["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
+            "-crf", str(TEMP_VIDEO_CRF), "-pix_fmt", "yuv420p"], False
+
+
 def _audio_filter_graph(has_sys: bool, has_mic: bool) -> str:
     """Voice-first mix: no speech gate, spectral denoise, or silent-track ducking.
 
@@ -309,6 +323,26 @@ def get_ffmpeg_path():
                                 'python scripts/prepare_media_runtime.py for a source checkout.')
     return "ffmpeg"  # Portable test host only; Windows never searches PATH/CWD.
 
+
+
+def _remove_mic_system_copy(mic_wav_path: str, sys_wav_path: str):
+    """Return a cleaned microphone WAV, or None to use the original unchanged."""
+    cleaned = str(Path(mic_wav_path).with_name(Path(mic_wav_path).stem + "_clean.wav"))
+    try:
+        from mic_loopback_removal import remove_system_copy
+        result = remove_system_copy(mic_wav_path, sys_wav_path, cleaned)
+        if result:
+            print("[WWRecorder] Removed system audio duplicated by the microphone device.")
+        return result
+    except Exception as exc:
+        # The original microphone track is always kept and used on failure.
+        print(f"[WWRecorder] Microphone duplicate check skipped: {exc}")
+        try:
+            if os.path.exists(cleaned):
+                os.remove(cleaned)
+        except OSError:
+            pass
+        return None
 
 
 def _unique_media_path(folder: str, prefix: str, suffix: str) -> str:
@@ -647,6 +681,7 @@ class RecordingEngine:
         self._region = {}
         self._output_path = ""
         self._temp_vid_path = ""
+        self._video_is_final = False
         self._sys_wav_path = ""
         self._mic_wav_path = ""
         self._last_error = ""
@@ -908,13 +943,13 @@ class RecordingEngine:
         self._mic_wav_path = str(temp_dir / f"{TEMP_PREFIX}mic_{timestamp}.wav")
 
         ffmpeg = get_ffmpeg_path()
+        live_encoder, self._video_is_final = _live_video_encoder(w, h)
         cmd = [
             ffmpeg, "-y",
             "-f", "rawvideo", "-pix_fmt", "bgra",
             "-s", f"{w}x{h}", "-r", str(TARGET_FPS),
             "-i", "-",
-            "-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency",
-            "-crf", str(TEMP_VIDEO_CRF), "-pix_fmt", "yuv420p",
+            *live_encoder,
             self._temp_vid_path,
         ]
 
@@ -1103,10 +1138,11 @@ class RecordingEngine:
 
     @_serialized_finalization
     def mux_and_save(self) -> str:
-        """Phase 2: Mux audio+video into final compressed file.
+        """Phase 2: Mux audio+video into the final compressed file.
 
-        Re-encodes video with -preset veryfast -crf 25 for fast processing + small file size.
-        Audio is encoded with Opus 128k from float32 WAV for transparent quality.
+        Video already encoded live at final quality is copied unchanged; larger
+        capture areas are re-encoded with -preset veryfast -crf 25. Audio is
+        encoded with Opus 112k from the float32 WAV tracks.
         """
         with self._state_lock:
             if not self._finalizing:
@@ -1119,6 +1155,7 @@ class RecordingEngine:
             capture_stopped_at = self._capture_stopped_at
             pause_intervals = list(self._pause_intervals)
             captured_frames = self._captured_frames
+            video_is_final = self._video_is_final
 
         if capture_started_at is None or capture_stopped_at is None:
             with self._state_lock:
@@ -1134,10 +1171,16 @@ class RecordingEngine:
         has_sys = os.path.exists(sys_wav_path) and os.path.getsize(sys_wav_path) > 100
         has_mic = os.path.exists(mic_wav_path) and os.path.getsize(mic_wav_path) > 100
 
+        cleaned_mic_path = None
+        if has_sys and has_mic:
+            # Some USB microphones mix the PC's playback into their own signal.
+            # Remove that duplicate of the system track so it is not heard twice.
+            cleaned_mic_path = _remove_mic_system_copy(mic_wav_path, sys_wav_path)
+
         if has_sys:
             merge_cmd.extend(["-i", sys_wav_path])
         if has_mic:
-            merge_cmd.extend(["-i", mic_wav_path])
+            merge_cmd.extend(["-i", cleaned_mic_path or mic_wav_path])
 
         # ── Compression strategy ──
         # Keep finalization fast while preserving more screen/text detail at CRF 25.
@@ -1147,10 +1190,15 @@ class RecordingEngine:
         # here would shorten the video twice.
         # Frames already occupy active-clock slots; global retiming would move
         # speech/click events when capture throughput changes within the take.
-        video_filter = _video_timing_filter([], active_duration)
-        video_encode = ["-vf", video_filter,
-                        "-c:v", "libx264", "-preset", "veryfast", "-crf", str(FINAL_VIDEO_CRF),
-                        "-pix_fmt", "yuv420p", "-threads", "0"]
+        if video_is_final:
+            # Live frames were already written on the active 30-fps clock with
+            # the final encoder settings. Copying avoids a second lossy pass.
+            video_encode = ["-c:v", "copy"]
+        else:
+            video_filter = _video_timing_filter([], active_duration)
+            video_encode = ["-vf", video_filter,
+                            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(FINAL_VIDEO_CRF),
+                            "-pix_fmt", "yuv420p", "-threads", "0"]
         audio_encode = ["-c:a", "libopus", "-b:a", "112k"]
 
         if has_sys and has_mic:
@@ -1182,6 +1230,8 @@ class RecordingEngine:
                            creationflags=creation_flags, check=True, timeout=60 * 60)
         except Exception as e:
             print("Muxing error:", e)
+            if cleaned_mic_path:
+                _remove_file_later(cleaned_mic_path)
             with self._state_lock:
                 self._finalizing = False
             raise RuntimeError("Recording could not be finalized.") from e
@@ -1192,7 +1242,7 @@ class RecordingEngine:
             raise RuntimeError("Recording could not be finalized.")
 
         # Delete source media only after a playable output has been proven.
-        for path in [temp_vid_path, sys_wav_path, mic_wav_path]:
+        for path in [temp_vid_path, sys_wav_path, mic_wav_path, cleaned_mic_path]:
             if path:
                 _remove_file_later(path)
         with self._state_lock:

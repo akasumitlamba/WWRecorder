@@ -190,3 +190,27 @@ GUI updates preserve the checked/hovered endpoint ID and menu ownership; stale
 results are ignored after close/preparing/stopping. An endpoint name failure uses
 a temporary label rather than hiding the remaining endpoints. Scan failures keep
 the last list until a successful retry.
+
+## Echo removal, faster saving and long-video editing
+
+Some USB microphones with a headphone output mix computer playback into their
+own microphone signal. With system audio also recorded, that sound was heard
+twice. After capture, mic_loopback_removal.py checks whether the system track
+predicts a clear part of the microphone track; only then it subtracts that copy
+into a separate cleaned WAV used for the mix. Ordinary microphones are left
+unchanged, the original microphone WAV is never modified, and any error uses it.
+
+Capture areas up to 2560x1440 are encoded once while recording with the final
+x264 settings (veryfast, CRF 25). Saving copies that video and encodes audio, so
+processing is quick and text is compressed only once. Larger areas keep the
+light live encoder followed by a final compression pass.
+
+The editor samples long-video timeline thumbnails by keyframe seeks rather
+than decoding the whole file. smart_cut.py saves trim, delete, mute and
+export-audio edits of recordings by copying whole unchanged GOPs and
+re-encoding only frames between a cut and the next keyframe with the recording
+settings. It requires identical H.264 parameter sets, exact frame counts and
+continuous timestamps; otherwise the editor performs a full re-encode at
+background priority. Caption exports always re-encode. The dock screenshot
+button is disabled during a recording. Processing and saved notifications are
+narrower with unchanged text and actions.

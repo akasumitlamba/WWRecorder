@@ -664,10 +664,9 @@ class DockWidget(QWidget):
                 self._dock_y = -1
             self._position_on_edge()
         config.update(dock_edge=self._edge, dock_x=self._dock_x, dock_y=self._dock_y)
-        hk_ss = self._config.get("hotkey_screenshot", "<ctrl>+<alt>+c").replace("<", "").replace(">", "").title()
         hk_rec = self._config.get("hotkey", "<shift>+<backspace>").replace("<", "").replace(">", "").title()
         if hasattr(self, '_btn_screenshot'):
-            self._btn_screenshot.setToolTip(f"Screenshot ({hk_ss})")
+            self._refresh_screenshot_tooltip()
         if hasattr(self, '_btn_record'):
             self._btn_record.setToolTip(f"Start recording ({hk_rec}; during recording: Pause / Resume)")
 
@@ -1108,7 +1107,11 @@ class DockWidget(QWidget):
     def set_recording_state(self, is_recording: bool):
         self._is_recording = is_recording
         hk = self._config.get("hotkey", "<shift>+<backspace>").replace("<", "").replace(">", "").title()
-        
+        # A screenshot cannot be taken during a recording; show that plainly
+        # instead of leaving a button that silently does nothing.
+        self._btn_screenshot.setEnabled(not is_recording)
+        self._refresh_screenshot_tooltip()
+
         if is_recording:
             # Starting an action also proves the user has discovered the app.
             self._acknowledge_startup_indicator()
@@ -1131,6 +1134,13 @@ class DockWidget(QWidget):
             self._pulse_timer.stop()
             self._pulse_visible = True
         self.update()
+
+    def _refresh_screenshot_tooltip(self):
+        hk_ss = self._config.get("hotkey_screenshot", "<ctrl>+<alt>+c").replace("<", "").replace(">", "").title()
+        if getattr(self, '_is_recording', False):
+            self._btn_screenshot.setToolTip("Screenshot is unavailable while recording")
+        else:
+            self._btn_screenshot.setToolTip(f"Screenshot ({hk_ss})")
 
     def _pulse_tick(self):
         self._pulse_visible = not self._pulse_visible

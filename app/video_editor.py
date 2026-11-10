@@ -669,26 +669,74 @@ class _ExportWorker(QThread):
     export_finished = pyqtSignal(str)
     error = pyqtSignal(str)
 
-    def __init__(self, cmd: list, output_path: str, temp_files: list = None, duration_ms: int = 0):
+    def __init__(self, cmd: list, output_path: str, temp_files: list = None, duration_ms: int = 0,
+                 smart_cut: dict = None):
         super().__init__()
         self._cmd = cmd
         self._output_path = output_path
         self._temp_files = temp_files or []
         self._duration_ms = duration_ms
+        self._smart_cut = smart_cut
+        self._cutter = None
         self._process = None
         self._is_stopped = False
 
     def stop(self):
         self._is_stopped = True
+        cutter = self._cutter
+        if cutter is not None:
+            cutter.stop()
         if self._process:
             try:
                 self._process.kill()
             except Exception:
                 pass
 
+    def _try_smart_cut(self) -> bool:
+        """Copy unchanged video for trim/delete/mute edits; False means re-encode."""
+        from smart_cut import SmartCutter, SmartCutUnavailable, SmartCutCancelled
+        plan = self._smart_cut
+        try:
+            os.makedirs(plan['workdir'], exist_ok=True)
+            self._cutter = SmartCutter(
+                _get_ffmpeg(), plan['source'], self._output_path,
+                cancelled=lambda: self._is_stopped, progress=self.progress.emit,
+                workdir=plan['workdir'])
+            if self._is_stopped:
+                return True
+            self._cutter.export(plan['keep'], plan['mute'], plan['include_audio'])
+            return True
+        except SmartCutCancelled:
+            return True
+        except SmartCutUnavailable as reason:
+            print(f"[VideoEditor] Full re-encode needed: {reason}")
+        except Exception as error:
+            print(f"[VideoEditor] Fast save unavailable, re-encoding: {error}")
+        finally:
+            self._cutter = None
+        try:
+            if os.path.isfile(self._output_path):
+                os.remove(self._output_path)
+        except OSError:
+            pass
+        return False
+
     def run(self):
         try:
+            if self._smart_cut and self._try_smart_cut():
+                if self._is_stopped:
+                    return
+                if os.path.isfile(self._output_path):
+                    self.progress.emit(100)
+                    self.export_finished.emit(self._output_path)
+                else:
+                    self.error.emit('The edited video was not created.')
+                return
             flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+            if sys.platform == "win32":
+                # A full re-encode is CPU-heavy; background priority keeps the
+                # desktop and this app responsive while it runs.
+                flags |= 0x00004000  # BELOW_NORMAL_PRIORITY_CLASS
             cmd_with_progress = self._cmd[:-1] + ["-progress", "pipe:2", self._cmd[-1]]
             self._process = subprocess.Popen(
                 cmd_with_progress, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
@@ -790,6 +838,9 @@ class _ScreenshotWorker(QThread):
 #  Thumbnail Extractor
 # ─────────────────────────────────────────────────────────────────────────────
 
+SEEK_THUMBNAIL_SPACING = 2.0  # seconds between thumbnails before seeking is faster
+
+
 class _ThumbnailExtractor(QThread):
     thumbnails_ready = pyqtSignal(list, float, float)  # images (QImage), start_sec, fps_rate
     error = pyqtSignal(str)
@@ -866,6 +917,15 @@ class _ThumbnailExtractor(QThread):
                 fps_rate = max(0.1, self._num_frames / max(0.1, segment_dur))
                 num_frames = self._num_frames
 
+            if 1.0 / fps_rate >= SEEK_THUMBNAIL_SPACING:
+                # Long spans: seek to each thumbnail and decode one keyframe
+                # instead of decoding every frame of an hour-long video.
+                images = self._extract_by_seeking(ffmpeg, flags, tmp_dir, start_sec, fps_rate,
+                                                  num_frames, duration_secs)
+                if images is not None and not self._is_stopped:
+                    self.thumbnails_ready.emit(images, start_sec, fps_rate)
+                return
+
             # Build vf filter with optional trim
             vf = f"fps={fps_rate:.4f},scale=-1:{self._thumb_height}:flags=fast_bilinear"
             cmd = [ffmpeg, "-y"]
@@ -885,7 +945,7 @@ class _ThumbnailExtractor(QThread):
                 return
                 
             self._process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags | _background_priority()
             )
             self._process.communicate(timeout=60)
 
@@ -917,6 +977,44 @@ class _ThumbnailExtractor(QThread):
                     pass
             if tmp_dir:
                 shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+    def _extract_by_seeking(self, ffmpeg, flags, tmp_dir, start_sec, fps_rate, num_frames, duration):
+        images = []
+        missing = 0
+        for index in range(num_frames):
+            if self._is_stopped:
+                return None
+            moment = min(start_sec + index / fps_rate, max(0.0, duration - 0.05))
+            path = os.path.join(tmp_dir, f"seek_{index:04d}.jpg")
+            cmd = [ffmpeg, "-y", "-noaccurate_seek", "-ss", f"{moment:.3f}", "-i", self._video_path,
+                   "-map", "0:v:0", "-frames:v", "1",
+                   "-vf", f"scale=-1:{self._thumb_height}:flags=fast_bilinear", "-q:v", "5", path]
+            try:
+                self._process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                                 creationflags=flags | _background_priority())
+                self._process.communicate(timeout=15)
+            except (subprocess.SubprocessError, OSError):
+                if self._process and self._process.poll() is None:
+                    self._process.kill()
+            image = QImage(path) if os.path.isfile(path) else QImage()
+            if image.isNull():
+                # Keep positions aligned with time: reuse the neighbour.
+                if images:
+                    image = images[-1]
+                else:
+                    missing += 1
+                    continue
+            while missing and not image.isNull():
+                images.append(image)
+                missing -= 1
+            images.append(image)
+        return images
+
+
+def _background_priority() -> int:
+    """Windows BELOW_NORMAL priority for preview decoding; 0 elsewhere."""
+    return 0x00004000 if sys.platform == "win32" else 0
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -5009,8 +5107,39 @@ class VideoPlayerWindow(QWidget):
         if not self._mute_on_export:
             cmd.extend(["-c:a", "aac", "-b:a", "128k"])
 
-        cmd.extend(["-c:v", "libx264", "-preset", "fast", "-crf", "23", "-pix_fmt", "yuv420p"])
+        # Same encoder settings as recordings: comparable quality and file
+        # size, and roughly twice as fast as the former "fast" preset.
+        cmd.extend(["-c:v", "libx264", "-preset", "veryfast", "-crf", "25", "-pix_fmt", "yuv420p"])
         cmd.append(staging_path)
+
+        smart_cut = None
+        if not caption_graph:
+            # Trim/delete/mute edits: copy unchanged video, re-encode only near
+            # cuts. The worker falls back to the full command above if needed.
+            keep = []
+            cursor = trim_start_ms / 1000.0
+            # Without Trim, keep every trailing frame even if the player's
+            # reported duration is rounded down.
+            trim_end = trim_end_ms / 1000.0 if self._chk_trim.isChecked() else 1e9
+            for cut_start, cut_end in merged_cuts:
+                start = trim_start_ms / 1000.0 + cut_start
+                end = trim_start_ms / 1000.0 + cut_end
+                if start > cursor:
+                    keep.append((cursor, min(start, trim_end)))
+                cursor = max(cursor, end)
+            if cursor < trim_end:
+                keep.append((cursor, trim_end))
+            keep = [(a, b) for a, b in keep if b > a]
+            mute = sorted((max(trim_start_ms, r.start_ms) / 1000.0,
+                           (min(trim_end_ms, r.end_ms) if self._chk_trim.isChecked() else r.end_ms) / 1000.0)
+                          for r in self._mute_regions
+                          if r.end_ms > trim_start_ms and r.start_ms < trim_end_ms)
+            if keep:
+                smart_cut = {
+                    'source': self._filepath, 'keep': keep, 'mute': mute,
+                    'include_audio': not self._mute_on_export,
+                    'workdir': os.path.join(os.path.dirname(staging_path) or '.', '.wwr_temp'),
+                }
 
         self._btn_save.setEnabled(False)
         self._btn_save_as.setEnabled(False)
@@ -5019,7 +5148,8 @@ class VideoPlayerWindow(QWidget):
 
         duration_ms = self._player.duration()
         self._export_worker = _ExportWorker(
-            cmd, staging_path, temp_files=list(self._export_temp_files), duration_ms=duration_ms
+            cmd, staging_path, temp_files=list(self._export_temp_files), duration_ms=duration_ms,
+            smart_cut=smart_cut,
         )
         self._export_worker.progress.connect(self._on_export_progress)
         self._export_worker.export_finished.connect(self._on_export_done)

@@ -148,6 +148,8 @@ from processing_notice import ProcessingNotice as _SavingPopup
 
 class _SuccessNotification(QWidget):
     """Custom floating notification shown after successful screenshot/recording save."""
+    WIDTH = 300            # compact card: thumbnail, name, Recent Files hint, actions
+    THUMB_SIZE = (64, 48)
     renamed       = pyqtSignal(str, str)  # (old_filepath, new_filepath)
     open_clicked  = pyqtSignal(str)       # filepath
     rename_needed = pyqtSignal(str, str)  # (old_path, new_path) — app handles player lock
@@ -174,18 +176,18 @@ class _SuccessNotification(QWidget):
                 border-radius: 12px;
             }
         """)
-        container.setFixedWidth(370)
+        container.setFixedWidth(self.WIDTH)
 
         main_layout = QHBoxLayout(container)
-        main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(9)
+        main_layout.setContentsMargins(8, 8, 8, 8)
+        main_layout.setSpacing(8)
 
-        # Thumbnail — larger for better preview
+        # Compact thumbnail preview
         self._thumb_lbl = QLabel()
-        self._thumb_lbl.setFixedSize(80, 64)
+        self._thumb_lbl.setFixedSize(*self.THUMB_SIZE)
         self._thumb_lbl.setStyleSheet("background: #0D121B; border-radius: 8px; border: 1px solid #424B5D;")
         if icon_pixmap and not icon_pixmap.isNull():
-            scaled = icon_pixmap.scaled(80, 64, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            scaled = icon_pixmap.scaled(*self.THUMB_SIZE, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
             self._thumb_lbl.setPixmap(scaled)
             self._thumb_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         else:
@@ -204,7 +206,7 @@ class _SuccessNotification(QWidget):
         header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(0)
         lbl_title = QLabel(title)
-        lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 14px; font-weight: 600; font-family: 'Segoe UI';")
+        lbl_title.setStyleSheet("background: transparent; border: none; color: #FFFFFF; font-size: 13px; font-weight: 600; font-family: 'Segoe UI';")
         header.addWidget(lbl_title, 1)
 
         btn_close = QPushButton()
@@ -307,7 +309,7 @@ class _SuccessNotification(QWidget):
     def set_thumbnail(self, pixmap: QPixmap) -> None:
         if pixmap and not pixmap.isNull():
             self._thumb_lbl.setPixmap(pixmap.scaled(
-                80, 64, Qt.AspectRatioMode.KeepAspectRatio,
+                *self.THUMB_SIZE, Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             ))
             self._thumb_lbl.setText("")
@@ -319,7 +321,7 @@ class _SuccessNotification(QWidget):
     def show_notification(self, anchor: QPoint | None = None):
         screen_obj = _screen_for_anchor(anchor)
         screen = screen_obj.availableGeometry() if screen_obj else QRect(0, 0, 1920, 1080)
-        self.setFixedWidth(min(370, max(1, screen.width()-32)))
+        self.setFixedWidth(min(self.WIDTH, max(1, screen.width()-32)))
         self.findChild(QWidget, 'notifContainer').setFixedWidth(self.width())
         self.adjustSize()
         x = max(screen.left(), screen.right() - self.width() - 16)

@@ -41,6 +41,8 @@ CORE_IMPORTS = [
     "processing_notice",
     "keycast",
     "microphone_capture",
+    "mic_loopback_removal",
+    "smart_cut",
     "updater",
     "startup_integration",
     "ui_elements",

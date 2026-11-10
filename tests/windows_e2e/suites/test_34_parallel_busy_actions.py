@@ -85,9 +85,20 @@ def test_dock_actions_while_recording_chrome(qapp):
     spam_clicks(dock._btn_screenshot, times=3)
     spam_clicks(dock._btn_settings, times=3)
     spam_clicks(dock._btn_files, times=3)
-    for sig, got in hits.items():
-        assert_invariant(len(got) >= 1, f"{sig} still emits during recording chrome", widget=sig, state="recording")
+    # Screenshot is visibly disabled (not hidden) while a recording runs.
+    assert_invariant(dock._btn_screenshot.isVisibleTo(dock._panel) and not dock._btn_screenshot.isEnabled(),
+                     "screenshot button disabled during recording", widget="screenshot", state="recording")
+    assert_invariant(not hits["screenshot_requested"], "disabled screenshot does not emit",
+                     widget="screenshot_requested", state="recording")
+    for sig in ("settings_requested", "files_requested"):
+        assert_invariant(len(hits[sig]) >= 1, f"{sig} still emits during recording chrome", widget=sig, state="recording")
     dock.set_recording_state(False)
+    assert_invariant(dock._btn_screenshot.isEnabled(), "screenshot re-enabled after recording",
+                     widget="screenshot", state="idle")
+    hits["screenshot_requested"].clear()
+    spam_clicks(dock._btn_screenshot, times=1)
+    assert_invariant(len(hits["screenshot_requested"]) == 1, "screenshot works again after recording",
+                     widget="screenshot_requested", state="idle")
     dock.close()
 
 

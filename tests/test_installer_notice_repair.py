@@ -113,7 +113,7 @@ def test_saved_notice_shows_real_thumbnail_and_late_preview(app,tmp_path):
     cls=success_class();image=QPixmap(160,90);image.fill(QColor('#267DA4'))
     notice=cls(str(tmp_path/'capture.png'),'Screenshot saved','capture.png',image)
     assert not notice._thumb_lbl.pixmap().isNull()
-    assert notice._thumb_lbl.pixmap().width()==80
+    assert notice._thumb_lbl.pixmap().width()==64
     assert notice._thumb_lbl.pixmap().toImage().pixelColor(20,20)==QColor('#267DA4')
     late=QPixmap(160,90);late.fill(QColor('#DE6472'));notice.set_thumbnail(late)
     assert notice._thumb_lbl.pixmap().toImage().pixelColor(20,20)==QColor('#DE6472')

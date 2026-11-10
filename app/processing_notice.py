@@ -4,11 +4,15 @@ from PyQt6.QtGui import QColor, QPainter, QPen, QIcon
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QPushButton, QHBoxLayout, QVBoxLayout
 
 
+NOTICE_WIDTH = 270  # compact: ring, two short lines and one dismiss control
+
+
 class ActivityRing(QWidget):
     """A time-based activity indicator, deliberately not a percentage."""
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, diameter=44):
         super().__init__(parent)
-        self.setFixedSize(44, 44)
+        self._diameter = diameter
+        self.setFixedSize(diameter, diameter)
         self._angle = 0
         self._timer = QTimer(self)
         self._timer.setInterval(40)
@@ -30,6 +34,8 @@ class ActivityRing(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        # Artwork is authored on a 44-pixel grid; scale it for compact notices.
+        painter.scale(self._diameter / 44, self._diameter / 44)
         bounds = QRectF(3, 3, 38, 38)
         painter.setPen(QPen(QColor('#303949'), 3))
         painter.drawEllipse(bounds)
@@ -64,22 +70,23 @@ class ProcessingNotice(QWidget):
         ''')
         outer.addWidget(card)
         layout = QVBoxLayout(card)
-        layout.setContentsMargins(10, 10, 10, 10)
+        layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(0)
         heading = QHBoxLayout()
-        heading.setSpacing(12)
-        self._activity = ActivityRing(card)
+        heading.setSpacing(9)
+        self._activity = ActivityRing(card, diameter=32)
         heading.addWidget(self._activity)
         labels = QVBoxLayout()
-        labels.setSpacing(3)
+        labels.setSpacing(1)
         self._status_lbl = QLabel('Processing recording')
         self._status_lbl.setWordWrap(True)
-        self._status_lbl.setStyleSheet("color:#F7F7FA;font:600 14px 'Segoe UI';border:none;background:transparent;")
+        self._status_lbl.setStyleSheet("color:#F7F7FA;font:600 13px 'Segoe UI';border:none;background:transparent;")
         labels.addWidget(self._status_lbl)
         self._sub_lbl = QLabel('Compressing video and audio')
         self._sub_lbl.setWordWrap(True)
         labels.addWidget(self._sub_lbl)
         heading.addLayout(labels, 1)
+        heading.setAlignment(self._activity, Qt.AlignmentFlag.AlignVCenter)
         self._btn_close = QPushButton()
         from icon_theme import asset_path
         from PyQt6.QtCore import QSize
@@ -100,14 +107,14 @@ class ProcessingNotice(QWidget):
         self._message = QLabel('Your video will appear in Recent Files when ready.')
         self._message.setWordWrap(False)
         self._message.hide()
-        self.setFixedWidth(370)
+        self.setFixedWidth(NOTICE_WIDTH)
         self.adjustSize()
 
     def show_saving(self, anchor: QPoint | None = None):
         screen_obj = QApplication.screenAt(anchor) if anchor is not None else None
         screen_obj = screen_obj or QApplication.primaryScreen()
         bounds = screen_obj.availableGeometry() if screen_obj else QRect(0, 0, 1920, 1080)
-        self.setFixedWidth(min(370, max(1, bounds.width() - 32)))
+        self.setFixedWidth(min(NOTICE_WIDTH, max(1, bounds.width() - 32)))
         self.adjustSize()
         self.move(max(bounds.left(), bounds.right()-self.width()-15),
                   max(bounds.top(), bounds.bottom()-self.height()-15))
