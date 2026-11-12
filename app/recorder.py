@@ -325,14 +325,49 @@ def get_ffmpeg_path():
 
 
 
-def _remove_mic_system_copy(mic_wav_path: str, sys_wav_path: str):
+def _system_reference_at_rate(sys_wav_path: str, rate: int, ffmpeg: str):
+    """Temporary copy of the system WAV at the microphone's rate (front channels).
+
+    Built-in laptop microphones and speakers often run at different rates
+    (for example 44.1 and 48 kHz); the duplicate check needs both on one clock.
+    """
+    from mic_loopback_removal import FloatWav
+    source = FloatWav(sys_wav_path)
+    if source.rate == rate:
+        return None
+    target = str(Path(sys_wav_path).with_name(Path(sys_wav_path).stem + "_ref.wav"))
+    cmd = [ffmpeg, "-v", "error", "-y", "-i", sys_wav_path]
+    if source.channels > 2:
+        cmd.extend(["-af", "pan=stereo|c0=c0|c1=c1"])
+    cmd.extend(["-ar", str(int(rate)), "-c:a", "pcm_f32le", "-map_metadata", "-1",
+                "-fflags", "+bitexact", target])
+    flags = (subprocess.CREATE_NO_WINDOW | 0x00004000) if sys.platform == 'win32' else 0
+    try:
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+                       creationflags=flags, check=True, timeout=20 * 60)
+    except Exception:
+        try:
+            if os.path.exists(target):
+                os.remove(target)
+        except OSError:
+            pass
+        raise
+    return target
+
+
+def _remove_mic_system_copy(mic_wav_path: str, sys_wav_path: str, ffmpeg: str = None):
     """Return a cleaned microphone WAV, or None to use the original unchanged."""
     cleaned = str(Path(mic_wav_path).with_name(Path(mic_wav_path).stem + "_clean.wav"))
+    resampled = None
     try:
-        from mic_loopback_removal import remove_system_copy
-        result = remove_system_copy(mic_wav_path, sys_wav_path, cleaned)
+        from mic_loopback_removal import FloatWav, remove_system_copy
+        reference = sys_wav_path
+        if ffmpeg:
+            resampled = _system_reference_at_rate(sys_wav_path, FloatWav(mic_wav_path).rate, ffmpeg)
+            reference = resampled or sys_wav_path
+        result = remove_system_copy(mic_wav_path, reference, cleaned)
         if result:
-            print("[WWRecorder] Removed system audio duplicated by the microphone device.")
+            print("[WWRecorder] Removed system audio that the microphone picked up a second time.")
         return result
     except Exception as exc:
         # The original microphone track is always kept and used on failure.
@@ -343,6 +378,9 @@ def _remove_mic_system_copy(mic_wav_path: str, sys_wav_path: str):
         except OSError:
             pass
         return None
+    finally:
+        if resampled:
+            _remove_file_later(resampled)
 
 
 def _unique_media_path(folder: str, prefix: str, suffix: str) -> str:
@@ -1173,9 +1211,9 @@ class RecordingEngine:
 
         cleaned_mic_path = None
         if has_sys and has_mic:
-            # Some USB microphones mix the PC's playback into their own signal.
-            # Remove that duplicate of the system track so it is not heard twice.
-            cleaned_mic_path = _remove_mic_system_copy(mic_wav_path, sys_wav_path)
+            # USB monitor mixes and laptop speakers put PC playback into the
+            # microphone. Remove that duplicate so system sound is heard once.
+            cleaned_mic_path = _remove_mic_system_copy(mic_wav_path, sys_wav_path, ffmpeg)
 
         if has_sys:
             merge_cmd.extend(["-i", sys_wav_path])
