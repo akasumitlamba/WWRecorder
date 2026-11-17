@@ -8,6 +8,7 @@
 
   // GitHub-published installer names and SHA-256 digests from release asset metadata.
   const OFFICIAL_INSTALLER_RELEASES = Object.freeze([
+    Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.6)', filename: 'WWRecorder_Setup_1.7.1.6.exe', sha256: 'c227c24b5d30bf8a6b3b9c1f92d631cbdcb839af4d992ef5626ab09beb3a7307', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.4)', filename: 'WWRecorder_Setup_1.7.1.4.exe', sha256: 'd0c7cf976cd9656c60b9e938e9abc11f72990afd610495b28f845643bea3fdf0', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.3)', filename: 'WWRecorder_Setup_1.7.1.3.exe', sha256: '6688a562751a4359cb99778049ef9054ceb3f37116194d122f7020f24674b7f5', mediaSecurityUpdate: true }),
     Object.freeze({ releaseName: 'WWRecorder 1.7.1 (installer 1.7.1.2)', filename: 'WWRecorder_Setup_1.7.1.2.exe', sha256: '9d2a11b7164d4ce90ddd825949ef48c42e8bfeec9fa28959a9d20a7f51436b61', mediaSecurityUpdate: true }),
