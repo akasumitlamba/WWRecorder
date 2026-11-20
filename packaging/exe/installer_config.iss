@@ -12,7 +12,7 @@
 ; ============================================================================
 
 #define MyAppName       "WWRecorder"
-#define MyAppVersion    "1.7.1"
+#define MyAppVersion    "1.8.0"
 #define MyAppPublisher  "Sumit Kumar Lamba"
 #define MyAppURL        "https://akasumitlamba.github.io/WWRecorder/"
 #define MyAppExeName    "WWRecorder.exe"

@@ -466,7 +466,7 @@ qInstallMessageHandler(qt_message_handler)
 #  Constants / defaults
 # ─────────────────────────────────────────────────────────────────────────────
 
-APP_VERSION = "1.7.1"
+APP_VERSION = "1.8.0"
 
 CONFIG_DIR  = config_directory()
 CONFIG_FILE = CONFIG_DIR / "config.json"
