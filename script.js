@@ -34,8 +34,8 @@
     notice.setAttribute('aria-label', 'Security update available');
     notice.innerHTML = `<button class="security-notice-close" type="button" aria-label="Dismiss security update notice">×</button>
       <strong>Media security update</strong>
-      <p>FFmpeg security fix (CVE-2026-8461) is available in the 1.7.1 preview. Default downloads use the latest stable release.</p>
-      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/tag/v1.7">Release v1.7</a></div>
+      <p>FFmpeg security fix (CVE-2026-8461) is included in the latest release.</p>
+      <div><a href="release-notes.html#security">Security details</a><a href="https://github.com/akasumitlamba/WWRecorder/releases/latest">Latest release</a></div>
       <span class="security-notice-bar" aria-hidden="true"></span>`;
     let dismissTimer = 0;
     const dismissNotice = () => {
