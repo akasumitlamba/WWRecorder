@@ -587,8 +587,11 @@ def test_audio_reconnect_event_is_shown_to_user():
         def showMessage(self, *args): self.messages.append(args)
     owner = object.__new__(WWRecorderApp)
     owner.engine = Engine(); owner.tray = Tray()
+    shown = []
+    owner._show_audio_device_toast = shown.append
     WWRecorderApp._poll_engine_events(owner)
-    assert owner.tray.messages[0][0] == 'Audio device changed'
+    assert shown == ['Mic switched to the current Windows default device.']
+    assert not owner.tray.messages
 
 
 def test_replacement_audio_endpoint_layout_is_normalized():

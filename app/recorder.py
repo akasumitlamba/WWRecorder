@@ -42,6 +42,15 @@ AUDIO_DEVICE_BUFFER_SECONDS = 0.50
 
 TEMP_PREFIX = "WWRecorder_temp_"
 THREAD_JOIN_TIMEOUT = 5
+ENCODER_FINISH_TIMEOUT = 60  # seconds for x264 to flush its last frames at Stop
+AUDIO_QUEUE_CHUNKS = 600     # about 30 s of audio, under 15 MB at 48 kHz stereo
+AUDIO_QUEUE_TIMEOUT = 5.0
+AUDIO_WRITER_FINISH_TIMEOUT = 60
+SLEEP_GAP_SECONDS = 2.0
+# WAV headers hold 32-bit sizes; FFmpeg must read past 4 GB (about 3 h) to end of file.
+WAV_INPUT = ("-ignore_length", "1")
+DISK_CHECK_SECONDS = 10.0
+DISK_RESERVE_BYTES = 200 * 1024 * 1024
 TEMP_RETENTION_SECONDS = 7 * 24 * 60 * 60
 
 
@@ -95,6 +104,20 @@ def _read_audio_chunk(recorder, chunk_frames: int):
         and "data discontinuity" in str(warning.message).lower()
     )
     return data, discontinuities
+
+
+def _awake_seconds():
+    """Seconds this PC has been running, excluding system sleep; None if unknown."""
+    if sys.platform != 'win32':
+        return None
+    try:
+        import ctypes
+        ticks = ctypes.c_ulonglong()
+        if ctypes.windll.kernel32.QueryUnbiasedInterruptTime(ctypes.byref(ticks)):
+            return ticks.value / 1e7
+    except Exception:
+        pass
+    return None
 
 
 class _VideoSampleClock:
@@ -336,7 +359,7 @@ def _system_reference_at_rate(sys_wav_path: str, rate: int, ffmpeg: str):
     if source.rate == rate:
         return None
     target = str(Path(sys_wav_path).with_name(Path(sys_wav_path).stem + "_ref.wav"))
-    cmd = [ffmpeg, "-v", "error", "-y", "-i", sys_wav_path]
+    cmd = [ffmpeg, "-v", "error", "-y", *WAV_INPUT, "-i", sys_wav_path]
     if source.channels > 2:
         cmd.extend(["-af", "pan=stereo|c0=c0|c1=c1"])
     cmd.extend(["-ar", str(int(rate)), "-c:a", "pcm_f32le", "-map_metadata", "-1",
@@ -428,6 +451,14 @@ class _Float32WavWriter:
     def writeframes(self, raw_bytes: bytes):
         self._f.write(raw_bytes)
         self._data_bytes += len(raw_bytes)
+
+    def write_silence(self, frames: int):
+        remaining = int(frames) * self._channels * 4
+        block = bytes(min(remaining, 1024 * 1024))
+        while remaining > 0:
+            part = min(remaining, len(block))
+            self.writeframes(block if part == len(block) else block[:part])
+            remaining -= part
 
     def close(self):
         self._f.seek(0)
@@ -730,6 +761,7 @@ class RecordingEngine:
         self._captured_frames = 0
         self._dropped_frame_slots = 0
         self._capture_failed = False
+        self._disk_warned = False
         # Raw frames are omitted while paused, so pause intervals must not be
         # removed a second time during final muxing.
         self._capture_mode = "raw_frames_pause_omitted"
@@ -831,6 +863,47 @@ class RecordingEngine:
             if self._pause_started_at is not None:
                 paused += max(0.0, now - self._pause_started_at)
             return max(0.0, now - start - paused)
+
+    def _exclude_sleep(self, baseline, now, awake):
+        """Treat a system-sleep gap as a pause so it is not recorded as held frames."""
+        if awake is None:
+            return None
+        if baseline is not None:
+            slept = (now - baseline[0]) - (awake - baseline[1])
+            if slept >= SLEEP_GAP_SECONDS:
+                with self._state_lock:
+                    # While paused, the open pause already covers the sleep.
+                    if self._pause_started_at is None and self._capture_clock_start is not None:
+                        end = now - self._capture_clock_start
+                        self._pause_intervals.append((max(0.0, end - slept), end))
+        return now, awake
+
+    def _disk_exhausted(self):
+        """Warn once; True when recording must stop while it can still be saved."""
+        try:
+            free = shutil.disk_usage(os.path.dirname(self._temp_vid_path)).free
+            need = DISK_RESERVE_BYTES
+            for path in (self._temp_vid_path, self._mic_wav_path):
+                if path and os.path.exists(path):
+                    need += os.path.getsize(path)  # saving writes a copy of these
+        except (OSError, TypeError):
+            return False
+        if free < need:
+            self._report_runtime_event(
+                'recording_interrupted',
+                'The drive is almost full. The recording was stopped so it can still be saved.')
+            return True
+        if free < need + 500 * 1024 * 1024 and not self._disk_warned:
+            self._disk_warned = True
+            self._report_runtime_event(
+                'capture_error', 'Drive space is running low. Recording will stop and save when it is almost full.')
+        return False
+
+    def _report_capture_failure(self, detail=''):
+        self._report_runtime_event(
+            'recording_interrupted',
+            'Screen capture stopped unexpectedly. The part already recorded is kept for recovery in '
+            f'{os.path.dirname(self._temp_vid_path or "")}.' + (f' ({detail})' if detail else ''))
 
     def get_mic(self) -> bool:
         return self._mic_audio_enabled
@@ -961,6 +1034,7 @@ class RecordingEngine:
             self._captured_frames = 0
             self._dropped_frame_slots = 0
             self._capture_failed = False
+            self._disk_warned = False
             self._sys_audio_discontinuities = 0
             self._mic_audio_discontinuities = 0
             self._sys_audio_ready.clear()
@@ -1110,11 +1184,11 @@ class RecordingEngine:
 
         audio_threads_stopped = True
         if self._sys_thread:
-            self._sys_thread.join(timeout=20)
+            self._sys_thread.join(timeout=AUDIO_WRITER_FINISH_TIMEOUT + 5)
             audio_threads_stopped = audio_threads_stopped and not self._sys_thread.is_alive()
 
         if self._mic_thread:
-            self._mic_thread.join(timeout=20)
+            self._mic_thread.join(timeout=AUDIO_WRITER_FINISH_TIMEOUT + 5)
             audio_threads_stopped = audio_threads_stopped and not self._mic_thread.is_alive()
 
         try:
@@ -1131,8 +1205,11 @@ class RecordingEngine:
                 elif self._ffmpeg_proc.poll() is None:
                     self._ffmpeg_proc.kill()
                 try:
-                    self._ffmpeg_proc.wait(timeout=5)
+                    self._ffmpeg_proc.wait(timeout=ENCODER_FINISH_TIMEOUT)
                 except subprocess.TimeoutExpired:
+                    self._report_runtime_event(
+                        'capture_error',
+                        'The video encoder did not finish in time. The last moments of this recording may be missing.')
                     self._ffmpeg_proc.kill()
                     self._ffmpeg_proc.wait(timeout=2)
                 except Exception as e:
@@ -1216,9 +1293,9 @@ class RecordingEngine:
             cleaned_mic_path = _remove_mic_system_copy(mic_wav_path, sys_wav_path, ffmpeg)
 
         if has_sys:
-            merge_cmd.extend(["-i", sys_wav_path])
+            merge_cmd.extend([*WAV_INPUT, "-i", sys_wav_path])
         if has_mic:
-            merge_cmd.extend(["-i", cleaned_mic_path or mic_wav_path])
+            merge_cmd.extend([*WAV_INPUT, "-i", cleaned_mic_path or mic_wav_path])
 
         # ── Compression strategy ──
         # Keep finalization fast while preserving more screen/text detail at CRF 25.
@@ -1533,7 +1610,7 @@ class RecordingEngine:
             # real-time spectral DSP could monopolize this capture thread.
             chunk_frames = max(256, int(native_rate * LIVE_AUDIO_CHUNK_SECONDS))
 
-            write_queue: queue.Queue = queue.Queue(maxsize=50)
+            write_queue: queue.Queue = queue.Queue(maxsize=AUDIO_QUEUE_CHUNKS)
             write_done = threading.Event()
             writer_errors = []
 
@@ -1543,9 +1620,12 @@ class RecordingEngine:
                         while not (write_done.is_set() and write_queue.empty()):
                             try:
                                 raw_bytes = write_queue.get(timeout=0.05)
-                                wf.writeframes(raw_bytes)
                             except queue.Empty:
                                 continue
+                            if isinstance(raw_bytes, int):
+                                wf.write_silence(raw_bytes)
+                            else:
+                                wf.writeframes(raw_bytes)
                 except Exception as exc:
                     writer_errors.append(exc)
                     write_done.set()
@@ -1554,11 +1634,11 @@ class RecordingEngine:
             self._audio_writer_threads[is_system] = wav_thread
             wav_thread.start()
 
-            def _enqueue_audio(raw_bytes: bytes):
+            def _enqueue_audio(raw_bytes):  # PCM bytes, or a count of silent frames
                 if writer_errors:
                     raise RuntimeError(f"{label} WAV writer failed: {writer_errors[0]}")
                 try:
-                    write_queue.put(raw_bytes, timeout=2.0)
+                    write_queue.put(raw_bytes, timeout=AUDIO_QUEUE_TIMEOUT)
                 except queue.Full as exc:
                     raise RuntimeError(f"{label} WAV writer could not keep up") from exc
 
@@ -1609,7 +1689,7 @@ class RecordingEngine:
                             if unavailable_since is not None and self._pause_event.is_set():
                                 gap_frames = max(0, int(self._active_elapsed() * native_rate) - total_frames_written)
                                 if gap_frames:
-                                    _enqueue_audio(np.zeros((gap_frames, actual_channels), dtype=np.float32).tobytes())
+                                    _enqueue_audio(gap_frames)
                                     total_frames_written += gap_frames
                             was_unavailable = unavailable_notified
                             if connected_once or was_unavailable:
@@ -1724,7 +1804,7 @@ class RecordingEngine:
                     f"{total_frames_written} frames, {discontinuity_count} WASAPI discontinuities"
                 )
                 write_done.set()
-                wav_thread.join(timeout=15)
+                wav_thread.join(timeout=AUDIO_WRITER_FINISH_TIMEOUT)
                 if wav_thread.is_alive():
                     raise RuntimeError(f"{label} WAV writer did not stop")
                 if writer_errors:
@@ -1776,9 +1856,16 @@ class RecordingEngine:
             deadline = time.perf_counter()
             canvas = None
             video_clock = _VideoSampleClock()
+            awake_baseline = None
+            next_disk_check = time.perf_counter() + DISK_CHECK_SECONDS
 
             while self._running:
                 now = time.perf_counter()
+                awake_baseline = self._exclude_sleep(awake_baseline, now, _awake_seconds())
+                if now >= next_disk_check:
+                    next_disk_check = now + DISK_CHECK_SECONDS
+                    if self._disk_exhausted():
+                        next_disk_check = float('inf')  # the stop request is sent once
 
                 sleep_time = deadline - now
                 if sleep_time > 0:
@@ -1850,6 +1937,9 @@ class RecordingEngine:
                         except (BrokenPipeError, OSError, ValueError):
                             with self._state_lock:
                                 self._capture_failed = self._running
+                                failed = self._capture_failed
+                            if failed:
+                                self._report_capture_failure()
                             break
 
                     with self._state_lock:
@@ -1868,6 +1958,9 @@ class RecordingEngine:
                     with self._state_lock:
                         self._capture_failed = self._running
                         self._last_error = str(e)
+                        failed = self._capture_failed
+                    if failed:
+                        self._report_capture_failure(str(e))
                     break
 
             if hdc_screen is not None:

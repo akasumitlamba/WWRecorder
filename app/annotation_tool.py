@@ -36,6 +36,7 @@ from PyQt6.QtGui import (
 # ── Windows API ────────────────────────────────────────────────────────────────
 MAX_ANNOTATION_TEXT = 500
 MAX_UNDO_ITEMS = 300
+MAX_TRANSFORM_UNDO_BYTES = 256 * 1024 * 1024
 LASER_TRAIL_HOLD_MS = 3000
 LASER_TRAIL_FADE_MS = 1000
 
@@ -176,6 +177,46 @@ class _AnnotationPlainTextEdit(QPlainTextEdit):
         super().keyPressEvent(event)
         if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self.content_resized.emit()
+
+
+_FLIP_BACK = {'flip_h': (True, False), 'flip_v': (False, True)}
+
+
+def _invert_transform(image, action):
+    if action in _FLIP_BACK:
+        return image.mirrored(*_FLIP_BACK[action])
+    return image.transformed(QTransform().rotate(-90))
+
+
+def _apply_lossless(image, action):
+    if action in _FLIP_BACK:
+        return image.mirrored(*_FLIP_BACK[action])
+    return image.transformed(QTransform().rotate(90))
+
+
+def _trim_transform_chain(record) -> None:
+    """Bound pictures kept for rotate/flip/crop undo; the newest step always undoes."""
+    seen, total = set(), 0
+    while record is not None:
+        for name in ('old_image', 'new_image'):
+            image = record.get(name)
+            if image is not None and image.cacheKey() not in seen:
+                seen.add(image.cacheKey())
+                total += image.sizeInBytes()
+        # An earlier transform may sit directly below, or inside a Clear action.
+        owner, key, older = record, 'old_items', None
+        while older is None:
+            older = next((i for i in owner[key] if i.get('type') == 'transform'), None)
+            if older is None:
+                cleared = next((i for i in owner[key] if i.get('_action') == 'clear'), None)
+                if cleared is None:
+                    return
+                owner, key = cleared, '_cleared_items'
+        if total > MAX_TRANSFORM_UNDO_BYTES:
+            # The picture already contains it; only its own undo step is dropped.
+            owner[key] = [i for i in owner[key] if i is not older]
+            return
+        record = older
 
 
 def _trim_history(items: list, redo_stack: list) -> None:
@@ -718,6 +759,57 @@ class _ToastWidget(QWidget):
         self.adjustSize()
         self.show()
         self.raise_()
+
+
+class DeviceToast(_ToastWidget):
+    """Annotator-style popup for audio device changes, as its own window.
+
+    Shown over the recorded area, click-through, never focused, and excluded
+    from the recording where Windows supports it.
+    """
+    def __init__(self):
+        super().__init__(None)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Tool
+                            | Qt.WindowType.WindowStaysOnTopHint
+                            | Qt.WindowType.WindowTransparentForInput
+                            | Qt.WindowType.WindowDoesNotAcceptFocus)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self._hide_timer = QTimer(self)
+        self._hide_timer.setSingleShot(True)
+        self._hide_timer.timeout.connect(self.hide)
+
+    def show_device(self, message: str, anchor=None, duration_ms: int = 3200):
+        screen = (QApplication.screenAt(anchor) if anchor is not None else None) or QApplication.primaryScreen()
+        area = screen.availableGeometry()
+        # Forget the previous message's wrapping before measuring this one.
+        self.text_label.setMinimumWidth(0)
+        self.text_label.setMaximumWidth(16777215)
+        self.text_label.setWordWrap(False)
+        self.text_label.setText(message)
+        # Long device names wrap instead of running off the screen.
+        limit = max(200, area.width() - 120)
+        if self.text_label.sizeHint().width() > limit:
+            self.text_label.setWordWrap(True)
+            self.text_label.setFixedWidth(limit)
+        icon = _asset("desktop_audio.png" if message.startswith("System audio") else "mic.png")
+        self.icon_label.setVisible(os.path.exists(icon))
+        if os.path.exists(icon):
+            self.icon_label.setPixmap(QPixmap(icon))
+        self.layout().invalidate()
+        self.layout().activate()
+        self.adjustSize()
+        center = anchor if anchor is not None and area.contains(anchor) else area.center()
+        x = max(area.left() + 8, min(center.x() - self.width() // 2, area.right() - self.width() - 8))
+        y = max(area.top() + 8, min(center.y() - self.height() // 2, area.bottom() - self.height() - 8))
+        self.move(x, y)
+        self.show()
+        self._hide_timer.start(duration_ms)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        from ui_elements import _exclude_from_capture
+        _exclude_from_capture(int(self.winId()))
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  AnnotationCanvas — Live Recording Overlay
@@ -2267,7 +2359,8 @@ class _DrawingArea(QWidget):
                 item['_target'].update(item['_before'])
             self._redo_stack.append(item)
             if item.get('type') == 'transform':
-                self._original = item['old_image']
+                self._original = (_invert_transform(self._original, item['action'])
+                                  if item.get('action') else item['old_image'])
                 self._items = list(item['old_items'])
                 self._recalc_transform()
                 self._clear_crop_state()
@@ -2295,7 +2388,8 @@ class _DrawingArea(QWidget):
                 item['old_items'] = list(self._items)
                 self._items.clear()
                 self._items.append(item)
-                self._original = item['new_image']
+                self._original = (_apply_lossless(self._original, item['action'])
+                                  if item.get('action') else item['new_image'])
                 self._recalc_transform()
                 self._clear_crop_state()
             else:
@@ -2328,8 +2422,9 @@ class _DrawingArea(QWidget):
     def _apply_structural_transform(self, action: str):
         self._commit_text()
         
-        old_original = self._original.copy()
+        old_original = QImage(self._original)  # shared until modified
         old_items = list(self._items)
+        marks = any(item.get('type') != 'transform' for item in old_items)
         
         base = old_original.copy()
         if old_items:
@@ -2366,12 +2461,16 @@ class _DrawingArea(QWidget):
             'old_items': old_items,
             'new_image': new_image
         }
+        if action != 'crop' and not marks:
+            # Exactly reversible: recompute on undo/redo instead of keeping pictures.
+            record.update(old_image=None, new_image=None, action=action)
         
         self._items.clear()
         self._items.append(record)
         self._redo_stack.clear()
         
         self._original = new_image
+        _trim_transform_chain(record)
         self._clear_crop_state()
         if action == 'crop':
             self.set_tool('pencil')

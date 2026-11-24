@@ -40,7 +40,7 @@ from PyQt6.QtGui import (
     QShortcut, QTransform, QAction, QTextOption, QTextCursor,
     QAbstractTextDocumentLayout, QPalette,
 )
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices, QVideoFrame
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput, QMediaDevices, QVideoFrame, QVideoSink
 from PyQt6.QtMultimediaWidgets import QVideoWidget, QGraphicsVideoItem
 
 # ── Windows API ────────────────────────────────────────────────────────────────
@@ -839,6 +839,25 @@ class _ScreenshotWorker(QThread):
 # ─────────────────────────────────────────────────────────────────────────────
 
 SEEK_THUMBNAIL_SPACING = 2.0  # seconds between thumbnails before seeking is faster
+
+
+def _list_videos(folder: str) -> list:
+    """Newest-first videos; tolerates [brackets] and files vanishing mid-scan."""
+    found = []
+    try:
+        with os.scandir(folder) as entries:
+            for entry in entries:
+                if not entry.name.lower().endswith(('.mkv', '.mp4', '.webm', '.avi')):
+                    continue
+                try:
+                    # scandir supplies the timestamp on Windows without another lookup.
+                    found.append((entry.stat().st_mtime, os.path.normpath(entry.path)))
+                except OSError:
+                    continue
+    except OSError:
+        return []
+    found.sort(key=lambda item: item[0], reverse=True)
+    return [path for _, path in found]
 
 
 class _ThumbnailExtractor(QThread):
@@ -2408,14 +2427,56 @@ class _VideoGraphicsView(QGraphicsView):
         self._held_frame.setAcceptedMouseButtons(Qt.MouseButton.NoButton)
         self._held_frame.hide()
         self._scene.addItem(self._held_frame)
-        self._video_item.videoSink().videoFrameChanged.connect(self._remember_frame)
+        # The player writes into this relay, which nothing is connected to. Frames
+        # arrive from Qt's video thread, and any queued videoFrameChanged receiver
+        # (Python, or QGraphicsVideoItem itself) would keep a full frame alive per
+        # signal while the GUI thread is busy, growing memory without limit. A GUI
+        # timer shows the relay's current frame, so late frames are skipped instead.
+        self.player_sink = QVideoSink(self)
+        self._frame_image_interval = 0.25
+        self._frame_image_at = 0.0
+        self._sampled_start = None
+        self._frame_timer = QTimer(self)
+        self._frame_timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self._frame_timer.setInterval(10)
+        self._frame_timer.timeout.connect(self._sample_frame)
+        self._frame_timer.start()
         self._video_item.nativeSizeChanged.connect(self._on_native_size_changed)
         self._native_size = QSizeF(1920, 1080)
 
     def clear_held_frame(self, *_):
+        self._sampled_start = None
+        self._frame_image_at = 0.0
         self._last_frame_image = QImage()
         self._held_frame.hide()
         self._held_frame.setPixmap(QPixmap())
+
+    def set_frame_precision(self, every_frame: bool):
+        """Near the end keep every picture; otherwise a few copies per second."""
+        self._frame_image_interval = 0.0 if every_frame else 0.25
+
+    def _sample_frame(self):
+        frame = self.player_sink.videoFrame()
+        if not frame.isValid():
+            if self._sampled_start is not None:
+                self._video_item.videoSink().setVideoFrame(frame)
+            self._sampled_start = None
+            if not self._held_frame.isVisible():
+                self._remember_frame(frame)
+            return
+        start = frame.startTime()
+        if start == self._sampled_start and start >= 0:
+            return
+        self._sampled_start = start
+        self._video_item.videoSink().setVideoFrame(frame)
+        self._held_frame.hide()
+        now = time.monotonic()
+        if now - self._frame_image_at >= self._frame_image_interval:
+            self._frame_image_at = now
+            self._remember_frame(frame)
+
+    def stop_frame_sampling(self):
+        self._frame_timer.stop()
 
     def _remember_frame(self, frame):
         if frame.isValid():
@@ -3267,10 +3328,10 @@ class VideoPlayerWindow(QWidget):
             scrub_timer.stop()
         try:
             if self._video_view is not None:
-                self._video_view.video_item.videoSink().videoFrameChanged.disconnect(self._video_view._remember_frame)
+                self._video_view.stop_frame_sampling()
                 self._video_view.clear_held_frame()
                 self._player.mediaStatusChanged.disconnect(self._hold_frame_at_end)
-            self._player.setVideoOutput(None)
+            self._player.setVideoOutput(None)  # also detaches the relay sink
         except Exception:
             pass
         # QMediaPlayer.stop() can synchronously wait for the Windows media
@@ -3459,14 +3520,12 @@ class VideoPlayerWindow(QWidget):
         self._seekbar.sliderReleased.connect(self._on_seekbar_released)
         self._seekbar_dragging = False
         self._scrub_pending = None
-        self._scrub_inflight_at = None
         self._scrub_resume = False
         self._scrub_process = None
         self._scrub_preview_position = None
         self._scrub_timer = QTimer(self)
         self._scrub_timer.setInterval(33)
         self._scrub_timer.timeout.connect(self._flush_scrub_preview)
-        self._video_view.video_item.videoSink().videoFrameChanged.connect(self._on_scrub_frame)
         ctrl_layout.addWidget(self._seekbar)
 
         # Frame timeline (edit mode only — hidden by default)
@@ -4136,14 +4195,16 @@ class VideoPlayerWindow(QWidget):
         self._audio_output.setDevice(self._media_devices.defaultAudioOutput())
         self._media_devices.audioOutputsChanged.connect(self._sync_default_audio_output)
         self._audio_device_timer = QTimer(self)
-        self._audio_device_timer.setInterval(1000)
+        # audioOutputsChanged is the main trigger; enumerating endpoints can block
+        # the GUI thread, so the fallback poll stays infrequent.
+        self._audio_device_timer.setInterval(5000)
         self._audio_device_timer.timeout.connect(self._sync_default_audio_output)
         self._audio_device_timer.start()
 
         self._player = QMediaPlayer()
         self._player.setAudioOutput(self._audio_output)
-        # Set video output to the QGraphicsVideoItem inside the view
-        self._player.setVideoOutput(self._video_view.video_item)
+        # The view shows frames from its relay sink
+        self._player.setVideoSink(self._video_view.player_sink)
         self._player.sourceChanged.connect(self._video_view.clear_held_frame)
         self._player.sourceChanged.connect(self._reset_scrub_source)
         self._player.mediaStatusChanged.connect(self._hold_frame_at_end)
@@ -4327,15 +4388,15 @@ class VideoPlayerWindow(QWidget):
         self._seekbar_dragging = True
         self._scrub_resume = self._player.playbackState() == QMediaPlayer.PlaybackState.PlayingState
         self._player.pause()
-        self._scrub_inflight_at = None
         self._scrub_timer.start()
-
-    def _on_scrub_frame(self, frame):
-        if frame.isValid():
-            self._scrub_inflight_at = None
 
     def _hold_frame_at_end(self, status):
         if status == QMediaPlayer.MediaStatus.EndOfMedia:
+            # Prefer the exact final picture if the sink still has it.
+            frame = self._video_view.player_sink.videoFrame()
+            if frame.isValid():
+                self._video_view._sample_frame()
+                self._video_view._remember_frame(frame)
             self._video_view._remember_frame(QVideoFrame())
 
     def _reset_scrub_source(self, *_):
@@ -4432,6 +4493,8 @@ class VideoPlayerWindow(QWidget):
     def _on_position_changed(self, position: int):
         self._timeline.set_position(position)
         self._apply_preview_mute(position)
+        duration = self._player.duration()
+        self._video_view.set_frame_precision(duration > 0 and duration - position < 1000)
         if not self._seekbar_dragging:
             self._seekbar.setValue(position)
         self._update_time_label()
@@ -5305,14 +5368,7 @@ class VideoPlayerWindow(QWidget):
     # ── Folder Navigation ─────────────────────────────────────────────────────
 
     def _refresh_video_list(self):
-        self._video_files = []
-        if os.path.isdir(self._output_folder):
-            import glob
-            files = []
-            for ext in ('*.mkv', '*.mp4', '*.webm', '*.avi'):
-                files.extend(glob.glob(os.path.join(self._output_folder, ext)))
-            files.sort(key=os.path.getmtime, reverse=True)
-            self._video_files = [os.path.normpath(p) for p in files]
+        self._video_files = _list_videos(self._output_folder)
 
         target_path = os.path.normpath(self._filepath)
         try:

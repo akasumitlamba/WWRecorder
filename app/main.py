@@ -1331,7 +1331,21 @@ class WWRecorderApp:
             elif kind == 'capture_error':
                 self.tray.showMessage('Recording recovery', str(message), self.tray.icon(), 8000)
             elif kind == 'audio_reconnected':
-                self.tray.showMessage("Audio device changed", message, self.tray.icon(), 5000)
+                self._show_audio_device_toast(message)
+            elif kind == 'recording_interrupted':
+                self.tray.showMessage('Recording stopped', str(message), self.tray.icon(), 10000)
+                if self.pill and self.engine.is_recording():
+                    self.pill._initiate_stop()
+
+    def _show_audio_device_toast(self, message) -> None:
+        """Same black popup as annotation pause/resume; never takes focus."""
+        try:
+            if getattr(self, '_device_toast', None) is None:
+                from annotation_tool import DeviceToast
+                self._device_toast = DeviceToast()
+            self._device_toast.show_device(str(message), getattr(self, '_last_capture_anchor', None))
+        except Exception as exc:
+            print(f"[WWRecorder] Audio device popup failed: {exc}")
 
     def _on_hotkey_triggered(self) -> None:
         """
