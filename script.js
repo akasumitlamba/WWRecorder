@@ -191,24 +191,22 @@
             <span class="download-glyph has-svg" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></span>
             <div class="modal-heading-text">
               <p class="section-kicker">Download WWRecorder</p>
-              <h2 id="download-title-shared">Choose an installation source</h2>
+              <h2 id="download-title-shared">Get WWRecorder for Windows</h2>
             </div>
           </div>
           <div class="download-choices">
             <a class="download-choice store-choice" href="ms-windows-store://pdp/?productid=9PBS5VDWFXND">
               <span class="choice-icon-wrap" aria-hidden="true"><span class="ms-logo large"><i></i><i></i><i></i><i></i></span></span>
               <span class="choice-text">
-                <small>RECOMMENDED</small>
-                <strong>Microsoft Store</strong>
-                <em>Install and receive Store updates</em>
+                <small>Recommended</small>
+                <strong>Get for Windows</strong>
+                <em>From Microsoft Store, with automatic updates</em>
               </span>
             </a>
             <a class="download-choice installer-choice" href="download.html">
               <span class="choice-icon-wrap" aria-hidden="true"><img class="download-icon" src="icons/download-tray.svg" alt=""></span>
               <span class="choice-text">
-                <small>STANDALONE</small>
-                <strong>Installer</strong>
-                <em>Latest stable release from GitHub</em>
+                <strong>Download the EXE instead</strong>
               </span>
             </a>
           </div>
@@ -250,13 +248,22 @@
     fetchInstallerReleases().then(renderReleaseLists).catch(() => renderReleaseLists([]));
   }
 
+  // The Store app link works only on Windows; other devices get the Store web page.
+  if (!/Windows/i.test(navigator.userAgent)) {
+    document.querySelectorAll('a[href^="ms-windows-store:"]').forEach((link) => {
+      link.href = 'https://apps.microsoft.com/detail/9PBS5VDWFXND';
+      link.target = '_blank';
+      link.rel = 'noopener';
+    });
+  }
+
   let lastFocused;
   const openDownloadModal = () => {
     if (!modal) return;
     lastFocused = document.activeElement;
     modal.hidden = false;
     document.body.style.overflow = 'hidden';
-    modal.querySelector('.modal-close')?.focus();
+    modal.querySelector('.store-choice')?.focus();
     if (releaseLists.length) fetchInstallerReleases().then(renderReleaseLists).catch(() => renderReleaseLists([]));
   };
   const closeDownloadModal = () => {
