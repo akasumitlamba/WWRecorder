@@ -584,8 +584,9 @@ nav a:not(.nav-download):hover{color:var(--red)!important;background:rgba(245,34
 .enterprise-hero h1{font-size:clamp(58px,7.8vw,98px)}.enterprise-hero .hero-actions{justify-content:flex-start}.enterprise-code{white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:#08090c;border-radius:7px;line-height:1.6;font-size:13px}.enterprise-table-wrap{overflow-x:auto}.enterprise-table{width:100%;border-collapse:collapse;text-align:left;font-size:14px}.enterprise-table th,.enterprise-table td{padding:14px 12px;border-bottom:1px solid var(--line);vertical-align:top}.enterprise-table th{color:white}.enterprise-table td:first-child{width:35%;overflow-wrap:anywhere}.enterprise-table code{word-break:break-word}.doc-content .content-card p{max-width:78ch}
 @media(max-width:600px){.security-notice{right:16px;top:86px}.enterprise-table th,.enterprise-table td{padding:12px 6px;font-size:13px}}
 
-/* Store-first download actions: rounded buttons, quiet EXE link. */
-.button,.store-button,.github-button,.nav-download,.hero-centered .store-button,.hero-centered .button{border-radius:999px}
+/* Store-first download actions: rounded rectangles, quiet EXE link. */
+.button,.store-button,.github-button,.nav-download,.hero-centered .store-button,.hero-centered .button{border-radius:12px}
+.nav-download{border-radius:9px}
 .nav-download{padding-inline:17px!important}
 .store-button,.hero-centered .store-button{border:0;background:linear-gradient(180deg,#ff3d48,#e0131f);color:#fff;box-shadow:0 10px 30px rgba(245,34,45,.32),inset 0 1px 0 rgba(255,255,255,.22)}
 .store-button:hover,.hero-centered .store-button:hover{background:linear-gradient(180deg,#ff4d57,#ea1824);box-shadow:0 14px 36px rgba(245,34,45,.42),inset 0 1px 0 rgba(255,255,255,.26)}
@@ -600,7 +601,7 @@ nav a:not(.nav-download):hover{color:var(--red)!important;background:rgba(245,34
 .linux-soon{display:inline-flex;align-items:center;gap:8px;color:#e6e6e8;font-weight:600}
 .linux-soon i{width:7px;height:7px;border-radius:50%;background:var(--yellow)}
 .download-choices{grid-template-columns:1fr;gap:6px}
-.store-choice,.store-choice:hover{border:0;border-radius:20px;background:linear-gradient(180deg,#ff3d48,#e0131f);color:#fff}
+.store-choice,.store-choice:hover{border:0;border-radius:14px;background:linear-gradient(180deg,#ff3d48,#e0131f);color:#fff}
 .store-choice small,.store-choice em{color:rgba(255,255,255,.9)}
 .store-choice strong{color:#fff;font-size:18px}
 .store-choice:focus-visible{outline:2px solid rgba(255,255,255,.6);outline-offset:2px}
@@ -617,3 +618,8 @@ nav a:not(.nav-download):hover{color:var(--red)!important;background:rgba(245,34
 }
 @media(max-width:360px){.hero-centered .github-button{padding:0 14px}.github-button .github-label{display:none}}
 .help-summary .store-button{border:0;background:linear-gradient(180deg,#ff3d48,#e0131f);box-shadow:none}
+/* Hero ribbon: a flat band whose fill and hairlines fade out toward both ends. */
+.hero-centered .hero-pill,.hero-pill{position:relative;padding-inline:clamp(40px,7vw,120px);border:0;border-radius:0;box-shadow:none;background:linear-gradient(90deg,transparent,rgba(245,34,45,.12) 25%,rgba(245,34,45,.32) 50%,rgba(245,34,45,.12) 75%,transparent)}
+.hero-pill::before,.hero-pill::after{content:"";position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,75,83,.2) 22%,rgba(255,75,83,.6) 50%,rgba(255,75,83,.2) 78%,transparent)}
+.hero-pill::before{top:0}.hero-pill::after{bottom:0}
+@media(max-width:760px){.hero-centered .hero-pill,.hero-pill{padding-inline:24px}}
